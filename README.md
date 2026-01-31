@@ -13,7 +13,10 @@
     *   `gemini-*-quota`: Использует ваши личные бесплатные квоты через эмуляцию Cloud Code API.
     *   `gemini-*-vertex`: Использует облачные кредиты ($10/мес), входящие в подписку, через Vertex AI API.
 *   **⚡ Прямой HTTP-движок**: Никаких лишних SDK. Максимальная скорость и надежность за счет прямого общения с Google API.
-*   **🤖 Полная совместимость с Kilo Code**: Поддержка `stream_options` и `usage` для отображения статистики токенов и стоимости в IDE.
+*   **🤖 Полная совместимость с Kilo Code (v5.2.2+)**:
+    *   Поддержка `stream_options` и `usage` для отображения статистики токенов.
+    *   **Поддержка инструментов (Function Calling)**: Прокси корректно обрабатывает вызовы инструментов (native tool calling), конвертируя их между форматами OpenAI и Gemini.
+    *   **Автоматическая адаптация схем**: Исправляет несовместимости в JSON Schema (например, `type: ["string", "null"]`) для корректной работы с Gemini API.
 *   **📦 Docker + UV**: Современная упаковка с гарантированной воспроизводимостью зависимостей.
 
 ## 🛠️ Быстрый старт
@@ -45,18 +48,43 @@ docker-compose up -d --build
 | **Provider** | OpenAI Compatible |
 
 ### Особенности работы с Kilo Code:
-Наш прокси специально оптимизирован для Kilo Code. Он поддерживает:
+Наш прокси специально оптимизирован для Kilo Code (включая версии v5.2.2 и новее). Он поддерживает:
 *   **Подсчет токенов**: Передает `usage` в стриме, чтобы вы видели расход квот.
+*   **Инструменты (Tools)**: Позволяет Kilo Code выполнять команды, читать файлы и использовать другие возможности через нативный механизм вызова функций (Native Tool Calling).
 *   **Форматирование ошибок**: Ошибки Google API транслируются в формат OpenAI для корректного отображения в IDE.
 
 ### Использование в Python (LangChain / OpenAI SDK)
-Прокси полностью совместим со стандартными библиотеками:
+Прокси полностью совместим со стандартными библиотеками, включая поддержку Function Calling:
 ```python
 from openai import OpenAI
 client = OpenAI(base_url="http://localhost:4000/v1", api_key="sk-proxy")
+
+# Простой чат
 response = client.chat.completions.create(
     model="gemini-3-flash-preview-quota",
     messages=[{"role": "user", "content": "Hello!"}]
+)
+
+# Использование инструментов (Function Calling)
+tools = [{
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get current weather",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {"type": "string"}
+            },
+            "required": ["location"]
+        }
+    }
+}]
+
+response_with_tools = client.chat.completions.create(
+    model="gemini-3-flash-preview-quota",
+    messages=[{"role": "user", "content": "Weather in Paris?"}],
+    tools=tools
 )
 ```
 
