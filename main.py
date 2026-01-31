@@ -138,6 +138,42 @@ def map_model_name(name):
     }
     return mapping.get(name, name)
 
+def clean_gemini_schema(schema):
+    """
+    Очищает JSON Schema для совместимости с Gemini API (Google Cloud / Vertex AI).
+    1. Преобразует type: ["string", "null"] -> type: "string"
+    2. Удаляет $schema
+    3. Удаляет additionalProperties (если вызывает проблемы, но пока оставим, если false)
+    """
+    if not isinstance(schema, dict):
+        return schema
+    
+    new_schema = schema.copy()
+    
+    # 1. Fix type being a list
+    if 'type' in new_schema:
+        if isinstance(new_schema['type'], list):
+            # Take the first non-null type
+            types = [t for t in new_schema['type'] if t != 'null']
+            if types:
+                new_schema['type'] = types[0]
+            else:
+                # Fallback if only null or empty
+                new_schema['type'] = 'STRING'
+    
+    # 2. Remove $schema
+    if '$schema' in new_schema:
+        del new_schema['$schema']
+        
+    # Recurse
+    if 'properties' in new_schema:
+        new_schema['properties'] = {k: clean_gemini_schema(v) for k, v in new_schema['properties'].items()}
+    
+    if 'items' in new_schema:
+        new_schema['items'] = clean_gemini_schema(new_schema['items'])
+        
+    return new_schema
+
 def transform_openai_to_gemini(messages):
     """
     Преобразует сообщения из формата OpenAI в формат Gemini.
@@ -213,6 +249,22 @@ def chat_completions():
             "maxOutputTokens": data.get('max_tokens', 4096),
         }
 
+        # Обработка инструментов (Tools)
+        tools = data.get('tools', [])
+        gemini_tools = []
+        if tools:
+            declarations = []
+            for tool in tools:
+                if tool.get('type') == 'function':
+                    func = tool.get('function', {})
+                    declarations.append({
+                        "name": func.get('name'),
+                        "description": func.get('description'),
+                        "parameters": clean_gemini_schema(func.get('parameters'))
+                    })
+            if declarations:
+                gemini_tools = [{"function_declarations": declarations}]
+
         # Определение режима работы (Quota vs Vertex)
         is_quota_mode = 'quota' in raw_model
         
@@ -242,6 +294,9 @@ def chat_completions():
                     "generationConfig": gemini_config
                 }
             }
+
+            if gemini_tools:
+                payload["request"]["tools"] = gemini_tools
             
             # System instruction workaround for Cloud Code
             if system_instruction:
@@ -274,6 +329,9 @@ def chat_completions():
                 "contents": contents,
                 "generationConfig": gemini_config
             }
+
+            if gemini_tools:
+                payload["tools"] = gemini_tools
             
             if system_instruction:
                 payload["system_instruction"] = {"parts": [{"text": system_instruction}]}
@@ -325,6 +383,7 @@ def chat_completions():
                             if candidates:
                                 part = candidates[0].get('content', {}).get('parts', [{}])[0]
                                 text = part.get('text', '')
+                                function_call = part.get('functionCall')
                                 
                                 if text:
                                     # OpenAI Stream Chunk Format
@@ -336,6 +395,31 @@ def chat_completions():
                                         "choices": [{
                                             "index": 0,
                                             "delta": {"content": text},
+                                            "finish_reason": None
+                                        }]
+                                    }
+                                    yield f"data: {json.dumps(openai_chunk, ensure_ascii=False)}\n\n"
+                                
+                                if function_call:
+                                    tool_call_id = f"call_{int(time.time())}"
+                                    openai_chunk = {
+                                        "id": f"chatcmpl-{int(time.time())}",
+                                        "object": "chat.completion.chunk",
+                                        "created": int(time.time()),
+                                        "model": raw_model,
+                                        "choices": [{
+                                            "index": 0,
+                                            "delta": {
+                                                "tool_calls": [{
+                                                    "index": 0,
+                                                    "id": tool_call_id,
+                                                    "type": "function",
+                                                    "function": {
+                                                        "name": function_call.get('name'),
+                                                        "arguments": json.dumps(function_call.get('args', {}))
+                                                    }
+                                                }]
+                                            },
                                             "finish_reason": None
                                         }]
                                     }
@@ -385,16 +469,36 @@ def chat_completions():
                 
                 candidates = resp_data.get('candidates', [])
                 text = ""
+                function_call = None
                 finish_reason = "stop"
                 
                 if candidates:
-                    text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                    part = candidates[0].get('content', {}).get('parts', [{}])[0]
+                    text = part.get('text', '')
+                    function_call = part.get('functionCall')
+                    
                     # Map Gemini finishReason to OpenAI
                     gemini_finish = candidates[0].get('finishReason')
                     if gemini_finish == "MAX_TOKENS": finish_reason = "length"
+                    elif function_call: finish_reason = "tool_calls"
                     # else default to stop
 
                 usage = resp_data.get('usageMetadata', {})
+                
+                message_content = {
+                    "role": "assistant",
+                    "content": text
+                }
+                
+                if function_call:
+                    message_content["tool_calls"] = [{
+                        "id": f"call_{int(time.time())}",
+                        "type": "function",
+                        "function": {
+                            "name": function_call.get('name'),
+                            "arguments": json.dumps(function_call.get('args', {}))
+                        }
+                    }]
                 
                 openai_response = {
                     "id": f"chatcmpl-{int(time.time())}",
@@ -403,10 +507,7 @@ def chat_completions():
                     "model": raw_model,
                     "choices": [{
                         "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": text
-                        },
+                        "message": message_content,
                         "finish_reason": finish_reason
                     }],
                     "usage": {
