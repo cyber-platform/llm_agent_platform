@@ -1,0 +1,440 @@
+import os
+import json
+import time
+import threading
+import httpx
+from flask import Flask, request, Response, stream_with_context
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google.oauth2 import service_account
+
+app = Flask(__name__)
+
+# --- Configuration ---
+USER_CREDS_PATH = 'secrets/user_credentials.json'
+SERVICE_ACCOUNT_PATH = 'secrets/service_account.json'
+
+# --- Gemini CLI Emulation Constants ---
+GEMINI_CLI_CLIENT_ID = '681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com'
+GEMINI_CLI_CLIENT_SECRET = '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'
+CLOUD_CODE_ENDPOINT = "https://cloudcode-pa.googleapis.com/v1internal"
+
+# Global state for credentials
+user_creds = None
+auth_lock = threading.Lock()
+project_id_cache = None
+
+def refresh_user_creds():
+    """Refreshes OAuth credentials in the background using Gemini CLI client ID"""
+    global user_creds
+    while True:
+        try:
+            if os.path.exists(USER_CREDS_PATH):
+                with open(USER_CREDS_PATH, 'r') as f:
+                    info = json.load(f)
+                
+                # Use Gemini CLI Client ID/Secret if not present in the file
+                client_id = info.get('client_id', GEMINI_CLI_CLIENT_ID)
+                client_secret = info.get('client_secret', GEMINI_CLI_CLIENT_SECRET)
+
+                creds = Credentials(
+                    token=None,
+                    refresh_token=info['refresh_token'],
+                    token_uri="https://oauth2.googleapis.com/token",
+                    client_id=client_id,
+                    client_secret=client_secret
+                )
+                
+                creds.refresh(Request())
+                with auth_lock:
+                    user_creds = creds
+                print(f"[AUTH] User OAuth token refreshed (Gemini CLI Mode).", flush=True)
+            else:
+                print(f"[AUTH] Error: {USER_CREDS_PATH} not found!", flush=True)
+        except Exception as e:
+            print(f"[AUTH] User refresh failed: {e}", flush=True)
+        time.sleep(3000)
+
+def get_vertex_token():
+    """Gets an access token for Vertex AI using Service Account"""
+    if not os.path.exists(SERVICE_ACCOUNT_PATH):
+        return None
+    creds = service_account.Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_PATH, 
+        scopes=['https://www.googleapis.com/auth/cloud-platform']
+    )
+    creds.refresh(Request())
+    return creds.token
+
+def discover_project_id(token):
+    """
+    Discovers the Google Cloud project ID associated with the user's account
+    using the Cloud Code API on-boarding flow.
+    """
+    global project_id_cache
+    if project_id_cache:
+        return project_id_cache
+
+    # Check env var first
+    if os.environ.get("GOOGLE_CLOUD_PROJECT"):
+        project_id_cache = os.environ.get("GOOGLE_CLOUD_PROJECT")
+        return project_id_cache
+
+    try:
+        # Step 1: Try to load existing project
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        # Use a dummy project ID to start discovery if none provided
+        initial_project = "" 
+        
+        payload = {
+            "cloudaicompanionProject": initial_project,
+            "metadata": {
+                "ideType": "IDE_UNSPECIFIED",
+                "platform": "PLATFORM_UNSPECIFIED",
+                "pluginType": "GEMINI",
+                "duetProject": initial_project
+            }
+        }
+        
+        resp = httpx.post(f"{CLOUD_CODE_ENDPOINT}:loadCodeAssist", json=payload, headers=headers)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("cloudaicompanionProject"):
+                project_id_cache = data["cloudaicompanionProject"]
+                print(f"[AUTH] Discovered Project ID: {project_id_cache}", flush=True)
+                return project_id_cache
+
+        # Step 2: Onboard if needed (simplified)
+        # For now, we assume the user has already used Gemini CLI at least once
+        # or we fallback to what's in the environment.
+        print("[AUTH] Warning: Could not auto-discover project ID via API. Please set GOOGLE_CLOUD_PROJECT env var.", flush=True)
+        return None
+
+    except Exception as e:
+        print(f"[AUTH] Project discovery failed: {e}", flush=True)
+        return None
+
+def map_model_name(name):
+    """Maps proxy model names to real Google model IDs (January 2026)"""
+    mapping = {
+        # Quota Group (OAuth)
+        'gemini-3-pro-preview-quota': 'gemini-3-pro-preview',
+        'gemini-3-flash-preview-quota': 'gemini-3-flash-preview',
+        'gemini-2.5-pro-quota': 'gemini-2.5-pro',
+        'gemini-2.5-flash-quota': 'gemini-2.5-flash',
+        'gemini-2.5-flash-lite-quota': 'gemini-2.5-flash-lite',
+        
+        # Vertex Group (Credits)
+        'gemini-3-pro-preview-vertex': 'gemini-3-pro-preview',
+        'gemini-3-flash-preview-vertex': 'gemini-3-flash-preview',
+        'gemini-2.5-pro-vertex': 'gemini-2.5-pro',
+        'gemini-2.5-flash-vertex': 'gemini-2.5-flash',
+        'gemini-2.5-flash-lite-vertex': 'gemini-2.5-flash-lite',
+        
+        # Specialized
+        'gemini-3-pro-image-vertex': 'gemini-3-pro-image-preview',
+        'gemini-2.5-flash-image-vertex': 'gemini-2.5-flash-image',
+        'nano-banana': 'gemini-2.5-flash-image'
+    }
+    return mapping.get(name, name)
+
+def transform_openai_to_gemini(messages):
+    """
+    Преобразует сообщения из формата OpenAI в формат Gemini.
+    Поддерживает:
+    - system (переносится в system_instruction или prepend к первому user)
+    - user (текст и массивы контента)
+    - assistant (текст)
+    """
+    contents = []
+    system_instruction = None
+    
+    for m in messages:
+        role = m.get('role')
+        raw_content = m.get('content')
+        
+        text_parts = []
+        if isinstance(raw_content, str):
+            text_parts.append({"text": raw_content})
+        elif isinstance(raw_content, list):
+            for part in raw_content:
+                if isinstance(part, dict):
+                    if part.get("type") == "text":
+                        text_parts.append({"text": part.get("text", "")})
+                    # TODO: Добавить поддержку image_url для мультимодальности
+                elif isinstance(part, str):
+                    text_parts.append({"text": part})
+
+        if role == 'system' or role == 'developer': # OpenAI o1/o3 использует developer
+            current_text = "".join([p["text"] for p in text_parts])
+            if system_instruction:
+                system_instruction += "\n" + current_text
+            else:
+                system_instruction = current_text
+        else:
+            # Gemini использует роли 'user' и 'model'
+            gemini_role = 'user' if role == 'user' else 'model'
+            contents.append({
+                "role": gemini_role,
+                "parts": text_parts
+            })
+            
+    return contents, system_instruction
+
+def create_openai_error(message, type="server_error", code=500):
+    """Формирует ошибку в формате OpenAI"""
+    return json.dumps({
+        "error": {
+            "message": message,
+            "type": type,
+            "param": None,
+            "code": code
+        }
+    }, ensure_ascii=False)
+
+@app.route('/v1/chat/completions', methods=['POST'])
+def chat_completions():
+    try:
+        data = request.json
+        raw_model = data.get('model', 'gemini-3-flash-preview-quota')
+        target_model = map_model_name(raw_model)
+        messages = data.get('messages', [])
+        stream = data.get('stream', False)
+        stream_options = data.get('stream_options', {})
+        include_usage = stream_options.get('include_usage', False) if stream else False
+        
+        print(f"[REQ] Model: {raw_model} -> {target_model} | Stream: {stream} | Usage: {include_usage}", flush=True)
+
+        contents, system_instruction = transform_openai_to_gemini(messages)
+        
+        # Базовая конфигурация для Gemini
+        gemini_config = {
+            "temperature": data.get('temperature', 0.7),
+            "maxOutputTokens": data.get('max_tokens', 4096),
+        }
+
+        # Определение режима работы (Quota vs Vertex)
+        is_quota_mode = 'quota' in raw_model
+        
+        # --- Подготовка запроса ---
+        url = ""
+        headers = {}
+        payload = {}
+        params = {}
+
+        if is_quota_mode:
+            # --- Gemini CLI / Cloud Code Emulation Mode ---
+            with auth_lock:
+                if not user_creds:
+                    return create_openai_error("Authentication not initialized. Please run auth script.", "auth_error", 401), 401
+                token = user_creds.token
+            
+            project_id = discover_project_id(token)
+            if not project_id:
+                return create_openai_error("Google Cloud Project ID not found. Set GOOGLE_CLOUD_PROJECT env var.", "config_error", 500), 500
+
+            # Cloud Code API Payload
+            payload = {
+                "model": target_model,
+                "project": project_id,
+                "request": {
+                    "contents": contents,
+                    "generationConfig": gemini_config
+                }
+            }
+            
+            # System instruction workaround for Cloud Code
+            if system_instruction:
+                 # Ищем первое сообщение user
+                 for content in payload["request"]["contents"]:
+                     if content["role"] == "user":
+                         content["parts"].insert(0, {"text": f"System Instruction: {system_instruction}"})
+                         break
+                 else:
+                     # Если нет user сообщений, создаем фиктивное
+                     payload["request"]["contents"].insert(0, {
+                         "role": "user",
+                         "parts": [{"text": f"System Instruction: {system_instruction}"}]
+                     })
+
+            url = f"{CLOUD_CODE_ENDPOINT}:{'streamGenerateContent' if stream else 'generateContent'}"
+            if stream: params = {"alt": "sse"}
+            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+        else:
+            # --- Standard Vertex AI Mode ---
+            project_id = os.environ.get('VERTEX_PROJECT_ID')
+            location = os.environ.get('VERTEX_LOCATION', 'us-central1')
+            token = get_vertex_token()
+            
+            if not token:
+                 return create_openai_error("Vertex AI Service Account not found.", "auth_error", 500), 500
+
+            payload = {
+                "contents": contents,
+                "generationConfig": gemini_config
+            }
+            
+            if system_instruction:
+                payload["system_instruction"] = {"parts": [{"text": system_instruction}]}
+
+            url = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{target_model}:{'streamGenerateContent' if stream else 'generateContent'}"
+            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+        # --- Выполнение запроса ---
+        
+        if stream:
+            def generate_stream():
+                client = httpx.Client(timeout=60.0)
+                usage_accumulated = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+                
+                try:
+                    with client.stream("POST", url, headers=headers, json=payload, params=params) as r:
+                        if r.status_code != 200:
+                            err_text = r.read().decode()
+                            print(f"[ERROR] Stream API Error {r.status_code}: {err_text}", flush=True)
+                            yield f"data: {create_openai_error(f'Upstream API Error: {err_text}', 'upstream_error', r.status_code)}\n\n"
+                            return
+
+                        for line in r.iter_lines():
+                            if not line: continue
+                            
+                            # Обработка SSE от Cloud Code (data: json) или Vertex (json массив)
+                            chunk_data = None
+                            
+                            if is_quota_mode:
+                                if line.startswith("data: "):
+                                    data_str = line[6:].strip()
+                                    if data_str == "[DONE]": break
+                                    try:
+                                        chunk_data = json.loads(data_str)
+                                        # Unwrap Cloud Code response wrapper
+                                        chunk_data = chunk_data.get("response", chunk_data)
+                                    except: continue
+                            else:
+                                # Vertex возвращает JSON объекты в массиве, иногда с запятыми
+                                clean_line = line.strip().strip(',').strip('[').strip(']')
+                                try:
+                                    chunk_data = json.loads(clean_line)
+                                except: continue
+
+                            if not chunk_data: continue
+
+                            # Извлечение кандидатов и текста
+                            candidates = chunk_data.get('candidates', [])
+                            if candidates:
+                                part = candidates[0].get('content', {}).get('parts', [{}])[0]
+                                text = part.get('text', '')
+                                
+                                if text:
+                                    # OpenAI Stream Chunk Format
+                                    openai_chunk = {
+                                        "id": f"chatcmpl-{int(time.time())}",
+                                        "object": "chat.completion.chunk",
+                                        "created": int(time.time()),
+                                        "model": raw_model,
+                                        "choices": [{
+                                            "index": 0,
+                                            "delta": {"content": text},
+                                            "finish_reason": None
+                                        }]
+                                    }
+                                    yield f"data: {json.dumps(openai_chunk, ensure_ascii=False)}\n\n"
+
+                            # Сбор статистики использования (если доступна в чанке)
+                            usage_meta = chunk_data.get('usageMetadata', {})
+                            if usage_meta:
+                                usage_accumulated["prompt_tokens"] = usage_meta.get('promptTokenCount', 0)
+                                usage_accumulated["completion_tokens"] = usage_meta.get('candidatesTokenCount', 0)
+                                usage_accumulated["total_tokens"] = usage_meta.get('totalTokenCount', 0)
+
+                    # Финальный чанк с usage (для Kilo Code)
+                    if include_usage:
+                        usage_chunk = {
+                            "id": f"chatcmpl-{int(time.time())}",
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": raw_model,
+                            "choices": [],
+                            "usage": usage_accumulated
+                        }
+                        yield f"data: {json.dumps(usage_chunk, ensure_ascii=False)}\n\n"
+                    
+                    yield "data: [DONE]\n\n"
+
+                except Exception as e:
+                    print(f"[ERROR] Stream Exception: {e}", flush=True)
+                    yield f"data: {create_openai_error(str(e), 'stream_exception')}\n\n"
+                finally:
+                    client.close()
+
+            return Response(stream_with_context(generate_stream()), mimetype='text/event-stream')
+
+        else:
+            # Non-streaming request
+            with httpx.Client(timeout=60.0) as client:
+                r = client.post(url, headers=headers, json=payload)
+                
+                if r.status_code != 200:
+                    print(f"[ERROR] API Error {r.status_code}: {r.text}", flush=True)
+                    return create_openai_error(f"Upstream Error: {r.text}", "upstream_error", r.status_code), r.status_code
+                
+                resp_data = r.json()
+                if is_quota_mode:
+                    resp_data = resp_data.get("response", resp_data)
+                
+                candidates = resp_data.get('candidates', [])
+                text = ""
+                finish_reason = "stop"
+                
+                if candidates:
+                    text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                    # Map Gemini finishReason to OpenAI
+                    gemini_finish = candidates[0].get('finishReason')
+                    if gemini_finish == "MAX_TOKENS": finish_reason = "length"
+                    # else default to stop
+
+                usage = resp_data.get('usageMetadata', {})
+                
+                openai_response = {
+                    "id": f"chatcmpl-{int(time.time())}",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": raw_model,
+                    "choices": [{
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": text
+                        },
+                        "finish_reason": finish_reason
+                    }],
+                    "usage": {
+                        "prompt_tokens": usage.get('promptTokenCount', 0),
+                        "completion_tokens": usage.get('candidatesTokenCount', 0),
+                        "total_tokens": usage.get('totalTokenCount', 0)
+                    }
+                }
+                
+                return json.dumps(openai_response, ensure_ascii=False), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return create_openai_error(f"Internal Proxy Error: {str(e)}", "internal_error", 500), 500
+
+@app.route('/v1/models', methods=['GET'])
+def list_models():
+    models = [
+        "gemini-3-pro-preview-quota", "gemini-3-flash-preview-quota",
+        "gemini-2.5-pro-quota", "gemini-2.5-flash-quota", "gemini-2.5-flash-lite-quota",
+        "gemini-3-pro-preview-vertex", "gemini-3-flash-preview-vertex",
+        "gemini-2.5-pro-vertex", "gemini-2.5-flash-vertex", "gemini-2.5-flash-lite-vertex",
+        "gemini-3-pro-image-vertex", "gemini-2.5-flash-image-vertex",
+        "nano-banana"
+    ]
+    return json.dumps({"data": [{"id": m, "object": "model"} for m in models]})
+
+if __name__ == "__main__":
+    threading.Thread(target=refresh_user_creds, daemon=True).start()
+    app.run(host='0.0.0.0', port=4000, debug=False)

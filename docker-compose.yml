@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  gemini-proxy:
+    build: .
+    container_name: gemini-proxy
+    ports:
+      - "4000:4000"
+    volumes:
+      # Монтируем директорию секретов
+      # user_credentials.json - для Quota (OAuth)
+      # service_account.json - для Vertex (Credits)
+      - ./secrets:/app/secrets:ro
+    environment:
+      # Переменные из .env файла
+      VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID}
+      VERTEX_LOCATION: ${VERTEX_LOCATION:-us-central1}
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT}
+    restart: unless-stopped
