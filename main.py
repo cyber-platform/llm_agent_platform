@@ -28,6 +28,7 @@ def refresh_user_creds():
     """Refreshes OAuth credentials in the background using Gemini CLI client ID"""
     global user_creds
     while True:
+        sleep_time = 3000
         try:
             if os.path.exists(USER_CREDS_PATH):
                 with open(USER_CREDS_PATH, 'r') as f:
@@ -51,9 +52,11 @@ def refresh_user_creds():
                 print(f"[AUTH] User OAuth token refreshed (Gemini CLI Mode).", flush=True)
             else:
                 print(f"[AUTH] Error: {USER_CREDS_PATH} not found!", flush=True)
+                sleep_time = 60 # Check again in a minute if file missing
         except Exception as e:
             print(f"[AUTH] User refresh failed: {e}", flush=True)
-        time.sleep(3000)
+            sleep_time = 30 # Retry sooner on failure
+        time.sleep(sleep_time)
 
 def get_vertex_token():
     """Gets an access token for Vertex AI using Service Account"""
@@ -300,21 +303,17 @@ def chat_completions():
             
             # System instruction workaround for Cloud Code
             if system_instruction:
-                 # Ищем первое сообщение user
-                 for content in payload["request"]["contents"]:
-                     if content["role"] == "user":
-                         content["parts"].insert(0, {"text": f"System Instruction: {system_instruction}"})
-                         break
-                 else:
-                     # Если нет user сообщений, создаем фиктивное
-                     payload["request"]["contents"].insert(0, {
-                         "role": "user",
-                         "parts": [{"text": f"System Instruction: {system_instruction}"}]
-                     })
+                 # Пытаемся использовать нативную поддержку, если она есть в API
+                 # Если нет, используем более чистый prepend
+                 payload["request"]["system_instruction"] = {"parts": [{"text": system_instruction}]}
 
             url = f"{CLOUD_CODE_ENDPOINT}:{'streamGenerateContent' if stream else 'generateContent'}"
             if stream: params = {"alt": "sse"}
-            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "x-goog-user-project": project_id
+            }
 
         else:
             # --- Standard Vertex AI Mode ---
@@ -337,7 +336,11 @@ def chat_completions():
                 payload["system_instruction"] = {"parts": [{"text": system_instruction}]}
 
             url = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{target_model}:{'streamGenerateContent' if stream else 'generateContent'}"
-            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "x-goog-user-project": project_id
+            }
 
         # --- Выполнение запроса ---
         
@@ -381,7 +384,22 @@ def chat_completions():
                             # Извлечение кандидатов и текста
                             candidates = chunk_data.get('candidates', [])
                             if candidates:
-                                part = candidates[0].get('content', {}).get('parts', [{}])[0]
+                                candidate = candidates[0]
+                                
+                                # Обработка Safety Filters и других причин завершения
+                                finish_reason = candidate.get('finishReason')
+                                if finish_reason and finish_reason in ["SAFETY", "RECITATION", "OTHER"]:
+                                    error_msg = f"Gemini stream interrupted by safety filters or other reason: {finish_reason}"
+                                    yield f"data: {create_openai_error(error_msg, 'policy_violation', 400)}\n\n"
+                                    return
+
+                                content = candidate.get('content', {})
+                                parts = content.get('parts', [])
+                                
+                                if not parts:
+                                    continue
+                                    
+                                part = parts[0]
                                 text = part.get('text', '')
                                 function_call = part.get('functionCall')
                                 
@@ -473,12 +491,21 @@ def chat_completions():
                 finish_reason = "stop"
                 
                 if candidates:
-                    part = candidates[0].get('content', {}).get('parts', [{}])[0]
-                    text = part.get('text', '')
-                    function_call = part.get('functionCall')
+                    candidate = candidates[0]
+                    gemini_finish = candidate.get('finishReason')
+                    
+                    if gemini_finish in ["SAFETY", "RECITATION", "OTHER"]:
+                        return create_openai_error(f"Gemini blocked request: {gemini_finish}", "policy_violation", 400), 400
+
+                    content = candidate.get('content', {})
+                    parts = content.get('parts', [])
+                    
+                    if parts:
+                        part = parts[0]
+                        text = part.get('text', '')
+                        function_call = part.get('functionCall')
                     
                     # Map Gemini finishReason to OpenAI
-                    gemini_finish = candidates[0].get('finishReason')
                     if gemini_finish == "MAX_TOKENS": finish_reason = "length"
                     elif function_call: finish_reason = "tool_calls"
                     # else default to stop
