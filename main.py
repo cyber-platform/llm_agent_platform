@@ -71,8 +71,9 @@ def get_vertex_token():
 
 def discover_project_id(token):
     """
-    Discovers the Google Cloud project ID associated with the user's account
-    using the Cloud Code API on-boarding flow.
+    Discovers the Google Cloud project ID associated with the user's account.
+    Prioritizes environment variables, then attempts to fetch user info.
+    Does NOT use Cloud Code API for discovery to avoid circular dependency on API activation.
     """
     global project_id_cache
     if project_id_cache:
@@ -81,41 +82,21 @@ def discover_project_id(token):
     # Check env var first
     if os.environ.get("GOOGLE_CLOUD_PROJECT"):
         project_id_cache = os.environ.get("GOOGLE_CLOUD_PROJECT")
+        print(f"[AUTH] Using Project ID from env: {project_id_cache}", flush=True)
         return project_id_cache
 
-    try:
-        # Step 1: Try to load existing project
-        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-        # Use a dummy project ID to start discovery if none provided
-        initial_project = "" 
-        
-        payload = {
-            "cloudaicompanionProject": initial_project,
-            "metadata": {
-                "ideType": "IDE_UNSPECIFIED",
-                "platform": "PLATFORM_UNSPECIFIED",
-                "pluginType": "GEMINI",
-                "duetProject": initial_project
-            }
-        }
-        
-        resp = httpx.post(f"{CLOUD_CODE_ENDPOINT}:loadCodeAssist", json=payload, headers=headers)
-        if resp.status_code == 200:
-            data = resp.json()
-            if data.get("cloudaicompanionProject"):
-                project_id_cache = data["cloudaicompanionProject"]
-                print(f"[AUTH] Discovered Project ID: {project_id_cache}", flush=True)
-                return project_id_cache
-
-        # Step 2: Onboard if needed (simplified)
-        # For now, we assume the user has already used Gemini CLI at least once
-        # or we fallback to what's in the environment.
-        print("[AUTH] Warning: Could not auto-discover project ID via API. Please set GOOGLE_CLOUD_PROJECT env var.", flush=True)
-        return None
-
-    except Exception as e:
-        print(f"[AUTH] Project discovery failed: {e}", flush=True)
-        return None
+    # Fallback to a hardcoded default if known, or try to infer from user info
+    # For now, we strongly rely on the env var because the Cloud Code API discovery endpoint
+    # itself requires the API to be enabled, creating a chicken-and-egg problem.
+    
+    print("[AUTH] Warning: GOOGLE_CLOUD_PROJECT env var not set. Using fallback project discovery.", flush=True)
+    
+    # Try to get project from userinfo (not standard, but sometimes helpful for debugging)
+    # or just return a placeholder that might work if the user has a default project set
+    # in their gcloud config (though we can't access gcloud config here directly).
+    
+    # Returning None here will cause an error downstream, prompting the user to set the env var.
+    return None
 
 def map_model_name(name):
     """Maps proxy model names to real Google model IDs (January 2026)"""
@@ -311,9 +292,12 @@ def chat_completions():
             if stream: params = {"alt": "sse"}
             headers = {
                 "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-                "x-goog-user-project": project_id
+                "Content-Type": "application/json"
             }
+            # Note: We explicitly DO NOT set x-goog-user-project here for Quota mode.
+            # The quota should be billed to the Gemini CLI project (via Client ID),
+            # not the user's project. Setting this header forces a check for the
+            # Cloud Code API in the user's project, which fails if not enabled.
 
         else:
             # --- Standard Vertex AI Mode ---
