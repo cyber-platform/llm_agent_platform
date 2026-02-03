@@ -224,14 +224,22 @@ def transform_openai_to_gemini(messages):
                 # Пытаемся распарсить контент как JSON, если это возможно
                 resp_obj = json.loads(raw_content) if isinstance(raw_content, str) else raw_content
             except:
-                resp_obj = {"result": raw_content}
-                
-            gemini_parts.append({
-                "functionResponse": {
-                    "name": m.get('name') or "unknown_tool",
-                    "response": resp_obj if isinstance(resp_obj, dict) else {"result": resp_obj}
-                }
-            })
+                resp_obj = raw_content
+            
+            # Gemini требует, чтобы response был объектом
+            if not isinstance(resp_obj, dict):
+                resp_obj = {"result": resp_obj}
+
+            f_resp = {
+                "name": m.get('name') or "unknown_tool",
+                "response": resp_obj
+            }
+            
+            # Пробрасываем ID вызова, если он есть (важно для Gemini 2.0+)
+            if m.get('tool_call_id'):
+                f_resp["id"] = m.get('tool_call_id')
+
+            gemini_parts.append({"functionResponse": f_resp})
 
         # 4. Распределение по ролям Gemini (только user и model)
         if role == 'system' or role == 'developer':
@@ -449,16 +457,13 @@ def chat_completions():
                                 if not parts:
                                     continue
                                     
-                                function_call = None
+                                current_tool_calls = []
                                 for part in parts:
                                     text = part.get('text', '')
-                                    # В Gemini API 'thought' обычно флаг, а текст мысли в 'text'
-                                    # Но иногда может прийти и как объект/строка в самом 'thought'
                                     thought_val = part.get('thought')
                                     is_thought = thought_val is not None
                                     
                                     if is_thought:
-                                        # Извлекаем текст мысли: приоритет полю 'text', если оно пустое - пробуем 'thought'
                                         thought_text = text if text else (thought_val if isinstance(thought_val, str) else "")
                                         if thought_text:
                                             openai_chunk = {
@@ -476,7 +481,6 @@ def chat_completions():
                                         continue
 
                                     if text:
-                                        # OpenAI Stream Chunk Format
                                         openai_chunk = {
                                             "id": f"chatcmpl-{int(time.time())}",
                                             "object": "chat.completion.chunk",
@@ -491,10 +495,21 @@ def chat_completions():
                                         yield f"data: {json.dumps(openai_chunk, ensure_ascii=False)}\n\n"
                                     
                                     if part.get('functionCall'):
-                                        function_call = part.get('functionCall')
+                                        current_tool_calls.append(part.get('functionCall'))
                                 
-                                if function_call:
-                                    tool_call_id = f"call_{int(time.time())}"
+                                if current_tool_calls:
+                                    openai_tool_calls = []
+                                    for idx, fn in enumerate(current_tool_calls):
+                                        openai_tool_calls.append({
+                                            "index": idx,
+                                            "id": fn.get('id') or f"call_{int(time.time())}_{idx}",
+                                            "type": "function",
+                                            "function": {
+                                                "name": fn.get('name'),
+                                                "arguments": json.dumps(fn.get('args', {}))
+                                            }
+                                        })
+                                    
                                     openai_chunk = {
                                         "id": f"chatcmpl-{int(time.time())}",
                                         "object": "chat.completion.chunk",
@@ -502,17 +517,7 @@ def chat_completions():
                                         "model": raw_model,
                                         "choices": [{
                                             "index": 0,
-                                            "delta": {
-                                                "tool_calls": [{
-                                                    "index": 0,
-                                                    "id": tool_call_id,
-                                                    "type": "function",
-                                                    "function": {
-                                                        "name": function_call.get('name'),
-                                                        "arguments": json.dumps(function_call.get('args', {}))
-                                                    }
-                                                }]
-                                            },
+                                            "delta": {"tool_calls": openai_tool_calls},
                                             "finish_reason": None
                                         }]
                                     }
@@ -567,7 +572,7 @@ def chat_completions():
                 candidates = resp_data.get('candidates', [])
                 text = ""
                 reasoning_text = ""
-                function_call = None
+                all_function_calls = []
                 finish_reason = "stop"
                 
                 if candidates:
@@ -583,16 +588,17 @@ def chat_completions():
                     for part in parts:
                         p_text = part.get('text', '')
                         thought = part.get('thought')
-                        if thought is True or 'thought' in part:
-                            reasoning_text += p_text if isinstance(thought, bool) else part.get('thought', '')
+                        if thought is not None:
+                            reasoning_text += p_text if p_text else (thought if isinstance(thought, str) else "")
                         else:
-                            text += p_text
-                            if not function_call:
-                                function_call = part.get('functionCall')
+                            if p_text:
+                                text += p_text
+                            if part.get('functionCall'):
+                                all_function_calls.append(part.get('functionCall'))
                     
                     # Map Gemini finishReason to OpenAI
                     if gemini_finish == "MAX_TOKENS": finish_reason = "length"
-                    elif function_call: finish_reason = "tool_calls"
+                    elif all_function_calls: finish_reason = "tool_calls"
                     # else default to stop
 
                 usage = resp_data.get('usageMetadata', {})
@@ -604,15 +610,17 @@ def chat_completions():
                 if reasoning_text:
                     message_content["reasoning_content"] = reasoning_text
                 
-                if function_call:
-                    message_content["tool_calls"] = [{
-                        "id": f"call_{int(time.time())}",
-                        "type": "function",
-                        "function": {
-                            "name": function_call.get('name'),
-                            "arguments": json.dumps(function_call.get('args', {}))
-                        }
-                    }]
+                if all_function_calls:
+                    message_content["tool_calls"] = []
+                    for idx, fn in enumerate(all_function_calls):
+                        message_content["tool_calls"].append({
+                            "id": fn.get('id') or f"call_{int(time.time())}_{idx}",
+                            "type": "function",
+                            "function": {
+                                "name": fn.get('name'),
+                                "arguments": json.dumps(fn.get('args', {}))
+                            }
+                        })
                 
                 openai_response = {
                     "id": f"chatcmpl-{int(time.time())}",
