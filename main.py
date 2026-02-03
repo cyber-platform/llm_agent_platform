@@ -228,10 +228,25 @@ def chat_completions():
         contents, system_instruction = transform_openai_to_gemini(messages)
         
         # Базовая конфигурация для Gemini
+        # Поддержка reasoning (thinking)
+        reasoning_effort = data.get('reasoning_effort')
+        max_thinking_tokens = data.get('modelMaxThinkingTokens') or data.get('max_completion_tokens')
+        
         gemini_config = {
             "temperature": data.get('temperature', 0.7),
             "maxOutputTokens": data.get('max_tokens', 4096),
         }
+
+        if reasoning_effort or max_thinking_tokens or data.get('enableReasoningEffort'):
+            thinking_config = {
+                "includeThoughts": True
+            }
+            if max_thinking_tokens:
+                thinking_config["thinkingBudget"] = int(max_thinking_tokens)
+            
+            # Для Gemini 3 можно прокидывать thinking_level, но пока ограничимся бюджетом
+            # так как он более универсален для 2.5/3.0
+            gemini_config["thinkingConfig"] = thinking_config
 
         # Обработка инструментов (Tools)
         tools = data.get('tools', [])
@@ -383,24 +398,49 @@ def chat_completions():
                                 if not parts:
                                     continue
                                     
-                                part = parts[0]
-                                text = part.get('text', '')
-                                function_call = part.get('functionCall')
-                                
-                                if text:
-                                    # OpenAI Stream Chunk Format
-                                    openai_chunk = {
-                                        "id": f"chatcmpl-{int(time.time())}",
-                                        "object": "chat.completion.chunk",
-                                        "created": int(time.time()),
-                                        "model": raw_model,
-                                        "choices": [{
-                                            "index": 0,
-                                            "delta": {"content": text},
-                                            "finish_reason": None
-                                        }]
-                                    }
-                                    yield f"data: {json.dumps(openai_chunk, ensure_ascii=False)}\n\n"
+                                function_call = None
+                                for part in parts:
+                                    text = part.get('text', '')
+                                    # В Gemini API 'thought' обычно флаг, а текст мысли в 'text'
+                                    # Но иногда может прийти и как объект/строка в самом 'thought'
+                                    thought_val = part.get('thought')
+                                    is_thought = thought_val is not None
+                                    
+                                    if is_thought:
+                                        # Извлекаем текст мысли: приоритет полю 'text', если оно пустое - пробуем 'thought'
+                                        thought_text = text if text else (thought_val if isinstance(thought_val, str) else "")
+                                        if thought_text:
+                                            openai_chunk = {
+                                                "id": f"chatcmpl-{int(time.time())}",
+                                                "object": "chat.completion.chunk",
+                                                "created": int(time.time()),
+                                                "model": raw_model,
+                                                "choices": [{
+                                                    "index": 0,
+                                                    "delta": {"reasoning_content": thought_text},
+                                                    "finish_reason": None
+                                                }]
+                                            }
+                                            yield f"data: {json.dumps(openai_chunk, ensure_ascii=False)}\n\n"
+                                        continue
+
+                                    if text:
+                                        # OpenAI Stream Chunk Format
+                                        openai_chunk = {
+                                            "id": f"chatcmpl-{int(time.time())}",
+                                            "object": "chat.completion.chunk",
+                                            "created": int(time.time()),
+                                            "model": raw_model,
+                                            "choices": [{
+                                                "index": 0,
+                                                "delta": {"content": text},
+                                                "finish_reason": None
+                                            }]
+                                        }
+                                        yield f"data: {json.dumps(openai_chunk, ensure_ascii=False)}\n\n"
+                                    
+                                    if part.get('functionCall'):
+                                        function_call = part.get('functionCall')
                                 
                                 if function_call:
                                     tool_call_id = f"call_{int(time.time())}"
@@ -433,6 +473,10 @@ def chat_completions():
                                 usage_accumulated["prompt_tokens"] = usage_meta.get('promptTokenCount', 0)
                                 usage_accumulated["completion_tokens"] = usage_meta.get('candidatesTokenCount', 0)
                                 usage_accumulated["total_tokens"] = usage_meta.get('totalTokenCount', 0)
+                                if 'thoughtsTokenCount' in usage_meta:
+                                    if "completion_tokens_details" not in usage_accumulated:
+                                        usage_accumulated["completion_tokens_details"] = {}
+                                    usage_accumulated["completion_tokens_details"]["reasoning_tokens"] = usage_meta['thoughtsTokenCount']
 
                     # Финальный чанк с usage (для Kilo Code)
                     if include_usage:
@@ -471,6 +515,7 @@ def chat_completions():
                 
                 candidates = resp_data.get('candidates', [])
                 text = ""
+                reasoning_text = ""
                 function_call = None
                 finish_reason = "stop"
                 
@@ -484,10 +529,15 @@ def chat_completions():
                     content = candidate.get('content', {})
                     parts = content.get('parts', [])
                     
-                    if parts:
-                        part = parts[0]
-                        text = part.get('text', '')
-                        function_call = part.get('functionCall')
+                    for part in parts:
+                        p_text = part.get('text', '')
+                        thought = part.get('thought')
+                        if thought is True or 'thought' in part:
+                            reasoning_text += p_text if isinstance(thought, bool) else part.get('thought', '')
+                        else:
+                            text += p_text
+                            if not function_call:
+                                function_call = part.get('functionCall')
                     
                     # Map Gemini finishReason to OpenAI
                     if gemini_finish == "MAX_TOKENS": finish_reason = "length"
@@ -500,6 +550,8 @@ def chat_completions():
                     "role": "assistant",
                     "content": text
                 }
+                if reasoning_text:
+                    message_content["reasoning_content"] = reasoning_text
                 
                 if function_call:
                     message_content["tool_calls"] = [{
@@ -527,6 +579,11 @@ def chat_completions():
                         "total_tokens": usage.get('totalTokenCount', 0)
                     }
                 }
+                
+                if 'thoughtsTokenCount' in usage:
+                    openai_response["usage"]["completion_tokens_details"] = {
+                        "reasoning_tokens": usage['thoughtsTokenCount']
+                    }
                 
                 return json.dumps(openai_response, ensure_ascii=False), 200
 
