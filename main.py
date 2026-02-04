@@ -308,15 +308,30 @@ def chat_completions():
             system_instruction = sanitize_string(system_instruction)
 
         # Базовая конфигурация для Gemini
+        max_tokens = data.get('max_tokens')
+        if max_tokens is None or max_tokens == -1:
+            # Согласно документации Gemini 2.5/3.0 Pro/Flash, лимит вывода составляет 65,536 токенов.
+            # Устанавливаем этот максимум, если в Kilo Code выбрано -1 (без ограничений).
+            max_tokens = 65535
+        
+        gemini_config = {
+            "temperature": data.get('temperature', 0.7),
+            "maxOutputTokens": int(max_tokens),
+            "topP": data.get('top_p', 1.0),
+            "topK": data.get('top_k', 40),
+        }
+
+        stop_sequences = data.get('stop')
+        if stop_sequences:
+            if isinstance(stop_sequences, str):
+                gemini_config["stopSequences"] = [stop_sequences]
+            elif isinstance(stop_sequences, list):
+                gemini_config["stopSequences"] = stop_sequences
+
         # Поддержка reasoning (thinking)
         reasoning_effort = data.get('reasoning_effort')
         max_thinking_tokens = data.get('modelMaxThinkingTokens') or data.get('max_completion_tokens')
         
-        gemini_config = {
-            "temperature": data.get('temperature', 0.7),
-            "maxOutputTokens": data.get('max_tokens', 4096),
-        }
-
         if reasoning_effort or max_thinking_tokens or data.get('enableReasoningEffort'):
             thinking_config = {
                 "includeThoughts": True
@@ -324,8 +339,6 @@ def chat_completions():
             if max_thinking_tokens:
                 thinking_config["thinkingBudget"] = int(max_thinking_tokens)
             
-            # Для Gemini 3 можно прокидывать thinking_level, но пока ограничимся бюджетом
-            # так как он более универсален для 2.5/3.0
             gemini_config["thinkingConfig"] = thinking_config
 
         # Обработка инструментов (Tools)
@@ -466,11 +479,15 @@ def chat_completions():
                                 candidate = candidates[0]
                                 
                                 # Обработка Safety Filters и других причин завершения
-                                finish_reason = candidate.get('finishReason')
-                                if finish_reason and finish_reason in ["SAFETY", "RECITATION", "OTHER"]:
-                                    error_msg = f"Gemini stream interrupted by safety filters or other reason: {finish_reason}"
-                                    yield f"data: {create_openai_error(error_msg, 'policy_violation', 400)}\n\n"
-                                    return
+                                gemini_finish = candidate.get('finishReason')
+                                openai_finish = None
+                                if gemini_finish:
+                                    if gemini_finish == "STOP": openai_finish = "stop"
+                                    elif gemini_finish == "MAX_TOKENS": openai_finish = "length"
+                                    elif gemini_finish in ["SAFETY", "RECITATION", "OTHER"]:
+                                        error_msg = f"Gemini stream interrupted by safety filters or other reason: {gemini_finish}"
+                                        yield f"data: {create_openai_error(error_msg, 'policy_violation', 400)}\n\n"
+                                        return
 
                                 content = candidate.get('content', {})
                                 parts = content.get('parts', [])
@@ -495,7 +512,7 @@ def chat_completions():
                                                 "choices": [{
                                                     "index": 0,
                                                     "delta": {"reasoning_content": thought_text},
-                                                    "finish_reason": None
+                                                    "finish_reason": openai_finish
                                                 }]
                                             }
                                             yield f"data: {json.dumps(sanitize_data(openai_chunk), ensure_ascii=False)}\n\n"
@@ -510,7 +527,7 @@ def chat_completions():
                                             "choices": [{
                                                 "index": 0,
                                                 "delta": {"content": text},
-                                                "finish_reason": None
+                                                "finish_reason": openai_finish
                                             }]
                                         }
                                         yield f"data: {json.dumps(sanitize_data(openai_chunk), ensure_ascii=False)}\n\n"
@@ -539,7 +556,7 @@ def chat_completions():
                                         "choices": [{
                                             "index": 0,
                                             "delta": {"tool_calls": openai_tool_calls},
-                                            "finish_reason": None
+                                            "finish_reason": openai_finish or ("tool_calls" if current_tool_calls else None)
                                         }]
                                     }
                                     yield f"data: {json.dumps(sanitize_data(openai_chunk), ensure_ascii=False)}\n\n"
