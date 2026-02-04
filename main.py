@@ -122,6 +122,22 @@ def map_model_name(name):
     }
     return mapping.get(name, name)
 
+def sanitize_string(s):
+    """Removes surrogate characters that can't be encoded in UTF-8"""
+    if not isinstance(s, str):
+        return s
+    return s.encode('utf-16', 'surrogatepass').decode('utf-16', 'ignore')
+
+def sanitize_data(data):
+    """Recursively sanitizes strings in dictionaries and lists"""
+    if isinstance(data, str):
+        return sanitize_string(data)
+    elif isinstance(data, dict):
+        return {k: sanitize_data(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [sanitize_data(item) for item in data]
+    return data
+
 def clean_gemini_schema(schema):
     """
     Очищает JSON Schema для совместимости с Gemini API (Google Cloud / Vertex AI).
@@ -262,14 +278,14 @@ def transform_openai_to_gemini(messages):
 
 def create_openai_error(message, type="server_error", code=500):
     """Формирует ошибку в формате OpenAI"""
-    return json.dumps({
+    return json.dumps(sanitize_data({
         "error": {
             "message": message,
             "type": type,
             "param": None,
             "code": code
         }
-    }, ensure_ascii=False)
+    }), ensure_ascii=False)
 
 @app.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
@@ -286,6 +302,11 @@ def chat_completions():
 
         contents, system_instruction = transform_openai_to_gemini(messages)
         
+        # Sanitize inputs to prevent UTF-8 encoding errors with surrogates
+        contents = sanitize_data(contents)
+        if system_instruction:
+            system_instruction = sanitize_string(system_instruction)
+
         # Базовая конфигурация для Gemini
         # Поддержка reasoning (thinking)
         reasoning_effort = data.get('reasoning_effort')
@@ -477,7 +498,7 @@ def chat_completions():
                                                     "finish_reason": None
                                                 }]
                                             }
-                                            yield f"data: {json.dumps(openai_chunk, ensure_ascii=False)}\n\n"
+                                            yield f"data: {json.dumps(sanitize_data(openai_chunk), ensure_ascii=False)}\n\n"
                                         continue
 
                                     if text:
@@ -492,7 +513,7 @@ def chat_completions():
                                                 "finish_reason": None
                                             }]
                                         }
-                                        yield f"data: {json.dumps(openai_chunk, ensure_ascii=False)}\n\n"
+                                        yield f"data: {json.dumps(sanitize_data(openai_chunk), ensure_ascii=False)}\n\n"
                                     
                                     if part.get('functionCall'):
                                         current_tool_calls.append(part.get('functionCall'))
@@ -521,7 +542,7 @@ def chat_completions():
                                             "finish_reason": None
                                         }]
                                     }
-                                    yield f"data: {json.dumps(openai_chunk, ensure_ascii=False)}\n\n"
+                                    yield f"data: {json.dumps(sanitize_data(openai_chunk), ensure_ascii=False)}\n\n"
 
                             # Сбор статистики использования (если доступна в чанке)
                             usage_meta = chunk_data.get('usageMetadata', {})
@@ -544,7 +565,7 @@ def chat_completions():
                             "choices": [],
                             "usage": usage_accumulated
                         }
-                        yield f"data: {json.dumps(usage_chunk, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps(sanitize_data(usage_chunk), ensure_ascii=False)}\n\n"
                     
                     yield "data: [DONE]\n\n"
 
@@ -644,7 +665,7 @@ def chat_completions():
                         "reasoning_tokens": usage['thoughtsTokenCount']
                     }
                 
-                return json.dumps(openai_response, ensure_ascii=False), 200
+                return json.dumps(sanitize_data(openai_response), ensure_ascii=False), 200
 
     except Exception as e:
         import traceback
