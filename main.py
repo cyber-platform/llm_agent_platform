@@ -595,15 +595,44 @@ def chat_completions():
             return Response(stream_with_context(generate_stream()), mimetype='text/event-stream')
 
         else:
-            # Non-streaming request
-            with httpx.Client(timeout=60.0) as client:
-                r = client.post(url, headers=headers, json=payload)
+            # Non-streaming request with fallback logic
+            fallback_chain = [target_model]
+            if 'gemini-3-flash' in target_model:
+                fallback_chain.extend(['gemini-2.5-flash', 'gemini-2.5-flash-lite'])
+            elif 'gemini-3-pro' in target_model:
+                fallback_chain.append('gemini-2.5-pro')
+
+            last_r = None
+            for current_model in fallback_chain:
+                # Update payload/URL for the current attempt
+                attempt_payload = payload.copy()
+                attempt_url = url
                 
-                if r.status_code != 200:
-                    print(f"[ERROR] API Error {r.status_code}: {r.text}", flush=True)
-                    return create_openai_error(f"Upstream Error: {r.text}", "upstream_error", r.status_code), r.status_code
-                
-                resp_data = r.json()
+                if is_quota_mode:
+                    attempt_payload["model"] = current_model
+                else:
+                    # Rebuild Vertex URL for the specific fallback model
+                    location = os.environ.get('VERTEX_LOCATION', 'us-central1')
+                    project_id = os.environ.get('VERTEX_PROJECT_ID')
+                    attempt_url = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{current_model}:generateContent"
+
+                with httpx.Client(timeout=60.0) as client:
+                    r = client.post(attempt_url, headers=headers, json=attempt_payload)
+                    last_r = r
+                    
+                    if r.status_code == 429 and "capacity" in r.text.lower():
+                        print(f"[WARN] Model {current_model} exhausted (capacity). Trying fallback...", flush=True)
+                        continue
+                    
+                    if r.status_code != 200:
+                        print(f"[ERROR] API Error {r.status_code}: {r.text}", flush=True)
+                        return create_openai_error(f"Upstream Error: {r.text}", "upstream_error", r.status_code), r.status_code
+                    
+                    resp_data = r.json()
+                    break # Success!
+            else:
+                # If all fallbacks failed
+                return create_openai_error(f"Upstream Error (All fallbacks exhausted): {last_r.text}", "upstream_error", last_r.status_code), last_r.status_code
                 if is_quota_mode:
                     resp_data = resp_data.get("response", resp_data)
                 
