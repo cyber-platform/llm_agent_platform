@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.13-slim
 COPY --from=ghcr.io/astral-sh/uv:0.9.28 /uv /uvx /bin/
 
 WORKDIR /app
@@ -9,8 +9,8 @@ COPY pyproject.toml uv.lock ./
 # Устанавливаем зависимости через uv (жесткая фиксация)
 RUN uv sync --frozen --no-dev
 
-# Копируем код
-COPY main.py .
+# Копируем весь код проекта (игнорируя файлы из .dockerignore)
+COPY . .
 
 # Открываем порт
 EXPOSE 4000
