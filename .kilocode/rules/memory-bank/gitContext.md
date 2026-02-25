@@ -10,6 +10,8 @@
 | :--- | :--- | :--- |
 | `./` | Основной проект Gemini OpenAI Proxy | Root Repo |
 | `./.kilocode/` | Правила, memory bank и навыки | Nested Repo |
+| `./gemini-cli/` | Репозиторий gemini cli (внешний, его код мы не меняем) | Nested Repo |
+| `./kilocode/` | Репозиторий расширения kilocode для VS code (внешний, его код мы не меняем) | Nested Repo |
 
 ## ⚠️ Правила работы
 
