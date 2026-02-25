@@ -38,7 +38,7 @@
 
 ### Группа Quota (Персональные квоты)
 Использует лимиты вашей подписки `Google AI Pro` или `Free tier`. Рекомендуется для большинства задач.
-*   `gemini-3-pro-preview-quota` — Максимальный интеллект.
+*   `gemini-3.1-pro-preview-quota` — Максимальный интеллект.
 *   `gemini-3-flash-preview-quota` — Высокая скорость и большой контекст.
 *   `gemini-2.5-pro-quota` — Стабильная Pro-модель.
 *   `gemini-2.5-flash-quota` — Оптимальный баланс.
@@ -46,7 +46,7 @@
 
 ### Группа Vertex (Облачные кредиты)
 Использует баланс вашего Google Cloud проекта ($10/мес кредитов для Pro-пользователей).
-*   `gemini-3-pro-preview-vertex`
+*   `gemini-3.1-pro-preview-vertex`
 *   `gemini-3-flash-preview-vertex`
 *   `gemini-2.5-pro-vertex`
 *   `gemini-2.5-flash-vertex`

@@ -331,7 +331,7 @@ def chat_completions():
             fallback_chain = [target_model]
             if 'gemini-3-flash' in target_model:
                 fallback_chain.extend(['gemini-2.5-flash', 'gemini-2.5-flash-lite'])
-            elif 'gemini-3-pro' in target_model:
+            elif 'gemini-3.1-pro' in target_model:
                 fallback_chain.append('gemini-2.5-pro')
 
             last_r = None
@@ -454,9 +454,10 @@ def chat_completions():
 @openai_bp.route('/v1/models', methods=['GET'])
 def list_models():
     models = [
-        "gemini-3-pro-preview-quota", "gemini-3-flash-preview-quota",
+        "gemini-3.1-pro-preview-quota",
+        "gemini-3-flash-preview-quota",
         "gemini-2.5-pro-quota", "gemini-2.5-flash-quota", "gemini-2.5-flash-lite-quota",
-        "gemini-3-pro-preview-vertex", "gemini-3-flash-preview-vertex",
+        "gemini-3.1-pro-preview-vertex", "gemini-3-flash-preview-vertex",
         "gemini-2.5-pro-vertex", "gemini-2.5-flash-vertex", "gemini-2.5-flash-lite-vertex",
         "gemini-3-pro-image-vertex", "gemini-2.5-flash-image-vertex",
         "nano-banana"
