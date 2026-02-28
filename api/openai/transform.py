@@ -1,5 +1,4 @@
 import json
-import base64
 
 def transform_openai_to_gemini(messages):
     """
@@ -51,23 +50,15 @@ def transform_openai_to_gemini(messages):
                 func = tc.get('function', {})
                 try:
                     args = json.loads(func.get('arguments', '{}'))
-                    
-                    # --- FIX: Inject thought_signature bypass ---
-                    # Gemini 3 requires a thought_signature for tool calls.
-                    # If the client (OpenAI Compatible) doesn't provide it, we inject a bypass token.
-                    # This token "skip_thought_signature_validator" is recognized by some Gemini integrations
-                    # (like LiteLLM/OpenRouter) and we use it here to ensure the request passes validation.
-                    
-                    bypass_token = base64.b64encode(b"skip_thought_signature_validator").decode("utf-8")
-                    
-                    gemini_parts.append({
+
+                    function_call_part = {
                         "functionCall": {
                             "name": func.get('name'),
                             "args": args
-                        },
-                        # Injecting the signature here using the standard Google JSON API field name
-                        "thoughtSignature": bypass_token
-                    })
+                        }
+                    }
+
+                    gemini_parts.append(function_call_part)
                 except: pass
 
         # 3. Обработка ответов инструментов (tool)

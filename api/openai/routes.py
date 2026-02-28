@@ -1,14 +1,23 @@
 import os
 import json
 import time
-import httpx
 from flask import Blueprint, request, Response, stream_with_context
-from config import CLOUD_CODE_ENDPOINT
+from config import CLOUD_CODE_ENDPOINT, DEFAULT_QUOTA_MODEL, STRICT_CLI_PARITY
 from auth.credentials import get_user_creds, get_auth_lock, get_vertex_token
 from auth.discovery import discover_project_id
 from core.models import map_model_name
 from core.utils import sanitize_data, sanitize_string, clean_gemini_schema, create_openai_error
 from api.openai.transform import transform_openai_to_gemini
+from services.http_pool import get_http_client
+from services.quota_transport import (
+    build_quota_payload,
+    generate_session_id,
+    generate_user_prompt_id,
+    parse_cloud_code_sse_line,
+    send_generate,
+    stream_generate_lines,
+    unwrap_cloud_code_response,
+)
 
 openai_bp = Blueprint('openai', __name__)
 
@@ -16,7 +25,7 @@ openai_bp = Blueprint('openai', __name__)
 def chat_completions():
     try:
         data = request.json
-        raw_model = data.get('model', 'gemini-3-flash-preview-quota')
+        raw_model = data.get('model', DEFAULT_QUOTA_MODEL)
         target_model = map_model_name(raw_model)
         messages = data.get('messages', [])
         stream = data.get('stream', False)
@@ -33,18 +42,17 @@ def chat_completions():
             system_instruction = sanitize_string(system_instruction)
 
         # Базовая конфигурация для Gemini
-        max_tokens = data.get('max_tokens')
-        if max_tokens is None or max_tokens == -1:
-            # Согласно документации Gemini 2.5/3.0 Pro/Flash, лимит вывода составляет 65,536 токенов.
-            # Устанавливаем этот максимум, если в Kilo Code выбрано -1 (без ограничений).
-            max_tokens = 65535
+        max_completion_tokens = data.get('max_completion_tokens')
+        max_tokens = max_completion_tokens if max_completion_tokens is not None else data.get('max_tokens')
         
         gemini_config = {
             "temperature": data.get('temperature', 0.7),
-            "maxOutputTokens": int(max_tokens),
             "topP": data.get('top_p', 1.0),
             "topK": data.get('top_k', 40),
         }
+
+        if max_tokens is not None and max_tokens != -1:
+            gemini_config["maxOutputTokens"] = int(max_tokens)
 
         stop_sequences = data.get('stop')
         if stop_sequences:
@@ -109,24 +117,27 @@ def chat_completions():
             if not project_id:
                 return create_openai_error("Google Cloud Project ID not found. Set GOOGLE_CLOUD_PROJECT env var.", "config_error", 500), 500
 
-            # Cloud Code API Payload
-            payload = {
-                "model": target_model,
-                "project": project_id,
-                "request": {
-                    "contents": contents,
-                    "generationConfig": gemini_config
-                }
+            session_id = data.get("session_id") or request.headers.get("x-session-id") or generate_session_id()
+            user_prompt_id = data.get("user_prompt_id") or request.headers.get("x-user-prompt-id") or generate_user_prompt_id()
+
+            request_payload = {
+                "contents": contents,
+                "generationConfig": gemini_config,
             }
 
             if gemini_tools:
-                payload["request"]["tools"] = gemini_tools
+                request_payload["tools"] = gemini_tools
             
-            # System instruction workaround for Cloud Code
             if system_instruction:
-                 # Пытаемся использовать нативную поддержку, если она есть в API
-                 # Если нет, используем более чистый prepend
-                 payload["request"]["system_instruction"] = {"parts": [{"text": system_instruction}]}
+                 request_payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+
+            payload = build_quota_payload(
+                model=target_model,
+                project=project_id,
+                request_payload=request_payload,
+                user_prompt_id=user_prompt_id,
+                session_id=session_id,
+            )
 
             url = f"{CLOUD_CODE_ENDPOINT}:{'streamGenerateContent' if stream else 'generateContent'}"
             if stream: params = {"alt": "sse"}
@@ -170,38 +181,142 @@ def chat_completions():
         
         if stream:
             def generate_stream():
-                client = httpx.Client(timeout=60.0)
                 usage_accumulated = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
                 
                 try:
-                    with client.stream("POST", url, headers=headers, json=payload, params=params) as r:
-                        if r.status_code != 200:
-                            err_text = r.read().decode()
-                            print(f"[ERROR] Stream API Error {r.status_code}: {err_text}", flush=True)
-                            yield f"data: {create_openai_error(f'Upstream API Error: {err_text}', 'upstream_error', r.status_code)}\n\n"
-                            return
+                    if is_quota_mode:
+                        lines = stream_generate_lines(token, payload)
+                    else:
+                        client = get_http_client()
+                        response = client.stream("POST", url, headers=headers, json=payload, params=params)
+                        lines = None
 
-                        for line in r.iter_lines():
-                            if not line: continue
-                            
-                            # Обработка SSE от Cloud Code (data: json) или Vertex (json массив)
-                            chunk_data = None
-                            
-                            if is_quota_mode:
-                                if line.startswith("data: "):
-                                    data_str = line[6:].strip()
-                                    if data_str == "[DONE]": break
-                                    try:
-                                        chunk_data = json.loads(data_str)
-                                        # Unwrap Cloud Code response wrapper
-                                        chunk_data = chunk_data.get("response", chunk_data)
-                                    except: continue
-                            else:
-                                # Vertex возвращает JSON объекты в массиве, иногда с запятыми
+                    if not is_quota_mode:
+                        with response as r:
+                            if r.status_code != 200:
+                                err_text = r.read().decode()
+                                print(f"[ERROR] Stream API Error {r.status_code}: {err_text}", flush=True)
+                                yield f"data: {create_openai_error(f'Upstream API Error: {err_text}', 'upstream_error', r.status_code)}\n\n"
+                                return
+
+                            for line in r.iter_lines():
+                                if not line:
+                                    continue
+
                                 clean_line = line.strip().strip(',').strip('[').strip(']')
                                 try:
                                     chunk_data = json.loads(clean_line)
-                                except: continue
+                                except Exception:
+                                    continue
+
+                                if not chunk_data:
+                                    continue
+
+                                # Извлечение кандидатов и текста
+                                candidates = chunk_data.get('candidates', [])
+                                if candidates:
+                                    candidate = candidates[0]
+                                    
+                                    # Обработка Safety Filters и других причин завершения
+                                    gemini_finish = candidate.get('finishReason')
+                                    openai_finish = None
+                                    if gemini_finish:
+                                        if gemini_finish == "STOP": openai_finish = "stop"
+                                        elif gemini_finish == "MAX_TOKENS": openai_finish = "length"
+                                        elif gemini_finish in ["SAFETY", "RECITATION", "OTHER"]:
+                                            error_msg = f"Gemini stream interrupted by safety filters or other reason: {gemini_finish}"
+                                            yield f"data: {create_openai_error(error_msg, 'policy_violation', 400)}\n\n"
+                                            return
+
+                                    content = candidate.get('content', {})
+                                    parts = content.get('parts', [])
+                                    
+                                    if not parts:
+                                        continue
+                                        
+                                    current_tool_calls = []
+                                    for part in parts:
+                                        text = part.get('text', '')
+                                        thought_val = part.get('thought')
+                                        is_thought = thought_val is not None
+                                        
+                                        if is_thought:
+                                            thought_text = text if text else (thought_val if isinstance(thought_val, str) else "")
+                                            if thought_text:
+                                                openai_chunk = {
+                                                    "id": f"chatcmpl-{int(time.time())}",
+                                                    "object": "chat.completion.chunk",
+                                                    "created": int(time.time()),
+                                                    "model": raw_model,
+                                                    "choices": [{
+                                                        "index": 0,
+                                                        "delta": {"reasoning_content": thought_text},
+                                                        "finish_reason": openai_finish
+                                                    }]
+                                                }
+                                                yield f"data: {json.dumps(sanitize_data(openai_chunk), ensure_ascii=False)}\n\n"
+                                            continue
+
+                                        if text:
+                                            openai_chunk = {
+                                                "id": f"chatcmpl-{int(time.time())}",
+                                                "object": "chat.completion.chunk",
+                                                "created": int(time.time()),
+                                                "model": raw_model,
+                                                "choices": [{
+                                                    "index": 0,
+                                                    "delta": {"content": text},
+                                                    "finish_reason": openai_finish
+                                                }]
+                                            }
+                                            yield f"data: {json.dumps(sanitize_data(openai_chunk), ensure_ascii=False)}\n\n"
+                                        
+                                        if part.get('functionCall'):
+                                            current_tool_calls.append(part.get('functionCall'))
+                                    
+                                    if current_tool_calls:
+                                        openai_tool_calls = []
+                                        for idx, fn in enumerate(current_tool_calls):
+                                            openai_tool_calls.append({
+                                                "index": idx,
+                                                "id": fn.get('id') or f"call_{int(time.time())}_{idx}",
+                                                "type": "function",
+                                                "function": {
+                                                    "name": fn.get('name'),
+                                                    "arguments": json.dumps(fn.get('args', {}))
+                                                }
+                                            })
+                                        
+                                        openai_chunk = {
+                                            "id": f"chatcmpl-{int(time.time())}",
+                                            "object": "chat.completion.chunk",
+                                            "created": int(time.time()),
+                                            "model": raw_model,
+                                            "choices": [{
+                                                "index": 0,
+                                                "delta": {"tool_calls": openai_tool_calls},
+                                                "finish_reason": openai_finish or ("tool_calls" if current_tool_calls else None)
+                                            }]
+                                        }
+                                        yield f"data: {json.dumps(sanitize_data(openai_chunk), ensure_ascii=False)}\n\n"
+
+                                # Сбор статистики использования (если доступна в чанке)
+                                usage_meta = chunk_data.get('usageMetadata', {})
+                                if usage_meta:
+                                    usage_accumulated["prompt_tokens"] = usage_meta.get('promptTokenCount', 0)
+                                    usage_accumulated["completion_tokens"] = usage_meta.get('candidatesTokenCount', 0)
+                                    usage_accumulated["total_tokens"] = usage_meta.get('totalTokenCount', 0)
+                                    if 'thoughtsTokenCount' in usage_meta:
+                                        if "completion_tokens_details" not in usage_accumulated:
+                                            usage_accumulated["completion_tokens_details"] = {}
+                                        usage_accumulated["completion_tokens_details"]["reasoning_tokens"] = usage_meta['thoughtsTokenCount']
+                    else:
+                        for line in lines:
+                            chunk_data = parse_cloud_code_sse_line(line)
+                            if not chunk_data:
+                                continue
+                            if chunk_data.get("done"):
+                                break
 
                             if not chunk_data: continue
 
@@ -321,20 +436,19 @@ def chat_completions():
                 except Exception as e:
                     print(f"[ERROR] Stream Exception: {e}", flush=True)
                     yield f"data: {create_openai_error(str(e), 'stream_exception')}\n\n"
-                finally:
-                    client.close()
 
             return Response(stream_with_context(generate_stream()), mimetype='text/event-stream')
 
         else:
             # Non-streaming request with fallback logic
             fallback_chain = [target_model]
-            if 'gemini-3-flash' in target_model:
+            if not (is_quota_mode and STRICT_CLI_PARITY) and 'gemini-3-flash' in target_model:
                 fallback_chain.extend(['gemini-2.5-flash', 'gemini-2.5-flash-lite'])
-            elif 'gemini-3.1-pro' in target_model:
+            elif not (is_quota_mode and STRICT_CLI_PARITY) and 'gemini-3.1-pro' in target_model:
                 fallback_chain.append('gemini-2.5-pro')
 
             last_r = None
+            resp_data = None
             for current_model in fallback_chain:
                 # Update payload/URL for the current attempt
                 attempt_payload = payload.copy()
@@ -348,103 +462,111 @@ def chat_completions():
                     project_id = os.environ.get('VERTEX_PROJECT_ID')
                     attempt_url = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{current_model}:generateContent"
 
-                with httpx.Client(timeout=60.0) as client:
+                if is_quota_mode:
+                    r = send_generate(token, attempt_payload)
+                else:
+                    client = get_http_client()
                     r = client.post(attempt_url, headers=headers, json=attempt_payload)
-                    last_r = r
-                    
-                    if r.status_code == 429 and "capacity" in r.text.lower():
-                        print(f"[WARN] Model {current_model} exhausted (capacity). Trying fallback...", flush=True)
-                        continue
-                    
-                    if r.status_code != 200:
-                        print(f"[ERROR] API Error {r.status_code}: {r.text}", flush=True)
-                        return create_openai_error(f"Upstream Error: {r.text}", "upstream_error", r.status_code), r.status_code
-                    
+                last_r = r
+
+                if r.status_code == 429 and "capacity" in r.text.lower() and len(fallback_chain) > 1:
+                    print(f"[WARN] Model {current_model} exhausted (capacity). Trying fallback...", flush=True)
+                    continue
+
+                if r.status_code != 200:
+                    print(f"[ERROR] API Error {r.status_code}: {r.text}", flush=True)
+                    return create_openai_error(f"Upstream Error: {r.text}", "upstream_error", r.status_code), r.status_code
+
+                try:
                     resp_data = r.json()
-                    break # Success!
+                except Exception:
+                    return create_openai_error(f"Upstream Error: {r.text}", "upstream_error", 502), 502
+                break # Success!
             else:
                 # If all fallbacks failed
-                return create_openai_error(f"Upstream Error (All fallbacks exhausted): {last_r.text}", "upstream_error", r.status_code), last_r.status_code
+                if last_r is None:
+                    return create_openai_error("Upstream Error (No attempts executed)", "upstream_error", 500), 500
+                return create_openai_error(f"Upstream Error (All fallbacks exhausted): {last_r.text}", "upstream_error", last_r.status_code), last_r.status_code
             
             if is_quota_mode:
-                resp_data = resp_data.get("response", resp_data)
-                
-                candidates = resp_data.get('candidates', [])
-                text = ""
-                reasoning_text = ""
-                all_function_calls = []
-                finish_reason = "stop"
-                
-                if candidates:
-                    candidate = candidates[0]
-                    gemini_finish = candidate.get('finishReason')
-                    
-                    if gemini_finish in ["SAFETY", "RECITATION", "OTHER"]:
-                        return create_openai_error(f"Gemini blocked request: {gemini_finish}", "policy_violation", 400), 400
+                resp_data = unwrap_cloud_code_response(resp_data)
 
-                    content = candidate.get('content', {})
-                    parts = content.get('parts', [])
-                    
-                    for part in parts:
-                        p_text = part.get('text', '')
-                        thought = part.get('thought')
-                        if thought is not None:
-                            reasoning_text += p_text if p_text else (thought if isinstance(thought, str) else "")
-                        else:
-                            if p_text:
-                                text += p_text
-                            if part.get('functionCall'):
-                                all_function_calls.append(part.get('functionCall'))
-                    
-                    # Map Gemini finishReason to OpenAI
-                    if gemini_finish == "MAX_TOKENS": finish_reason = "length"
-                    elif all_function_calls: finish_reason = "tool_calls"
-                    # else default to stop
+            candidates = resp_data.get('candidates', [])
+            text = ""
+            reasoning_text = ""
+            all_function_calls = []
+            finish_reason = "stop"
+            
+            if candidates:
+                candidate = candidates[0]
+                gemini_finish = candidate.get('finishReason')
                 
-                usage = resp_data.get('usageMetadata', {})
+                if gemini_finish in ["SAFETY", "RECITATION", "OTHER"]:
+                    return create_openai_error(f"Gemini blocked request: {gemini_finish}", "policy_violation", 400), 400
+
+                content = candidate.get('content', {})
+                parts = content.get('parts', [])
                 
-                message_content = {
-                    "role": "assistant",
-                    "content": text
+                for part in parts:
+                    p_text = part.get('text', '')
+                    thought = part.get('thought')
+                    if thought is not None:
+                        reasoning_text += p_text if p_text else (thought if isinstance(thought, str) else "")
+                    else:
+                        if p_text:
+                            text += p_text
+                        if part.get('functionCall'):
+                            all_function_calls.append(part.get('functionCall'))
+                
+                # Map Gemini finishReason to OpenAI
+                if gemini_finish == "MAX_TOKENS": finish_reason = "length"
+                elif all_function_calls: finish_reason = "tool_calls"
+                # else default to stop
+            
+            usage = resp_data.get('usageMetadata', {})
+            
+            message_content = {
+                "role": "assistant",
+                "content": text
+            }
+            if reasoning_text:
+                message_content["reasoning_content"] = reasoning_text
+            
+            if all_function_calls:
+                message_content["tool_calls"] = []
+                for idx, fn in enumerate(all_function_calls):
+                    message_content["tool_calls"].append({
+                        "id": fn.get('id') or f"call_{int(time.time())}_{idx}",
+                        "type": "function",
+                        "function": {
+                            "name": fn.get('name'),
+                            "arguments": json.dumps(fn.get('args', {}))
+                        }
+                    })
+            
+            openai_response = {
+                "id": f"chatcmpl-{int(time.time())}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": raw_model,
+                "choices": [{
+                    "index": 0,
+                    "message": message_content,
+                    "finish_reason": finish_reason
+                }],
+                "usage": {
+                    "prompt_tokens": usage.get('promptTokenCount', 0),
+                    "completion_tokens": usage.get('candidatesTokenCount', 0),
+                    "total_tokens": usage.get('totalTokenCount', 0)
                 }
-                if reasoning_text:
-                    message_content["reasoning_content"] = reasoning_text
-                
-                if all_function_calls:
-                    message_content["tool_calls"] = []
-                    for idx, fn in enumerate(all_function_calls):
-                        message_content["tool_calls"].append({
-                            "id": fn.get('id') or f"call_{int(time.time())}_{idx}",
-                            "type": "function",
-                            "function": {
-                                "name": fn.get('name'),
-                                "arguments": json.dumps(fn.get('args', {}))
-                            }
-                        })
-                
-                openai_response = {
-                    "id": f"chatcmpl-{int(time.time())}",
-                    "object": "chat.completion",
-                    "created": int(time.time()),
-                    "model": raw_model,
-                    "choices": [{
-                        "index": 0,
-                        "message": message_content,
-                        "finish_reason": finish_reason
-                    }],
-                    "usage": {
-                        "prompt_tokens": usage.get('promptTokenCount', 0),
-                        "completion_tokens": usage.get('candidatesTokenCount', 0),
-                        "total_tokens": usage.get('totalTokenCount', 0)
-                    }
+            }
+            
+            if 'thoughtsTokenCount' in usage:
+                openai_response["usage"]["completion_tokens_details"] = {
+                    "reasoning_tokens": usage['thoughtsTokenCount']
                 }
-                
-                if 'thoughtsTokenCount' in usage:
-                    openai_response["usage"]["completion_tokens_details"] = {
-                        "reasoning_tokens": usage['thoughtsTokenCount']
-                    }
-                
-                return json.dumps(sanitize_data(openai_response), ensure_ascii=False), 200
+            
+            return json.dumps(sanitize_data(openai_response), ensure_ascii=False), 200
 
     except Exception as e:
         import traceback

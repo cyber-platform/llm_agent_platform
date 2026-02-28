@@ -1,12 +1,21 @@
 import os
 import json
-import httpx
 from flask import Blueprint, request, Response, stream_with_context
 from config import CLOUD_CODE_ENDPOINT
 from auth.credentials import get_user_creds, get_auth_lock, get_vertex_token
 from auth.discovery import discover_project_id
 from core.models import map_model_name
 from core.utils import create_openai_error
+from services.http_pool import get_http_client
+from services.quota_transport import (
+    build_quota_payload,
+    generate_session_id,
+    generate_user_prompt_id,
+    parse_cloud_code_sse_line,
+    send_generate,
+    stream_generate_lines,
+    unwrap_cloud_code_response,
+)
 
 gemini_bp = Blueprint('gemini', __name__)
 
@@ -28,7 +37,7 @@ def gemini_proxy(model_id, action):
         # Prepare request
         url = ""
         headers = {}
-        payload = request.json
+        payload = request.get_json(silent=True) or {}
         params = request.args.to_dict() # Pass through query params (like alt=sse)
 
         if is_quota_mode:
@@ -44,13 +53,16 @@ def gemini_proxy(model_id, action):
             if not project_id:
                 return create_openai_error("Google Cloud Project ID not found. Set GOOGLE_CLOUD_PROJECT env var.", "config_error", 500), 500
 
-            # Cloud Code API Payload Wrapper
-            # Native clients send the raw request body. Cloud Code expects it wrapped.
-            wrapped_payload = {
-                "model": target_model,
-                "project": project_id,
-                "request": payload
-            }
+            session_id = request.headers.get("x-session-id") or request.args.get("session_id") or payload.get("session_id") or generate_session_id()
+            user_prompt_id = request.headers.get("x-user-prompt-id") or request.args.get("user_prompt_id") or generate_user_prompt_id()
+
+            wrapped_payload = build_quota_payload(
+                model=target_model,
+                project=project_id,
+                request_payload=payload,
+                user_prompt_id=user_prompt_id,
+                session_id=session_id,
+            )
 
             url = f"{CLOUD_CODE_ENDPOINT}:{action}"
             headers = {
@@ -80,67 +92,54 @@ def gemini_proxy(model_id, action):
         # Execute Request
         if action == 'streamGenerateContent':
             def generate_stream():
-                client = httpx.Client(timeout=60.0)
                 try:
-                    # Pass params (like alt=sse)
-                    with client.stream("POST", url, headers=headers, json=payload, params=params) as r:
-                        if r.status_code != 200:
-                            err_text = r.read().decode()
-                            print(f"[ERROR] Stream API Error {r.status_code}: {err_text}", flush=True)
-                            # Return error as JSON data chunk if possible, or just text
-                            yield f"data: {json.dumps({'error': {'code': r.status_code, 'message': err_text}})}\n\n"
-                            return
+                    if is_quota_mode:
+                        for line in stream_generate_lines(token, payload):
+                            chunk_data = parse_cloud_code_sse_line(line)
+                            if not chunk_data:
+                                continue
+                            if chunk_data.get("done"):
+                                yield "data: [DONE]\n\n"
+                                break
+                            yield f"data: {json.dumps(chunk_data)}\n\n"
+                    else:
+                        client = get_http_client()
+                        with client.stream("POST", url, headers=headers, json=payload, params=params) as r:
+                            if r.status_code != 200:
+                                err_text = r.read().decode()
+                                print(f"[ERROR] Stream API Error {r.status_code}: {err_text}", flush=True)
+                                yield f"data: {json.dumps({'error': {'code': r.status_code, 'message': err_text}})}\n\n"
+                                return
 
-                        for line in r.iter_lines():
-                            if not line: continue
-                            
-                            # Pass through SSE lines directly
-                            # Cloud Code returns "data: {...}"
-                            # Vertex returns JSON array elements if not alt=sse, but usually clients request alt=sse
-                            
-                            if is_quota_mode:
-                                # Cloud Code wraps response in "response" field
-                                if line.startswith("data: "):
-                                    data_str = line[6:].strip()
-                                    if data_str == "[DONE]": 
-                                        yield line + "\n"
-                                        break
-                                    try:
-                                        chunk_data = json.loads(data_str)
-                                        # Unwrap Cloud Code response wrapper
-                                        real_data = chunk_data.get("response", chunk_data)
-                                        yield f"data: {json.dumps(real_data)}\n\n"
-                                    except: 
-                                        yield line + "\n" # Fallback
-                                else:
-                                    yield line + "\n"
-                            else:
-                                # Vertex AI direct proxy
-                                yield line + "\n"
+                            for line in r.iter_lines():
+                                if not line:
+                                    continue
+                                out = line.decode() if isinstance(line, bytes) else line
+                                yield out + "\n"
 
                 except Exception as e:
                     print(f"[ERROR] Stream Exception: {e}", flush=True)
                     yield f"data: {json.dumps({'error': {'message': str(e)}})}\n\n"
-                finally:
-                    client.close()
 
             return Response(stream_with_context(generate_stream()), mimetype='text/event-stream')
         
         else:
             # Non-streaming
-            with httpx.Client(timeout=60.0) as client:
+            if is_quota_mode:
+                r = send_generate(token, payload)
+            else:
+                client = get_http_client()
                 r = client.post(url, headers=headers, json=payload, params=params)
-                
-                if r.status_code != 200:
-                    return Response(r.content, status=r.status_code, mimetype='application/json')
-                
-                resp_data = r.json()
-                
-                if is_quota_mode:
-                    # Unwrap Cloud Code response
-                    resp_data = resp_data.get("response", resp_data)
-                
-                return json.dumps(resp_data), 200
+
+            if r.status_code != 200:
+                return Response(r.content, status=r.status_code, mimetype='application/json')
+
+            resp_data = r.json()
+
+            if is_quota_mode:
+                resp_data = unwrap_cloud_code_response(resp_data)
+
+            return json.dumps(resp_data), 200
 
     except Exception as e:
         import traceback
