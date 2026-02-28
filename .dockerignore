@@ -1,5 +1,6 @@
 # Ignore secrets - should be mounted at runtime
 secrets/
+.env
 
 # Ignore other project directories
 gemini-cli/
