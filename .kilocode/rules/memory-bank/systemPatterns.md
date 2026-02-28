@@ -9,6 +9,8 @@
 - **Blueprint (Flask)**: Организация маршрутов по функциональным модулям (`api/openai`, `api/gemini`).
 - **Transformation Layer**: Изолированная логика маппинга сообщений и инструментов (`api/openai/transform.py`).
 - **Background Refresh**: Фоновое обновление OAuth токенов для минимизации задержек при запросах.
+- **Quota-first Transport Parity**: Единый transport-модуль для quota-трафика с контрактом запроса, максимально близким к `gemini-cli` (`model`, `project`, `user_prompt_id`, `request.session_id`).
+- **Golden Parity Validation**: Двухконтурная верификация parity через runtime capture-relay и статический эталон по коду `gemini-cli` с последующим сравнением payload в автотестах.
 
 ## Структура проекта
 - `api/`: Эндпоинты и логика обработки запросов.

@@ -1,29 +1,25 @@
 # Active Context: Gemini OpenAI Proxy
 
 ## Текущая задача
-Рефакторинг проекта согласно утвержденному плану.
+Завершить цикл задачи 012 и зафиксировать финальные решения quota-first parity.
 
 ## Состояние (чек-лист)
-- [x] Анализ кода проекта
-- [x] Подготовка критической обратной связи
-- [x] Разработка плана рефакторинга
-- [x] Инициализация структуры Memory Bank (добавлены `gitContext.md` и `index.md`)
-- [ ] Реализация этапа 1: Инфраструктура и Конфигурация
-- [ ] Реализация этапа 2: Ядро и Аутентификация
-- [ ] Реализация этапа 3: Производительность и Динамические модели
-- [ ] Реализация этапа 4: Аудит и полная поддержка возможностей (Transformation)
+- [x] Реализована задача [`012-quota-cli-parity-and-kilo-openai-compat.md`](tasks_descriptions/tasks/012-quota-cli-parity-and-kilo-openai-compat.md).
+- [x] Добавлены и зафиксированы parity/contract тесты и test-map артефакты.
+- [x] Обновлён OAuth-скрипт под поведение, близкое к `gemini-cli`, с ручным fallback-flow авторизации.
+- [x] Принято архитектурное решение: не добавлять скрытый авто-fallback на меньшие модели в proxy и сохранять явный `429 MODEL_CAPACITY_EXHAUSTED`.
+- [ ] Переключиться на следующую задачу очереди L3.
 
 ## Фокус
-- Устранение хардкода (модели, секреты).
-- Внедрение тестирования (pytest).
-- Оптимизация HTTP соединений.
-- Полная поддержка возможностей Gemini API.
+- Прозрачное поведение quota-режима без неявной подмены модели.
+- Стабильная работа в Kilo Code через OpenAI-compatible провайдер без деградации stream/non-stream контракта.
+- Трассируемая parity-валидация через golden-артефакты и автотесты.
 
 ## Next Up (Level 3)
-- [001-infra-config.md](tasks_descriptions/backlog/001-infra-config.md)
-- [002-core-auth.md](tasks_descriptions/backlog/002-core-auth.md)
-- [003-api-performance.md](tasks_descriptions/backlog/003-api-performance.md)
-- [004-audit-transformation.md](tasks_descriptions/backlog/004-audit-transformation.md)
+- [009-cli-transport-parity-core.md](tasks_descriptions/tasks/009-cli-transport-parity-core.md)
+- [010-gemini-native-routing-and-parity-tests.md](tasks_descriptions/tasks/010-gemini-native-routing-and-parity-tests.md)
+- [008-openai-stream-and-contract-tests.md](tasks_descriptions/tasks/008-openai-stream-and-contract-tests.md)
+- [011-auth-config-hardening-for-parity.md](tasks_descriptions/tasks/011-auth-config-hardening-for-parity.md)
 
 ## Backlog Reference
-Смотри директорию `tasks_descriptions/backlog/`
+Смотри директории `tasks_descriptions/tasks/` и `tasks_descriptions/backlog/`.
