@@ -8,5 +8,5 @@ dependencies = [
     "flask>=3.1.2",
     "google-auth>=2.48.0",
     "google-auth-oauthlib>=1.2.4",
-    "httpx>=0.28.1",
+    "httpx[http2]>=0.28.1",
 ]
