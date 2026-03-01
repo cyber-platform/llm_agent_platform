@@ -1,105 +1,291 @@
-import os
 import json
-import time
+import os
 import threading
-import sys
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google.oauth2 import service_account
-from config import USER_CREDS_PATH, SERVICE_ACCOUNT_PATH, GEMINI_CLI_CLIENT_ID, GEMINI_CLI_CLIENT_SECRET
+import time
+from dataclasses import dataclass
+from pathlib import Path
 
-# Global state for credentials - use a dict to store to avoid module-level reference issues
+from google.auth.transport.requests import Request
+from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
+
+from config import (
+    GEMINI_ACCOUNTS_CONFIG_PATH,
+    GEMINI_CLI_CLIENT_ID,
+    GEMINI_CLI_CLIENT_SECRET,
+    QWEN_ACCOUNTS_CONFIG_PATH,
+    SERVICE_ACCOUNT_PATH,
+    USER_GEMINI_CREDS_PATH,
+)
+
+
+@dataclass(slots=True)
+class ProviderCredentials:
+    provider: str
+    token: str
+    source_path: str
+
+
+@dataclass(slots=True)
+class AuthAvailability:
+    gemini_quota: bool
+    qwen_quota: bool
+    vertex: bool
+    diagnostics: list[str]
+
+    def has_any(self) -> bool:
+        return self.gemini_quota or self.qwen_quota or self.vertex
+
+
 _auth_state = {
-    'user_creds': None,
-    'auth_lock': threading.Lock()
+    "user_creds": None,
+    "auth_lock": threading.Lock(),
 }
 
-def get_user_creds():
-    """Get current user credentials"""
-    return _auth_state['user_creds']
 
-def set_user_creds(creds):
-    """Set user credentials"""
-    with _auth_state['auth_lock']:
-        _auth_state['user_creds'] = creds
+def get_user_creds() -> ProviderCredentials | None:
+    """Get current user credentials for Gemini quota flow.
 
-def get_auth_lock():
-    """Get auth lock"""
-    return _auth_state['auth_lock']
+    Returns:
+        ProviderCredentials | None: cached credentials state.
+    """
+    return _auth_state["user_creds"]
 
-def initialize_auth():
-    """Initializes OAuth credentials on startup"""
-    global user_creds
+
+def set_user_creds(creds: ProviderCredentials) -> None:
+    """Set user credentials in thread-safe manner.
+
+    Args:
+        creds: provider credentials to cache.
+    """
+    with _auth_state["auth_lock"]:
+        _auth_state["user_creds"] = creds
+
+
+def get_auth_lock() -> threading.Lock:
+    """Return global auth lock for quota token access.
+
+    Returns:
+        threading.Lock: shared lock.
+    """
+    return _auth_state["auth_lock"]
+
+
+def _load_gemini_refresh_token(file_path: Path) -> dict:
+    with file_path.open("r", encoding="utf-8") as f:
+        info = json.load(f)
+
+    if "refresh_token" not in info:
+        raise ValueError(f"Missing 'refresh_token' in {file_path}")
+    return info
+
+
+def _load_json_file(file_path: Path) -> dict:
+    with file_path.open("r", encoding="utf-8") as f:
+        payload = json.load(f)
+    if not isinstance(payload, dict):
+        raise ValueError(f"Expected JSON object in {file_path}")
+    return payload
+
+
+def _credentials_has_refresh_token(credentials_path: str | Path) -> bool:
+    file_path = Path(credentials_path)
+    if not file_path.exists():
+        return False
     try:
-        if os.path.exists(USER_CREDS_PATH):
-            with open(USER_CREDS_PATH, 'r') as f:
-                info = json.load(f)
-            
-            # Use Gemini CLI Client ID/Secret if not present in the file
-            client_id = info.get('client_id', GEMINI_CLI_CLIENT_ID)
-            client_secret = info.get('client_secret', GEMINI_CLI_CLIENT_SECRET)
+        info = _load_json_file(file_path)
+    except Exception:
+        return False
+    return bool(info.get("refresh_token"))
 
-            creds = Credentials(
-                token=None,
-                refresh_token=info['refresh_token'],
-                token_uri="https://oauth2.googleapis.com/token",
-                client_id=client_id,
-                client_secret=client_secret
-            )
-            
-            creds.refresh(Request())
-            set_user_creds(creds)
-            print(f"[AUTH] User OAuth token initialized (Gemini CLI Mode).", flush=True)
-            return True
-        else:
-            print(f"[AUTH] Error: {USER_CREDS_PATH} not found!", flush=True)
-            return False
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f"[AUTH] User initialization failed: {e}", flush=True)
+
+def _provider_has_valid_account_data(config_path: str | Path, provider: str) -> bool:
+    file_path = Path(config_path)
+    if not file_path.exists():
         return False
 
-def refresh_user_creds():
-    """Refreshes OAuth credentials in the background using Gemini CLI client ID"""
-    
+    try:
+        payload = _load_json_file(file_path)
+    except Exception:
+        return False
+
+    mode = payload.get("mode", "single")
+    if mode not in {"single", "rounding"}:
+        return False
+
+    accounts = payload.get("accounts")
+    if not isinstance(accounts, dict) or not accounts:
+        return False
+
+    candidate_names: list[str] = []
+    if mode == "single":
+        active_account = payload.get("active_account")
+        if not active_account:
+            return False
+        candidate_names = [active_account]
+    else:
+        all_accounts = payload.get("all_accounts") or []
+        if not isinstance(all_accounts, list) or not all_accounts:
+            return False
+        candidate_names = [name for name in all_accounts if isinstance(name, str) and name]
+        if not candidate_names:
+            return False
+
+    for name in candidate_names:
+        account = accounts.get(name)
+        if not isinstance(account, dict):
+            continue
+        credentials_path = account.get("credentials_path")
+        if not credentials_path or not _credentials_has_refresh_token(credentials_path):
+            continue
+        if provider == "gemini" and not account.get("project_id"):
+            continue
+        return True
+
+    return False
+
+
+def get_auth_availability() -> AuthAvailability:
+    """Inspect local auth data and report available auth sources.
+
+    Returns:
+        AuthAvailability: availability flags and diagnostics.
+    """
+    diagnostics: list[str] = []
+
+    gemini_quota = _provider_has_valid_account_data(GEMINI_ACCOUNTS_CONFIG_PATH, provider="gemini")
+    if not gemini_quota:
+        diagnostics.append(
+            "Gemini quota auth unavailable: provide valid accounts config "
+            f"with refresh_token and project_id in '{GEMINI_ACCOUNTS_CONFIG_PATH}'."
+        )
+
+    qwen_quota = _provider_has_valid_account_data(QWEN_ACCOUNTS_CONFIG_PATH, provider="qwen")
+    if not qwen_quota:
+        diagnostics.append(
+            "Qwen quota auth unavailable: provide valid accounts config "
+            f"with refresh_token in '{QWEN_ACCOUNTS_CONFIG_PATH}'."
+        )
+
+    vertex_project_id = os.environ.get("VERTEX_PROJECT_ID", "").strip()
+    vertex_service_account = Path(SERVICE_ACCOUNT_PATH)
+    vertex = bool(vertex_project_id) and vertex_service_account.exists()
+    if not vertex:
+        diagnostics.append(
+            "Vertex auth unavailable: set VERTEX_PROJECT_ID and provide service account file "
+            f"at '{SERVICE_ACCOUNT_PATH}'."
+        )
+
+    return AuthAvailability(
+        gemini_quota=gemini_quota,
+        qwen_quota=qwen_quota,
+        vertex=vertex,
+        diagnostics=diagnostics,
+    )
+
+
+def _refresh_gemini_token(info: dict) -> str:
+    client_id = info.get("client_id", GEMINI_CLI_CLIENT_ID)
+    client_secret = info.get("client_secret", GEMINI_CLI_CLIENT_SECRET)
+
+    creds = Credentials(
+        token=None,
+        refresh_token=info["refresh_token"],
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret,
+    )
+    creds.refresh(Request())
+
+    if not creds.token:
+        raise RuntimeError("Google refresh returned empty access token")
+    return creds.token
+
+
+def get_gemini_access_token_from_file(credentials_path: str | Path) -> str:
+    """Load and refresh Gemini OAuth token from credentials file.
+
+    Args:
+        credentials_path: Path to OAuth authorized_user credentials JSON.
+
+    Returns:
+        str: Fresh Gemini access token.
+    """
+    file_path = Path(credentials_path)
+    info = _load_gemini_refresh_token(file_path)
+    return _refresh_gemini_token(info)
+
+
+def initialize_auth() -> bool:
+    """Validate that at least one auth source is available.
+
+    Returns:
+        bool: True when any auth source is available.
+    """
+    availability = get_auth_availability()
+    if not availability.has_any():
+        print("[AUTH] No authentication data found. Configure at least one source:", flush=True)
+        for message in availability.diagnostics:
+            print(f"[AUTH] - {message}", flush=True)
+        return False
+
+    if availability.gemini_quota:
+        print("[AUTH] Gemini quota auth detected.", flush=True)
+    if availability.qwen_quota:
+        print("[AUTH] Qwen quota auth detected.", flush=True)
+    if availability.vertex:
+        print("[AUTH] Vertex auth detected.", flush=True)
+    return True
+
+
+def refresh_user_creds() -> None:
+    """Background refresher for Gemini OAuth credentials."""
+    availability = get_auth_availability()
+    if not availability.gemini_quota:
+        print("[AUTH] Gemini quota auth is not configured. Background refresh disabled.", flush=True)
+        return
+
+    creds_path = Path(USER_GEMINI_CREDS_PATH)
+
     while True:
         sleep_time = 3000
         try:
-            if os.path.exists(USER_CREDS_PATH):
-                with open(USER_CREDS_PATH, 'r') as f:
-                    info = json.load(f)
-                
-                # Use Gemini CLI Client ID/Secret if not present in the file
-                client_id = info.get('client_id', GEMINI_CLI_CLIENT_ID)
-                client_secret = info.get('client_secret', GEMINI_CLI_CLIENT_SECRET)
-
-                creds = Credentials(
-                    token=None,
-                    refresh_token=info['refresh_token'],
-                    token_uri="https://oauth2.googleapis.com/token",
-                    client_id=client_id,
-                    client_secret=client_secret
-                )
-                
-                creds.refresh(Request())
-                set_user_creds(creds)
-                print(f"[AUTH] User OAuth token refreshed (Gemini CLI Mode).", flush=True)
+            if not creds_path.exists():
+                print(f"[AUTH] Error: {creds_path} not found!", flush=True)
+                sleep_time = 60
             else:
-                print(f"[AUTH] Error: {USER_CREDS_PATH} not found!", flush=True)
-                sleep_time = 60 # Check again in a minute if file missing
+                info = _load_gemini_refresh_token(creds_path)
+                token = _refresh_gemini_token(info)
+                set_user_creds(
+                    ProviderCredentials(
+                        provider="gemini",
+                        token=token,
+                        source_path=str(creds_path),
+                    )
+                )
+                print(
+                    "[AUTH] User OAuth token refreshed (Gemini CLI Mode).",
+                    flush=True,
+                )
         except Exception as e:
             print(f"[AUTH] User refresh failed: {e}", flush=True)
-            sleep_time = 30 # Retry sooner on failure
+            sleep_time = 30
+
         time.sleep(sleep_time)
 
-def get_vertex_token():
-    """Gets an access token for Vertex AI using Service Account"""
+
+def get_vertex_token() -> str | None:
+    """Gets an access token for Vertex AI using Service Account.
+
+    Returns:
+        str | None: Vertex access token.
+    """
     if not os.path.exists(SERVICE_ACCOUNT_PATH):
         return None
+
     creds = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_PATH, 
-        scopes=['https://www.googleapis.com/auth/cloud-platform']
+        SERVICE_ACCOUNT_PATH,
+        scopes=["https://www.googleapis.com/auth/cloud-platform"],
     )
     creds.refresh(Request())
     return creds.token

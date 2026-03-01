@@ -1,0 +1,18 @@
+{
+  "active_account": "lisa",
+  "mode": "single",
+  "all_accounts": [
+    "lisa",
+    "petr"
+  ],
+  "accounts": {
+    "lisa": {
+      "credentials_path": "secrets/gemini_lisa.json",
+      "project_id": "my-gcp-project"
+    },
+    "petr": {
+      "credentials_path": "secrets/gemini_petr.json",
+      "project_id": "my-gcp-project-2"
+    }
+  }
+}

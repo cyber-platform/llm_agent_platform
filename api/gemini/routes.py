@@ -2,15 +2,24 @@ import os
 import json
 from flask import Blueprint, request, Response, stream_with_context
 from config import CLOUD_CODE_ENDPOINT
-from auth.credentials import get_user_creds, get_auth_lock, get_vertex_token
-from auth.discovery import discover_project_id
+from auth.credentials import (
+    get_auth_lock,
+    get_gemini_access_token_from_file,
+    get_vertex_token,
+)
 from core.models import map_model_name
 from core.utils import create_openai_error
 from services.http_pool import get_http_client
+from services.account_router import (
+    AllAccountsExhaustedError,
+    GeminiAccount,
+    quota_account_router,
+)
 from services.quota_transport import (
     build_quota_payload,
     generate_session_id,
     generate_user_prompt_id,
+    is_quota_limit_response,
     parse_cloud_code_sse_line,
     send_generate,
     stream_generate_lines,
@@ -38,28 +47,33 @@ def gemini_proxy(model_id, action):
         url = ""
         headers = {}
         payload = request.get_json(silent=True) or {}
+        quota_request_payload = payload
         params = request.args.to_dict() # Pass through query params (like alt=sse)
+        selected_account = None
+        session_id = None
+        user_prompt_id = None
 
         if is_quota_mode:
             # --- Gemini CLI / Cloud Code Emulation Mode ---
-            user_creds = get_user_creds()
-            auth_lock = get_auth_lock()
-            with auth_lock:
-                if not user_creds:
-                    return create_openai_error("Authentication not initialized. Please run auth script.", "auth_error", 401), 401
-                token = user_creds.token
-            
-            project_id = discover_project_id(token)
-            if not project_id:
-                return create_openai_error("Google Cloud Project ID not found. Set GOOGLE_CLOUD_PROJECT env var.", "config_error", 500), 500
+            try:
+                selected_account = quota_account_router.select_account("gemini")
+            except AllAccountsExhaustedError:
+                return create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429), 429
 
-            session_id = request.headers.get("x-session-id") or request.args.get("session_id") or payload.get("session_id") or generate_session_id()
+            account = selected_account.account
+            if not isinstance(account, GeminiAccount):
+                return create_openai_error("Invalid Gemini account configuration", "config_error", 500), 500
+
+            with get_auth_lock():
+                token = get_gemini_access_token_from_file(account.credentials_path)
+
+            session_id = request.headers.get("x-session-id") or request.args.get("session_id") or quota_request_payload.get("session_id") or generate_session_id()
             user_prompt_id = request.headers.get("x-user-prompt-id") or request.args.get("user_prompt_id") or generate_user_prompt_id()
 
             wrapped_payload = build_quota_payload(
                 model=target_model,
-                project=project_id,
-                request_payload=payload,
+                project=account.project_id,
+                request_payload=quota_request_payload,
                 user_prompt_id=user_prompt_id,
                 session_id=session_id,
             )
@@ -94,14 +108,65 @@ def gemini_proxy(model_id, action):
             def generate_stream():
                 try:
                     if is_quota_mode:
-                        for line in stream_generate_lines(token, payload):
-                            chunk_data = parse_cloud_code_sse_line(line)
-                            if not chunk_data:
-                                continue
-                            if chunk_data.get("done"):
-                                yield "data: [DONE]\n\n"
-                                break
-                            yield f"data: {json.dumps(chunk_data)}\n\n"
+                        max_attempts = len(selected_account.pool) if selected_account and selected_account.mode == "rounding" else 1
+                        attempts = 0
+
+                        while attempts < max_attempts:
+                            try:
+                                for line in stream_generate_lines(token, payload):
+                                    chunk_data = parse_cloud_code_sse_line(line)
+                                    if not chunk_data:
+                                        continue
+                                    if chunk_data.get("done"):
+                                        if selected_account is not None:
+                                            quota_account_router.register_success("gemini", selected_account.account.name)
+                                        yield "data: [DONE]\n\n"
+                                        return
+                                    yield f"data: {json.dumps(chunk_data)}\n\n"
+
+                                if selected_account is not None:
+                                    quota_account_router.register_success("gemini", selected_account.account.name)
+                                return
+                            except Exception as stream_error:
+                                err_text = str(stream_error)
+                                status = None
+                                body = err_text
+                                if ":" in err_text:
+                                    prefix, rest = err_text.split(":", 1)
+                                    if prefix.isdigit():
+                                        status = int(prefix)
+                                        body = rest
+
+                                if status == 429 and is_quota_limit_response(429, body) and selected_account is not None:
+                                    switched = quota_account_router.register_quota_limit(
+                                        "gemini",
+                                        selected_account.account.name,
+                                        selected_account.mode,
+                                        selected_account.pool,
+                                    )
+                                    if switched and quota_account_router.all_accounts_exhausted("gemini", selected_account.pool):
+                                        yield f"data: {create_openai_error('all_accounts_exceed_quota', 'quota_exhausted', 429)}\n\n"
+                                        return
+                                    if switched and selected_account.mode == "rounding":
+                                        attempts += 1
+                                        selected_account = quota_account_router.select_account("gemini")
+                                        next_account = selected_account.account
+                                        if not isinstance(next_account, GeminiAccount):
+                                            yield f"data: {create_openai_error('Invalid Gemini account configuration', 'config_error', 500)}\n\n"
+                                            return
+                                        with get_auth_lock():
+                                            token = get_gemini_access_token_from_file(next_account.credentials_path)
+                                        payload = build_quota_payload(
+                                            model=target_model,
+                                            project=next_account.project_id,
+                                            request_payload=quota_request_payload,
+                                            user_prompt_id=user_prompt_id or generate_user_prompt_id(),
+                                            session_id=session_id,
+                                        )
+                                        continue
+
+                                yield f"data: {create_openai_error(f'Upstream API Error: {err_text}', 'upstream_error', 502)}\n\n"
+                                return
                     else:
                         client = get_http_client()
                         with client.stream("POST", url, headers=headers, json=payload, params=params) as r:
@@ -126,7 +191,42 @@ def gemini_proxy(model_id, action):
         else:
             # Non-streaming
             if is_quota_mode:
-                r = send_generate(token, payload)
+                max_attempts = len(selected_account.pool) if selected_account and selected_account.mode == "rounding" else 1
+                attempts = 0
+                r = None
+
+                while attempts < max_attempts:
+                    r = send_generate(token, payload)
+                    if is_quota_limit_response(r.status_code, r.text) and selected_account is not None:
+                        switched = quota_account_router.register_quota_limit(
+                            "gemini",
+                            selected_account.account.name,
+                            selected_account.mode,
+                            selected_account.pool,
+                        )
+                        if switched and quota_account_router.all_accounts_exhausted("gemini", selected_account.pool):
+                            return create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429), 429
+                        if switched and selected_account.mode == "rounding":
+                            attempts += 1
+                            selected_account = quota_account_router.select_account("gemini")
+                            next_account = selected_account.account
+                            if not isinstance(next_account, GeminiAccount):
+                                return create_openai_error("Invalid Gemini account configuration", "config_error", 500), 500
+                            with get_auth_lock():
+                                token = get_gemini_access_token_from_file(next_account.credentials_path)
+                            payload = build_quota_payload(
+                                model=target_model,
+                                project=next_account.project_id,
+                                request_payload=quota_request_payload,
+                                user_prompt_id=user_prompt_id or generate_user_prompt_id(),
+                                session_id=session_id,
+                            )
+                            continue
+
+                    break
+
+                if r is None:
+                    return create_openai_error("Upstream Error (No attempts executed)", "upstream_error", 500), 500
             else:
                 client = get_http_client()
                 r = client.post(url, headers=headers, json=payload, params=params)
@@ -137,6 +237,8 @@ def gemini_proxy(model_id, action):
             resp_data = r.json()
 
             if is_quota_mode:
+                if selected_account is not None:
+                    quota_account_router.register_success("gemini", selected_account.account.name)
                 resp_data = unwrap_cloud_code_response(resp_data)
 
             return json.dumps(resp_data), 200

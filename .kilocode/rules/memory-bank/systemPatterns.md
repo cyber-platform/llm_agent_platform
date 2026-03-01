@@ -11,6 +11,8 @@
 - **Background Refresh**: Фоновое обновление OAuth токенов для минимизации задержек при запросах.
 - **Quota-first Transport Parity**: Единый transport-модуль для quota-трафика с контрактом запроса, максимально близким к `gemini-cli` (`model`, `project`, `user_prompt_id`, `request.session_id`).
 - **Golden Parity Validation**: Двухконтурная верификация parity через runtime capture-relay и статический эталон по коду `gemini-cli` с последующим сравнением payload в автотестах.
+- **Unified Quota Account Router**: Провайдер-агностичный роутер аккаунтов для quota-контуров `gemini`/`qwen` с режимами `single`/`rounding`, switch после 2 подряд quota-limit ошибок и явным состоянием `all_accounts_exceed_quota`.
+- **Provider-specific Credentials Paths**: Разделение OAuth credentials по провайдерам (`USER_GEMINI_CREDS_PATH`, `USER_QWEN_CREDS_PATH`) и отдельные provider-config файлы аккаунтов (`gemini_accounts_config.json`, `qwen_accounts_config.json`).
 
 ## Структура проекта
 - `api/`: Эндпоинты и логика обработки запросов.

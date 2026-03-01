@@ -7,6 +7,7 @@ def map_model_name(name):
         'gemini-2.5-pro-quota': 'gemini-2.5-pro',
         'gemini-2.5-flash-quota': 'gemini-2.5-flash',
         'gemini-2.5-flash-lite-quota': 'gemini-2.5-flash-lite',
+        'qwen-coder-model-quota': 'coder-model',
         
         # Vertex Group (Credits)
         'gemini-3.1-pro-preview-vertex': 'gemini-3.1-pro-preview',

@@ -43,6 +43,18 @@
 *   `gemini-2.5-pro-quota` — Стабильная Pro-модель.
 *   `gemini-2.5-flash-quota` — Оптимальный баланс.
 *   `gemini-2.5-flash-lite-quota` — Максимальная экономия.
+*   `qwen-coder-model-quota` — Qwen quota-модель (OAuth), маппится в upstream `coder-model`.
+
+### Ротация quota-аккаунтов
+Для quota-провайдеров поддерживаются режимы `single` и `rounding`.
+
+- `single`: используется только `active_account`.
+- `rounding`: round-robin по `all_accounts`, переключение после 2 подряд quota-limit ошибок текущего аккаунта.
+- Если лимиты исчерпаны у всех аккаунтов, возвращается ошибка `all_accounts_exceed_quota`.
+
+Конфиги и примеры структуры:
+- рабочие файлы: `secrets/gemini_accounts_config.json`, `secrets/qwen_accounts_config.json`
+- примеры: `docs/examples/gemini_accounts_config.example.json`, `docs/examples/qwen_accounts_config.example.json`
 
 ### Группа Vertex (Облачные кредиты)
 Использует баланс вашего Google Cloud проекта ($10/мес кредитов для Pro-пользователей).

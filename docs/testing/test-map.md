@@ -9,8 +9,8 @@
 | :--- | :--- | :--- | :--- |
 | [`openai-contract.md`](docs/testing/suites/openai-contract.md) | OpenAI stream/non-stream контракт для Kilo | [`test_openai_contract.py`](tests/test_openai_contract.py) | active |
 | [`quota-parity.md`](docs/testing/suites/quota-parity.md) | Quota payload parity с `gemini-cli` shape | [`test_quota_transport_parity.py`](tests/test_quota_transport_parity.py) | active |
+| [`quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md) | Unified quota account rotation для `gemini` и `qwen` (`single/rounding`, switch после 2 лимитных ошибок, exhausted state) | [`test_quota_account_router.py`](tests/test_quota_account_router.py), [`test_openai_contract.py`](tests/test_openai_contract.py) | active |
 
 ## Runbook
 - Запуск: `uv run python -m unittest discover -s tests -p "test_*.py"`
 - Быстрая проверка синтаксиса: `uv run python -m compileall api auth core services main.py tests`
-

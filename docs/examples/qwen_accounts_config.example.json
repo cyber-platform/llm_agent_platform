@@ -1,0 +1,16 @@
+{
+  "active_account": "lisa",
+  "mode": "single",
+  "all_accounts": [
+    "lisa",
+    "petr"
+  ],
+  "accounts": {
+    "lisa": {
+      "credentials_path": "secrets/qwen_lisa.json"
+    },
+    "petr": {
+      "credentials_path": "secrets/qwen_petr.json"
+    }
+  }
+}

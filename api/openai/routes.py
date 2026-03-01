@@ -3,28 +3,119 @@ import json
 import time
 from flask import Blueprint, request, Response, stream_with_context
 from config import CLOUD_CODE_ENDPOINT, DEFAULT_QUOTA_MODEL, STRICT_CLI_PARITY
-from auth.credentials import get_user_creds, get_auth_lock, get_vertex_token
-from auth.discovery import discover_project_id
+from auth.credentials import (
+    get_auth_availability,
+    get_auth_lock,
+    get_gemini_access_token_from_file,
+    get_user_creds,
+    get_vertex_token,
+)
+from auth.qwen_oauth import (
+    refresh_qwen_credentials_file,
+)
 from core.models import map_model_name
 from core.utils import sanitize_data, sanitize_string, clean_gemini_schema, create_openai_error
 from api.openai.transform import transform_openai_to_gemini
 from services.http_pool import get_http_client
+from services.account_router import (
+    AllAccountsExhaustedError,
+    GeminiAccount,
+    quota_account_router,
+)
 from services.quota_transport import (
     build_quota_payload,
     generate_session_id,
     generate_user_prompt_id,
+    is_quota_limit_response,
     parse_cloud_code_sse_line,
     send_generate,
+    send_generate_to_url,
     stream_generate_lines,
+    stream_generate_lines_from_url,
     unwrap_cloud_code_response,
 )
 
 openai_bp = Blueprint('openai', __name__)
 
+
+def _is_qwen_quota_model(raw_model: str) -> bool:
+    return 'qwen' in raw_model and 'quota' in raw_model
+
+
+def _is_gemini_quota_model(raw_model: str) -> bool:
+    return 'quota' in raw_model and not _is_qwen_quota_model(raw_model)
+
+
+def _qwen_completion_url(resource_url: str) -> str:
+    normalized = resource_url.strip()
+    if not normalized.startswith('http://') and not normalized.startswith('https://'):
+        normalized = f'https://{normalized}'
+    if normalized.endswith('/'):
+        normalized = normalized[:-1]
+    if not normalized.endswith('/v1'):
+        normalized = f'{normalized}/v1'
+    return f'{normalized}/chat/completions'
+
+
+def _qwen_payload_from_openai(data: dict, target_model: str) -> dict:
+    payload = {
+        "model": target_model,
+        "messages": data.get('messages', []),
+        "stream": bool(data.get('stream', False)),
+    }
+
+    for field in [
+        'temperature',
+        'top_p',
+        'max_tokens',
+        'max_completion_tokens',
+        'presence_penalty',
+        'frequency_penalty',
+        'stop',
+        'tools',
+        'tool_choice',
+        'response_format',
+    ]:
+        if field in data:
+            payload[field] = data[field]
+
+    return payload
+
+
+def _stream_quota_error(error_payload: str):
+    yield f"data: {error_payload}\n\n"
+    yield "data: [DONE]\n\n"
+
+
+def _openai_chunk_from_qwen(parsed: dict, raw_model: str) -> dict:
+    choice = (parsed.get("choices") or [{}])[0]
+    delta = choice.get("delta", {})
+
+    if not delta and "message" in choice:
+        msg = choice.get("message", {})
+        delta = {
+            "role": msg.get("role", "assistant"),
+            "content": msg.get("content", ""),
+        }
+
+    return {
+        "id": parsed.get("id", f"chatcmpl-{int(time.time())}"),
+        "object": "chat.completion.chunk",
+        "created": int(time.time()),
+        "model": raw_model,
+        "choices": [{
+            "index": choice.get("index", 0),
+            "delta": delta,
+            "finish_reason": choice.get("finish_reason"),
+        }],
+    }
+
 @openai_bp.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
     try:
         data = request.json
+        if not isinstance(data, dict):
+            data = {}
         raw_model = data.get('model', DEFAULT_QUOTA_MODEL)
         target_model = map_model_name(raw_model)
         messages = data.get('messages', [])
@@ -91,64 +182,102 @@ def chat_completions():
                 gemini_tools = [{"function_declarations": declarations}]
 
         # Определение режима работы (Quota vs Vertex)
-        is_quota_mode = 'quota' in raw_model
+        is_qwen_quota_mode = _is_qwen_quota_model(raw_model)
+        is_gemini_quota_mode = _is_gemini_quota_model(raw_model)
+        is_quota_mode = is_qwen_quota_mode or is_gemini_quota_mode
         
         # --- Подготовка запроса ---
         url = ""
         headers = {}
         payload = {}
         params = {}
+        selected_account = None
+        token = None
+        quota_request_payload = None
+        session_id = None
+        user_prompt_id = None
 
-        if is_quota_mode:
-            # --- Gemini CLI / Cloud Code Emulation Mode ---
-            user_creds = get_user_creds()
+        if is_qwen_quota_mode:
+            try:
+                selected_account = quota_account_router.select_account("qwen")
+            except AllAccountsExhaustedError:
+                return create_openai_error(
+                    "all_accounts_exceed_quota",
+                    "quota_exhausted",
+                    429,
+                ), 429
+
+            account = selected_account.account
+            try:
+                qwen_creds = refresh_qwen_credentials_file(account.credentials_path)
+            except Exception as e:
+                return create_openai_error(f"Qwen OAuth refresh failed: {e}", "auth_error", 401), 401
+            token = qwen_creds.get("access_token")
+            resource_url = qwen_creds.get("resource_url")
+            if not token or not resource_url:
+                return create_openai_error(
+                    "Qwen OAuth credentials must include access_token and resource_url",
+                    "auth_error",
+                    401,
+                ), 401
+
+            payload = _qwen_payload_from_openai(data, target_model)
+            url = _qwen_completion_url(resource_url)
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            }
+        elif is_gemini_quota_mode:
+            try:
+                selected_account = quota_account_router.select_account("gemini")
+            except AllAccountsExhaustedError:
+                return create_openai_error(
+                    "all_accounts_exceed_quota",
+                    "quota_exhausted",
+                    429,
+                ), 429
+
+            account = selected_account.account
+            if not isinstance(account, GeminiAccount):
+                return create_openai_error(
+                    "Invalid Gemini account configuration",
+                    "config_error",
+                    500,
+                ), 500
+
             auth_lock = get_auth_lock()
-            print(f"[DEBUG] Before auth_lock: user_creds={user_creds}", flush=True)
             with auth_lock:
-                print(f"[DEBUG] Inside auth_lock: user_creds={user_creds}", flush=True)
-                # Check if credentials are available (should be after initialization)
-                if not user_creds or not hasattr(user_creds, 'token') or not user_creds.token:
-                    print(f"[DEBUG] Auth check failed: user_creds={user_creds}, hasattr={hasattr(user_creds, 'token') if user_creds else 'N/A'}, token={getattr(user_creds, 'token', None) if user_creds else 'N/A'}", flush=True)
-                    return create_openai_error("Authentication not initialized. Please run auth script.", "auth_error", 401), 401
-                token = user_creds.token
-            print(f"[DEBUG] After auth_lock: token={token[:30] if token else None}...", flush=True)
-            
-            project_id = discover_project_id(token)
-            if not project_id:
-                return create_openai_error("Google Cloud Project ID not found. Set GOOGLE_CLOUD_PROJECT env var.", "config_error", 500), 500
+                token = get_gemini_access_token_from_file(account.credentials_path)
 
             session_id = data.get("session_id") or request.headers.get("x-session-id") or generate_session_id()
             user_prompt_id = data.get("user_prompt_id") or request.headers.get("x-user-prompt-id") or generate_user_prompt_id()
 
-            request_payload = {
+            quota_request_payload = {
                 "contents": contents,
                 "generationConfig": gemini_config,
             }
 
             if gemini_tools:
-                request_payload["tools"] = gemini_tools
-            
+                quota_request_payload["tools"] = gemini_tools
+
             if system_instruction:
-                 request_payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+                quota_request_payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
 
             payload = build_quota_payload(
                 model=target_model,
-                project=project_id,
-                request_payload=request_payload,
+                project=account.project_id,
+                request_payload=quota_request_payload,
                 user_prompt_id=user_prompt_id,
                 session_id=session_id,
             )
 
             url = f"{CLOUD_CODE_ENDPOINT}:{'streamGenerateContent' if stream else 'generateContent'}"
-            if stream: params = {"alt": "sse"}
+            if stream:
+                params = {"alt": "sse"}
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json"
             }
-            # Note: We explicitly DO NOT set x-goog-user-project here for Quota mode.
-            # The quota should be billed to the Gemini CLI project (via Client ID),
-            # not the user's project. Setting this header forces a check for the
-            # Cloud Code API in the user's project, which fails if not enabled.
 
         else:
             # --- Standard Vertex AI Mode ---
@@ -185,7 +314,15 @@ def chat_completions():
                 
                 try:
                     if is_quota_mode:
-                        lines = stream_generate_lines(token, payload)
+                        if is_qwen_quota_mode:
+                            lines = stream_generate_lines_from_url(
+                                token,
+                                payload,
+                                url,
+                                params=None,
+                            )
+                        else:
+                            lines = stream_generate_lines(token, payload)
                     else:
                         client = get_http_client()
                         response = client.stream("POST", url, headers=headers, json=payload, params=params)
@@ -312,6 +449,42 @@ def chat_completions():
                                         usage_accumulated["completion_tokens_details"]["reasoning_tokens"] = usage_meta['thoughtsTokenCount']
                     else:
                         for line in lines:
+                            if is_qwen_quota_mode and line.startswith("data: "):
+                                raw = line[6:].strip()
+                                if raw == "[DONE]":
+                                    quota_account_router.register_success("qwen", selected_account.account.name)
+                                    break
+                                try:
+                                    parsed = json.loads(raw)
+                                except Exception:
+                                    continue
+
+                                if isinstance(parsed, dict) and parsed.get("error"):
+                                    error_text = json.dumps(parsed.get("error"), ensure_ascii=False)
+                                    if selected_account.mode == "rounding":
+                                        switched = quota_account_router.register_quota_limit(
+                                            "qwen",
+                                            selected_account.account.name,
+                                            selected_account.mode,
+                                            selected_account.pool,
+                                        )
+                                        if switched and quota_account_router.all_accounts_exhausted("qwen", selected_account.pool):
+                                            yield f"data: {create_openai_error('all_accounts_exceed_quota', 'quota_exhausted', 429)}\n\n"
+                                            return
+
+                                    yield f"data: {create_openai_error(f'Upstream API Error: {error_text}', 'upstream_error', 429)}\n\n"
+                                    return
+
+                                openai_chunk = _openai_chunk_from_qwen(parsed, raw_model)
+                                yield f"data: {json.dumps(sanitize_data(openai_chunk), ensure_ascii=False)}\n\n"
+
+                                usage = parsed.get("usage")
+                                if usage:
+                                    usage_accumulated["prompt_tokens"] = usage.get("prompt_tokens", 0)
+                                    usage_accumulated["completion_tokens"] = usage.get("completion_tokens", 0)
+                                    usage_accumulated["total_tokens"] = usage.get("total_tokens", 0)
+                                continue
+
                             chunk_data = parse_cloud_code_sse_line(line)
                             if not chunk_data:
                                 continue
@@ -430,10 +603,29 @@ def chat_completions():
                             "usage": usage_accumulated
                         }
                         yield f"data: {json.dumps(sanitize_data(usage_chunk), ensure_ascii=False)}\n\n"
+
+                    if is_gemini_quota_mode and selected_account is not None:
+                        quota_account_router.register_success("gemini", selected_account.account.name)
                     
                     yield "data: [DONE]\n\n"
 
                 except Exception as e:
+                    if is_quota_mode and selected_account is not None:
+                        error_text = str(e)
+                        if error_text.startswith("429:"):
+                            provider = "qwen" if is_qwen_quota_mode else "gemini"
+                            switched = quota_account_router.register_quota_limit(
+                                provider,
+                                selected_account.account.name,
+                                selected_account.mode,
+                                selected_account.pool,
+                            )
+                            if switched and quota_account_router.all_accounts_exhausted(provider, selected_account.pool):
+                                yield from _stream_quota_error(
+                                    create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429)
+                                )
+                                return
+
                     print(f"[ERROR] Stream Exception: {e}", flush=True)
                     yield f"data: {create_openai_error(str(e), 'stream_exception')}\n\n"
 
@@ -449,7 +641,13 @@ def chat_completions():
 
             last_r = None
             resp_data = None
-            for current_model in fallback_chain:
+            max_attempts = len(fallback_chain)
+            if is_quota_mode and selected_account is not None and selected_account.mode == "rounding":
+                max_attempts = max(max_attempts, len(selected_account.pool))
+
+            attempt = 0
+            while attempt < max_attempts:
+                current_model = fallback_chain[min(attempt, len(fallback_chain) - 1)]
                 # Update payload/URL for the current attempt
                 attempt_payload = payload.copy()
                 attempt_url = url
@@ -463,14 +661,65 @@ def chat_completions():
                     attempt_url = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{current_model}:generateContent"
 
                 if is_quota_mode:
-                    r = send_generate(token, attempt_payload)
+                    if is_qwen_quota_mode:
+                        r = send_generate_to_url(
+                            token,
+                            attempt_payload,
+                            attempt_url,
+                        )
+                    else:
+                        r = send_generate(token, attempt_payload)
                 else:
                     client = get_http_client()
                     r = client.post(attempt_url, headers=headers, json=attempt_payload)
                 last_r = r
 
-                if r.status_code == 429 and "capacity" in r.text.lower() and len(fallback_chain) > 1:
+                if is_quota_mode and selected_account is not None and is_quota_limit_response(r.status_code, r.text):
+                    provider = "qwen" if is_qwen_quota_mode else "gemini"
+                    switched = quota_account_router.register_quota_limit(
+                        provider,
+                        selected_account.account.name,
+                        selected_account.mode,
+                        selected_account.pool,
+                    )
+                    if switched and quota_account_router.all_accounts_exhausted(provider, selected_account.pool):
+                        return create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429), 429
+
+                    if switched and selected_account.mode == "rounding":
+                        selected_account = quota_account_router.select_account(provider)
+                        if provider == "gemini":
+                            account = selected_account.account
+                            if not isinstance(account, GeminiAccount):
+                                return create_openai_error("Invalid Gemini account configuration", "config_error", 500), 500
+                            with get_auth_lock():
+                                token = get_gemini_access_token_from_file(account.credentials_path)
+                            payload = build_quota_payload(
+                                model=current_model,
+                                project=account.project_id,
+                                request_payload=quota_request_payload or {},
+                                user_prompt_id=user_prompt_id or generate_user_prompt_id(),
+                                session_id=session_id,
+                            )
+                        else:
+                            try:
+                                qwen_creds = refresh_qwen_credentials_file(selected_account.account.credentials_path)
+                            except Exception as e:
+                                return create_openai_error(f"Qwen OAuth refresh failed: {e}", "auth_error", 401), 401
+                            token = qwen_creds.get("access_token")
+                            resource_url = qwen_creds.get("resource_url")
+                            if not token or not resource_url:
+                                return create_openai_error(
+                                    "Qwen OAuth credentials must include access_token and resource_url",
+                                    "auth_error",
+                                    401,
+                                ), 401
+                            url = _qwen_completion_url(resource_url)
+                        attempt += 1
+                        continue
+
+                if r.status_code == 429 and "capacity" in r.text.lower() and len(fallback_chain) > 1 and not is_quota_mode:
                     print(f"[WARN] Model {current_model} exhausted (capacity). Trying fallback...", flush=True)
+                    attempt += 1
                     continue
 
                 if r.status_code != 200:
@@ -481,15 +730,25 @@ def chat_completions():
                     resp_data = r.json()
                 except Exception:
                     return create_openai_error(f"Upstream Error: {r.text}", "upstream_error", 502), 502
+
+                if is_quota_mode and selected_account is not None:
+                    provider = "qwen" if is_qwen_quota_mode else "gemini"
+                    quota_account_router.register_success(provider, selected_account.account.name)
                 break # Success!
+
             else:
                 # If all fallbacks failed
                 if last_r is None:
                     return create_openai_error("Upstream Error (No attempts executed)", "upstream_error", 500), 500
                 return create_openai_error(f"Upstream Error (All fallbacks exhausted): {last_r.text}", "upstream_error", last_r.status_code), last_r.status_code
             
-            if is_quota_mode:
+            if is_gemini_quota_mode:
                 resp_data = unwrap_cloud_code_response(resp_data)
+
+            if is_qwen_quota_mode:
+                if isinstance(resp_data, dict):
+                    resp_data["model"] = raw_model
+                return json.dumps(sanitize_data(resp_data), ensure_ascii=False), 200
 
             candidates = resp_data.get('candidates', [])
             text = ""
@@ -499,6 +758,7 @@ def chat_completions():
             
             if candidates:
                 candidate = candidates[0]
+
                 gemini_finish = candidate.get('finishReason')
                 
                 if gemini_finish in ["SAFETY", "RECITATION", "OTHER"]:
@@ -575,13 +835,31 @@ def chat_completions():
 
 @openai_bp.route('/v1/models', methods=['GET'])
 def list_models():
-    models = [
-        "gemini-3.1-pro-preview-quota",
-        "gemini-3-flash-preview-quota",
-        "gemini-2.5-pro-quota", "gemini-2.5-flash-quota", "gemini-2.5-flash-lite-quota",
-        "gemini-3.1-pro-preview-vertex", "gemini-3-flash-preview-vertex",
-        "gemini-2.5-pro-vertex", "gemini-2.5-flash-vertex", "gemini-2.5-flash-lite-vertex",
-        "gemini-3-pro-image-vertex", "gemini-2.5-flash-image-vertex",
-        "nano-banana"
-    ]
+    availability = get_auth_availability()
+
+    models = []
+    if availability.gemini_quota:
+        models.extend([
+            "gemini-3.1-pro-preview-quota",
+            "gemini-3-flash-preview-quota",
+            "gemini-2.5-pro-quota",
+            "gemini-2.5-flash-quota",
+            "gemini-2.5-flash-lite-quota",
+        ])
+
+    if availability.qwen_quota:
+        models.append("qwen-coder-model-quota")
+
+    if availability.vertex:
+        models.extend([
+            "gemini-3.1-pro-preview-vertex",
+            "gemini-3-flash-preview-vertex",
+            "gemini-2.5-pro-vertex",
+            "gemini-2.5-flash-vertex",
+            "gemini-2.5-flash-lite-vertex",
+            "gemini-3-pro-image-vertex",
+            "gemini-2.5-flash-image-vertex",
+            "nano-banana",
+        ])
+
     return json.dumps({"data": [{"id": m, "object": "model"} for m in models]})

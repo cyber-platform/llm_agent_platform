@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 import uuid
 from pathlib import Path
@@ -59,26 +60,66 @@ def quota_url(stream: bool) -> str:
 
 
 def send_generate(token: str, payload: dict[str, Any]):
+    return send_generate_to_url(
+        token,
+        payload,
+        quota_url(stream=False),
+    )
+
+
+def send_generate_to_url(
+    token: str,
+    payload: dict[str, Any],
+    url: str,
+    *,
+    params: dict[str, Any] | None = None,
+    extra_headers: dict[str, str] | None = None,
+):
     client = get_http_client()
+    headers = quota_headers(token)
+    if extra_headers:
+        headers.update(extra_headers)
+
     _capture("proxy_request_generate", payload)
     response = client.post(
-        quota_url(stream=False),
-        headers=quota_headers(token),
+        url,
+        headers=headers,
         json=payload,
+        params=params,
     )
     _capture_response("proxy_response_generate", response.status_code, response.text)
     return response
 
 
 def stream_generate_lines(token: str, payload: dict[str, Any]) -> Iterable[str]:
+    return stream_generate_lines_from_url(
+        token,
+        payload,
+        quota_url(stream=True),
+        params={"alt": "sse"},
+    )
+
+
+def stream_generate_lines_from_url(
+    token: str,
+    payload: dict[str, Any],
+    url: str,
+    *,
+    params: dict[str, Any] | None = None,
+    extra_headers: dict[str, str] | None = None,
+) -> Iterable[str]:
     client = get_http_client()
+    headers = quota_headers(token)
+    if extra_headers:
+        headers.update(extra_headers)
+
     _capture("proxy_request_stream", payload)
     with client.stream(
         "POST",
-        quota_url(stream=True),
-        headers=quota_headers(token),
+        url,
+        headers=headers,
         json=payload,
-        params={"alt": "sse"},
+        params=params,
     ) as response:
         if response.status_code != 200:
             body = response.read().decode(errors="replace")
@@ -111,6 +152,33 @@ def parse_cloud_code_sse_line(line: str) -> dict[str, Any] | None:
         return None
 
     return unwrap_cloud_code_response(parsed)
+
+
+_QUOTA_LIMIT_PATTERNS = [
+    re.compile(pat, re.IGNORECASE)
+    for pat in [
+        r"quota",
+        r"capacity",
+        r"limit",
+        r"resource[_ ]?exhausted",
+        r"model_capacity_exhausted",
+        r"too many requests",
+        r"rate[_ ]?limit",
+        r"insufficient[_ ]?quota",
+    ]
+]
+
+
+def is_quota_limit_response(status_code: int, response_text: str) -> bool:
+    """Detect quota/capacity limit errors for account rotation logic."""
+    if status_code != 429:
+        return False
+
+    body = response_text or ""
+    for pattern in _QUOTA_LIMIT_PATTERNS:
+        if pattern.search(body):
+            return True
+    return False
 
 
 def _capture(kind: str, payload: dict[str, Any]) -> None:

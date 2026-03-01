@@ -5,6 +5,7 @@ secrets/
 # Ignore other project directories
 gemini-cli/
 kilocode/
+qwen-code/
 
 # Ignore documentation
 docs/

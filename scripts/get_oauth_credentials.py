@@ -1,8 +1,22 @@
-import os
+from __future__ import annotations
+
 import json
+import os
 import socket
+import sys
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+
 from google_auth_oauthlib.flow import InstalledAppFlow
+
+# Позволяет запускать скрипт напрямую: `python scripts/get_oauth_credentials.py`
+# и `uv run scripts/get_oauth_credentials.py`.
+if __package__ is None or __package__ == "":
+    project_root = Path(__file__).resolve().parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
+from config import USER_GEMINI_CREDS_PATH
 
 # --- Gemini CLI Constants ---
 # These are the official Client ID and Secret used by Gemini CLI / Cloud Code.
@@ -124,6 +138,7 @@ def main():
                     port=callback_port,
                     open_browser=True,
                     timeout_seconds=300,
+                    access_type='offline',
                     prompt='consent',
                     success_message='Авторизация успешна! Вы можете закрыть это окно и вернуться в терминал.'
                 )
@@ -145,11 +160,13 @@ def main():
             "type": "authorized_user"
         }
 
-        os.makedirs('secrets', exist_ok=True)
-        with open('secrets/user_credentials.json', 'w') as f:
+        target_path = USER_GEMINI_CREDS_PATH
+        target_dir = os.path.dirname(target_path) or '.'
+        os.makedirs(target_dir, exist_ok=True)
+        with open(target_path, 'w', encoding='utf-8') as f:
             json.dump(creds, f, indent=2)
             
-        print("\n[SUCCESS] Credentials saved to 'secrets/user_credentials.json'")
+        print(f"\n[SUCCESS] Credentials saved to '{target_path}'")
         print("You can now restart your Docker container to apply changes.")
 
     except KeyboardInterrupt:

@@ -1,66 +1,98 @@
 # 🔐 Руководство по авторизации
 
-Для работы прокси-сервера в гибридном режиме требуются два типа учетных данных. Вы можете настроить только один из них (например, только Quota Mode) или оба сразу.
+Прокси поддерживает два независимых контура авторизации:
+- Gemini OAuth quota (Google Cloud Code / `gemini-cli` совместимый поток).
+- Qwen OAuth quota (device flow).
+
+Также опционально поддерживается Vertex AI через сервисный аккаунт.
 
 ---
 
-## 1. Настройка Quota Mode (Персональные квоты)
+## 1) Gemini OAuth quota
 
-Этот режим использует квоты `gemini-cli` для доступа к лимитам вашей подписки `Google AI Pro` (1500+ запросов в день).
+### Что создаётся
+- Базовый файл OAuth: `secrets/user_gemini_credentials.json`.
+- Далее пользователь может вручную переименовывать/копировать его в именованные аккаунты (например, `secrets/gemini_lisa.json`, `secrets/gemini_petr.json`) и указывать их в `gemini_accounts_config.json`.
 
-Получаем файл `secrets/user_credentials.json`.
+### Шаги
+1. Установите зависимости:
+   ```bash
+   uv sync
+   ```
+2. Запустите OAuth-скрипт:
+   ```bash
+   uv run python scripts/get_oauth_credentials.py
+   ```
+3. Пройдите авторизацию в браузере.
 
-### Шаги:
-1.  **Установка зависимостей**:
-    Склонируйте проект и установите зависимости через `uv`:
-    ```bash
-    uv sync
-    ```
+Скрипт использует loopback callback (`127.0.0.1`) и динамический порт, с ручным fallback при timeout.
 
-2.  **Запуск скрипта регистрации**:
-    Запустите скрипт авторизации:
-    ```bash
-    uv run python scripts/get_oauth_credentials.py
-    ```
-
-3.  **Процесс авторизации**:
-    *   Скрипт выведет ссылку. Откройте её в браузере, где вы вошли в свой основной Google-аккаунт.
-    *   Вы увидите запрос на доступ от приложения **"Google Cloud Code"** (или аналогичного официального инструмента).
-    *   Скрипт использует callback на loopback `127.0.0.1` и динамический порт (поведение ближе к `gemini-cli`).
-    *   Если callback в локальный сервер не приходит (например, браузер «завис» на редиректе), скрипт автоматически переключится в ручной режим и попросит вставить callback URL или `code`.
-
-   Полезные переменные окружения:
-   - `NO_BROWSER=true` — не пытаться открывать браузер автоматически, сразу ручной режим.
-   - `OAUTH_CALLBACK_PORT=NNNN` — зафиксировать порт callback-сервера.
-   - `OAUTH_CALLBACK_HOST=127.0.0.1` — адрес bind локального callback-сервера.
-
-4.  **Результат**:
-    Скрипт создаст файл `secrets/user_credentials.json`. Теперь вы можете использовать модели с суффиксом `-quota`.
+Полезные переменные окружения:
+- `NO_BROWSER=true` — не открывать браузер автоматически.
+- `OAUTH_CALLBACK_PORT=NNNN` — фиксированный порт callback-сервера.
+- `OAUTH_CALLBACK_HOST=127.0.0.1` — bind-адрес callback-сервера.
+- `USER_GEMINI_CREDS_PATH=secrets/user_gemini_credentials.json` — путь сохранения credentials.
 
 ---
 
-## 2. Настройка Vertex AI Mode (Облачные кредиты)
+## 2) Qwen OAuth quota
 
-Используйте этот метод, если хотите задействовать $10/мес бесплатных кредитов, которые Google начисляет пользователям подписки `Google AI Pro` для облачных проектов.
+### Что создаётся
+- Базовый файл OAuth: `secrets/user_qwen_credentials.json`.
+- Далее пользователь может вручную переименовывать/копировать его в именованные аккаунты (например, `secrets/qwen_lisa.json`, `secrets/qwen_petr.json`) и указывать их в `qwen_accounts_config.json`.
+- В credentials также сохраняется `client_id` (для стабильного refresh даже при изменении env-конфига).
 
-**Цель:** Получить файл `secrets/service_account.json`.
+### Шаги
+1. Запустите OAuth device-flow скрипт:
+   ```bash
+   uv run python scripts/get_qwen_oauth_credentials.py
+   ```
+2. Откройте ссылку в браузере и завершите подтверждение.
+3. Скрипт дождётся токена и сохранит credentials в `secrets/user_qwen_credentials.json`.
 
-### Шаги:
-1.  **Google Cloud Console**:
-    Перейдите в раздел [Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts).
-2.  **Создание аккаунта**:
-    *   Нажмите **+ CREATE SERVICE ACCOUNT**.
-    *   Дайте любое имя (например, `gemini-sa`).
-3.  **Права доступа**:
-    *   Назначьте роль **Vertex AI User**.
-4.  **Создание ключа**:
-    *   В списке аккаунтов выберите созданный, перейдите во вкладку **Keys**.
-    *   **ADD KEY** -> **Create new key** (JSON).
-5.  **Настройка проекта**:
-    *   Переименуйте скачанный файл в `service_account.json` и положите в папку `secrets/`.
-    *   В файле `.env` укажите ваш `VERTEX_PROJECT_ID`.
+Рекомендованный `QWEN_OAUTH_SCOPE` по parity с upstream `qwen-code`:
+- `openid profile email model.completion`
+- источник: `qwen-code/packages/core/src/qwen/qwenOAuth2.ts` (`QWEN_OAUTH_SCOPE`)
 
 ---
 
-## 💡 Важное примечание
-Вам **не нужно** создавать свой собственный OAuth Client ID в консоли Google.
+## 3) Конфиги ротации аккаунтов (single/rounding)
+
+Источник политики ротации — только provider-конфиги:
+- `secrets/gemini_accounts_config.json`
+- `secrets/qwen_accounts_config.json`
+
+Примеры структуры вынесены в отдельные файлы:
+- Gemini: `docs/examples/gemini_accounts_config.example.json`
+- Qwen: `docs/examples/qwen_accounts_config.example.json`
+
+Для Qwen в `accounts.<name>` достаточно `credentials_path`; поле `project_id` не требуется.
+
+Режимы:
+- `single` — используется только `active_account`.
+- `rounding` — round-robin по `all_accounts`, переключение после 2 подряд quota-limit ошибок текущего аккаунта.
+
+Если лимиты исчерпаны у всех аккаунтов, прокси возвращает ошибку `all_accounts_exceed_quota`.
+
+---
+
+## 4) Vertex AI mode (опционально)
+
+Используется сервисный аккаунт в `secrets/service_account.json` и переменные `VERTEX_PROJECT_ID`/`VERTEX_LOCATION`.
+
+---
+
+## Важное
+- Legacy-путь `USER_CREDS_PATH` больше не используется.
+- Для Gemini quota multi-account `project_id` задаётся на уровне аккаунта в `gemini_accounts_config.json`.
+
+---
+
+## Поведение прокси при наличии/отсутствии авторизации
+
+- `/v1/models` теперь формируется динамически и показывает только модели, для которых реально доступна авторизация:
+  - Gemini quota модели — если валиден `gemini_accounts_config.json` и есть `refresh_token` в credentials активного (или любого из `all_accounts` для `rounding`) аккаунта.
+  - Qwen quota модели — если валиден `qwen_accounts_config.json` и есть `refresh_token` в credentials активного (или любого из `all_accounts` для `rounding`) аккаунта.
+  - Vertex модели — если задан `VERTEX_PROJECT_ID` и существует `secrets/service_account.json`.
+
+- При старте прокси выполняется fail-fast проверка: если не найден ни один валидный источник авторизации (Gemini quota / Qwen quota / Vertex), контейнер завершается с ошибкой и пишет диагностику в логи.
