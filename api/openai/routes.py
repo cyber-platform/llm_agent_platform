@@ -75,6 +75,7 @@ def _qwen_payload_from_openai(data: dict, target_model: str) -> dict:
         'tools',
         'tool_choice',
         'response_format',
+        'stream_options',
     ]:
         if field in data:
             payload[field] = data[field]
