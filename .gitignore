@@ -14,3 +14,4 @@ wheels/
 .venv
 gemini-cli/
 kilocode/
+./kilocode
