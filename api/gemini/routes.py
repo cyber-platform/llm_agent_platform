@@ -11,15 +11,19 @@ from core.models import map_model_name
 from core.utils import create_openai_error
 from services.http_pool import get_http_client
 from services.account_router import (
+    AccountRouterError,
     AllAccountsExhaustedError,
     GeminiAccount,
+    RotationEvent,
     quota_account_router,
 )
 from services.quota_transport import (
     build_quota_payload,
+    classify_429_exception,
+    classify_429_response,
     generate_session_id,
     generate_user_prompt_id,
-    is_quota_limit_response,
+    Quota429Type,
     parse_cloud_code_sse_line,
     send_generate,
     stream_generate_lines,
@@ -56,9 +60,17 @@ def gemini_proxy(model_id, action):
         if is_quota_mode:
             # --- Gemini CLI / Cloud Code Emulation Mode ---
             try:
-                selected_account = quota_account_router.select_account("gemini")
+                selected_account = quota_account_router.select_account("gemini", target_model)
             except AllAccountsExhaustedError:
                 return create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429), 429
+            except AccountRouterError as router_error:
+                if str(router_error) == "all_accounts_on_cooldown":
+                    return create_openai_error(
+                        "All quota accounts are temporarily rate-limited",
+                        "upstream_error",
+                        429,
+                    ), 429
+                raise
 
             account = selected_account.account
             if not isinstance(account, GeminiAccount):
@@ -129,27 +141,31 @@ def gemini_proxy(model_id, action):
                                 return
                             except Exception as stream_error:
                                 err_text = str(stream_error)
-                                status = None
-                                body = err_text
-                                if ":" in err_text:
-                                    prefix, rest = err_text.split(":", 1)
-                                    if prefix.isdigit():
-                                        status = int(prefix)
-                                        body = rest
+                                error_kind = classify_429_exception(stream_error)
 
-                                if status == 429 and is_quota_limit_response(429, body) and selected_account is not None:
-                                    switched = quota_account_router.register_quota_limit(
-                                        "gemini",
-                                        selected_account.account.name,
-                                        selected_account.mode,
-                                        selected_account.pool,
+                                if error_kind in {Quota429Type.RATE_LIMIT, Quota429Type.QUOTA_EXHAUSTED} and selected_account is not None:
+                                    event = (
+                                        RotationEvent.RATE_LIMIT
+                                        if error_kind == Quota429Type.RATE_LIMIT
+                                        else RotationEvent.QUOTA_EXHAUSTED
                                     )
-                                    if switched and quota_account_router.all_accounts_exhausted("gemini", selected_account.pool):
+                                    event_result = quota_account_router.register_event(
+                                        provider="gemini",
+                                        account_name=selected_account.account.name,
+                                        mode=selected_account.mode,
+                                        pool=selected_account.pool,
+                                        event=event,
+                                        model=target_model,
+                                    )
+                                    if event_result.all_exhausted:
                                         yield f"data: {create_openai_error('all_accounts_exceed_quota', 'quota_exhausted', 429)}\n\n"
                                         return
-                                    if switched and selected_account.mode == "rounding":
+                                    if event_result.all_cooldown:
+                                        yield f"data: {create_openai_error('All quota accounts are temporarily rate-limited', 'upstream_error', 429)}\n\n"
+                                        return
+                                    if event_result.switched and selected_account.mode == "rounding":
                                         attempts += 1
-                                        selected_account = quota_account_router.select_account("gemini")
+                                        selected_account = quota_account_router.select_account("gemini", target_model)
                                         next_account = selected_account.account
                                         if not isinstance(next_account, GeminiAccount):
                                             yield f"data: {create_openai_error('Invalid Gemini account configuration', 'config_error', 500)}\n\n"
@@ -197,18 +213,28 @@ def gemini_proxy(model_id, action):
 
                 while attempts < max_attempts:
                     r = send_generate(token, payload)
-                    if is_quota_limit_response(r.status_code, r.text) and selected_account is not None:
-                        switched = quota_account_router.register_quota_limit(
-                            "gemini",
-                            selected_account.account.name,
-                            selected_account.mode,
-                            selected_account.pool,
+                    error_kind = classify_429_response(r.status_code, r.text)
+                    if error_kind in {Quota429Type.RATE_LIMIT, Quota429Type.QUOTA_EXHAUSTED} and selected_account is not None:
+                        event = (
+                            RotationEvent.RATE_LIMIT
+                            if error_kind == Quota429Type.RATE_LIMIT
+                            else RotationEvent.QUOTA_EXHAUSTED
                         )
-                        if switched and quota_account_router.all_accounts_exhausted("gemini", selected_account.pool):
+                        event_result = quota_account_router.register_event(
+                            provider="gemini",
+                            account_name=selected_account.account.name,
+                            mode=selected_account.mode,
+                            pool=selected_account.pool,
+                            event=event,
+                            model=target_model,
+                        )
+                        if event_result.all_exhausted:
                             return create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429), 429
-                        if switched and selected_account.mode == "rounding":
+                        if event_result.all_cooldown:
+                            return create_openai_error("All quota accounts are temporarily rate-limited", "upstream_error", 429), 429
+                        if event_result.switched and selected_account.mode == "rounding":
                             attempts += 1
-                            selected_account = quota_account_router.select_account("gemini")
+                            selected_account = quota_account_router.select_account("gemini", target_model)
                             next_account = selected_account.account
                             if not isinstance(next_account, GeminiAccount):
                                 return create_openai_error("Invalid Gemini account configuration", "config_error", 500), 500

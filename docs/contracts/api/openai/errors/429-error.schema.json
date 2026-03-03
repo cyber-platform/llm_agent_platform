@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://model-proxy.local/contracts/api/openai/errors/429-error.schema.json",
+  "title": "OpenAICompatible429Error",
+  "description": "Contract for proxy-specific 429 error payloads in OpenAI-compatible API",
+  "type": "object",
+  "required": [
+    "error"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "error": {
+      "$ref": "#/$defs/ErrorObject"
+    }
+  },
+  "$defs": {
+    "ErrorObject": {
+      "type": "object",
+      "required": [
+        "message",
+        "type",
+        "code"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "rate_limit_error",
+            "insufficient_quota"
+          ]
+        },
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "all_accounts_on_cooldown"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "type": {
+                "const": "rate_limit_error"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "all_accounts_exceed_quota"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "type": {
+                "const": "insufficient_quota"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ErrorCode": {
+      "type": "string",
+      "enum": [
+        "all_accounts_on_cooldown",
+        "all_accounts_exceed_quota"
+      ]
+    }
+  }
+}

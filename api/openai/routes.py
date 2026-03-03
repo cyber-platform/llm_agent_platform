@@ -1,6 +1,7 @@
 import os
 import json
 import time
+from dataclasses import dataclass
 from flask import Blueprint, request, Response, stream_with_context
 from config import CLOUD_CODE_ENDPOINT, DEFAULT_QUOTA_MODEL, STRICT_CLI_PARITY
 from auth.credentials import (
@@ -19,15 +20,23 @@ from api.openai.transform import transform_openai_to_gemini
 from services.http_pool import get_http_client
 from services.account_router import (
     AllAccountsExhaustedError,
+    AccountRouterError,
     GeminiAccount,
+    RotationDecision,
+    RotationEvent,
+    SelectedAccount,
     quota_account_router,
 )
 from services.quota_transport import (
     build_quota_payload,
+    classify_429_error_payload,
+    classify_429_exception,
+    classify_429_response,
     generate_session_id,
     generate_user_prompt_id,
-    is_quota_limit_response,
+    Quota429Type,
     parse_cloud_code_sse_line,
+    parse_stream_exception,
     send_generate,
     send_generate_to_url,
     stream_generate_lines,
@@ -110,6 +119,14 @@ def _openai_chunk_from_qwen(parsed: dict, raw_model: str) -> dict:
             "finish_reason": choice.get("finish_reason"),
         }],
     }
+
+
+@dataclass
+class StreamRuntimeState:
+    token: str | None
+    payload: dict
+    url: str
+    selected_account: SelectedAccount | None
 
 @openai_bp.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
@@ -200,13 +217,21 @@ def chat_completions():
 
         if is_qwen_quota_mode:
             try:
-                selected_account = quota_account_router.select_account("qwen")
+                selected_account = quota_account_router.select_account("qwen", target_model)
             except AllAccountsExhaustedError:
                 return create_openai_error(
                     "all_accounts_exceed_quota",
                     "quota_exhausted",
                     429,
                 ), 429
+            except AccountRouterError as router_error:
+                if str(router_error) == "all_accounts_on_cooldown":
+                    return create_openai_error(
+                        "All quota accounts are temporarily rate-limited",
+                        "upstream_error",
+                        429,
+                    ), 429
+                raise
 
             account = selected_account.account
             try:
@@ -230,13 +255,21 @@ def chat_completions():
             }
         elif is_gemini_quota_mode:
             try:
-                selected_account = quota_account_router.select_account("gemini")
+                selected_account = quota_account_router.select_account("gemini", target_model)
             except AllAccountsExhaustedError:
                 return create_openai_error(
                     "all_accounts_exceed_quota",
                     "quota_exhausted",
                     429,
                 ), 429
+            except AccountRouterError as router_error:
+                if str(router_error) == "all_accounts_on_cooldown":
+                    return create_openai_error(
+                        "All quota accounts are temporarily rate-limited",
+                        "upstream_error",
+                        429,
+                    ), 429
+                raise
 
             account = selected_account.account
             if not isinstance(account, GeminiAccount):
@@ -311,22 +344,28 @@ def chat_completions():
         
         if stream:
             def generate_stream():
+                state = StreamRuntimeState(
+                    token=token,
+                    payload=payload,
+                    url=url,
+                    selected_account=selected_account,
+                )
                 usage_accumulated = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
                 
                 try:
                     if is_quota_mode:
                         if is_qwen_quota_mode:
                             lines = stream_generate_lines_from_url(
-                                token,
-                                payload,
-                                url,
+                                state.token,
+                                state.payload,
+                                state.url,
                                 params=None,
                             )
                         else:
-                            lines = stream_generate_lines(token, payload)
+                            lines = stream_generate_lines(state.token, state.payload)
                     else:
                         client = get_http_client()
-                        response = client.stream("POST", url, headers=headers, json=payload, params=params)
+                        response = client.stream("POST", state.url, headers=headers, json=state.payload, params=params)
                         lines = None
 
                     if not is_quota_mode:
@@ -453,7 +492,8 @@ def chat_completions():
                             if is_qwen_quota_mode and line.startswith("data: "):
                                 raw = line[6:].strip()
                                 if raw == "[DONE]":
-                                    quota_account_router.register_success("qwen", selected_account.account.name)
+                                    if state.selected_account is not None:
+                                        quota_account_router.register_success("qwen", state.selected_account.account.name)
                                     break
                                 try:
                                     parsed = json.loads(raw)
@@ -462,16 +502,34 @@ def chat_completions():
 
                                 if isinstance(parsed, dict) and parsed.get("error"):
                                     error_text = json.dumps(parsed.get("error"), ensure_ascii=False)
-                                    if selected_account.mode == "rounding":
-                                        switched = quota_account_router.register_quota_limit(
-                                            "qwen",
-                                            selected_account.account.name,
-                                            selected_account.mode,
-                                            selected_account.pool,
+                                    if state.selected_account is not None and state.selected_account.mode == "rounding":
+                                        error_kind = classify_429_error_payload(parsed.get("error"))
+                                        event = RotationEvent.QUOTA_EXHAUSTED
+                                        if error_kind == Quota429Type.RATE_LIMIT:
+                                            event = RotationEvent.RATE_LIMIT
+                                        event_result = quota_account_router.register_event(
+                                            provider="qwen",
+                                            account_name=state.selected_account.account.name,
+                                            mode=state.selected_account.mode,
+                                            pool=state.selected_account.pool,
+                                            event=event,
+                                            model=target_model,
                                         )
-                                        if switched and quota_account_router.all_accounts_exhausted("qwen", selected_account.pool):
+                                        if event_result.all_exhausted:
                                             yield f"data: {create_openai_error('all_accounts_exceed_quota', 'quota_exhausted', 429)}\n\n"
                                             return
+                                        if event_result.all_cooldown:
+                                            yield f"data: {create_openai_error('All quota accounts are temporarily rate-limited', 'upstream_error', 429)}\n\n"
+                                            return
+                                        if event_result.switched:
+                                            try:
+                                                state.selected_account = quota_account_router.select_account("qwen", target_model)
+                                            except AllAccountsExhaustedError:
+                                                yield f"data: {create_openai_error('all_accounts_exceed_quota', 'quota_exhausted', 429)}\n\n"
+                                                return
+                                            except AccountRouterError:
+                                                yield f"data: {create_openai_error('All quota accounts are temporarily rate-limited', 'upstream_error', 429)}\n\n"
+                                                return
 
                                     yield f"data: {create_openai_error(f'Upstream API Error: {error_text}', 'upstream_error', 429)}\n\n"
                                     return
@@ -605,27 +663,52 @@ def chat_completions():
                         }
                         yield f"data: {json.dumps(sanitize_data(usage_chunk), ensure_ascii=False)}\n\n"
 
-                    if is_gemini_quota_mode and selected_account is not None:
-                        quota_account_router.register_success("gemini", selected_account.account.name)
+                    if is_gemini_quota_mode and state.selected_account is not None:
+                        quota_account_router.register_success("gemini", state.selected_account.account.name)
                     
                     yield "data: [DONE]\n\n"
 
                 except Exception as e:
-                    if is_quota_mode and selected_account is not None:
-                        error_text = str(e)
-                        if error_text.startswith("429:"):
+                    if is_quota_mode and state.selected_account is not None:
+                        error_kind = classify_429_exception(e)
+                        if error_kind in {Quota429Type.RATE_LIMIT, Quota429Type.QUOTA_EXHAUSTED}:
                             provider = "qwen" if is_qwen_quota_mode else "gemini"
-                            switched = quota_account_router.register_quota_limit(
-                                provider,
-                                selected_account.account.name,
-                                selected_account.mode,
-                                selected_account.pool,
+                            event = (
+                                RotationEvent.RATE_LIMIT
+                                if error_kind == Quota429Type.RATE_LIMIT
+                                else RotationEvent.QUOTA_EXHAUSTED
                             )
-                            if switched and quota_account_router.all_accounts_exhausted(provider, selected_account.pool):
+                            event_result = quota_account_router.register_event(
+                                provider=provider,
+                                account_name=state.selected_account.account.name,
+                                mode=state.selected_account.mode,
+                                pool=state.selected_account.pool,
+                                event=event,
+                                model=target_model,
+                            )
+                            if event_result.all_exhausted:
                                 yield from _stream_quota_error(
                                     create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429)
                                 )
                                 return
+                            if event_result.all_cooldown:
+                                yield from _stream_quota_error(
+                                    create_openai_error("All quota accounts are temporarily rate-limited", "upstream_error", 429)
+                                )
+                                return
+                            if event_result.switched and state.selected_account.mode == "rounding":
+                                try:
+                                    state.selected_account = quota_account_router.select_account(provider, target_model)
+                                except AllAccountsExhaustedError:
+                                    yield from _stream_quota_error(
+                                        create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429)
+                                    )
+                                    return
+                                except AccountRouterError:
+                                    yield from _stream_quota_error(
+                                        create_openai_error("All quota accounts are temporarily rate-limited", "upstream_error", 429)
+                                    )
+                                    return
 
                     print(f"[ERROR] Stream Exception: {e}", flush=True)
                     yield f"data: {create_openai_error(str(e), 'stream_exception')}\n\n"
@@ -675,19 +758,33 @@ def chat_completions():
                     r = client.post(attempt_url, headers=headers, json=attempt_payload)
                 last_r = r
 
-                if is_quota_mode and selected_account is not None and is_quota_limit_response(r.status_code, r.text):
-                    provider = "qwen" if is_qwen_quota_mode else "gemini"
-                    switched = quota_account_router.register_quota_limit(
-                        provider,
-                        selected_account.account.name,
-                        selected_account.mode,
-                        selected_account.pool,
-                    )
-                    if switched and quota_account_router.all_accounts_exhausted(provider, selected_account.pool):
-                        return create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429), 429
+                if is_quota_mode and selected_account is not None:
+                    error_kind = classify_429_response(r.status_code, r.text)
+                else:
+                    error_kind = Quota429Type.NOT_429
 
-                    if switched and selected_account.mode == "rounding":
-                        selected_account = quota_account_router.select_account(provider)
+                if is_quota_mode and selected_account is not None and error_kind in {Quota429Type.RATE_LIMIT, Quota429Type.QUOTA_EXHAUSTED}:
+                    provider = "qwen" if is_qwen_quota_mode else "gemini"
+                    event = (
+                        RotationEvent.RATE_LIMIT
+                        if error_kind == Quota429Type.RATE_LIMIT
+                        else RotationEvent.QUOTA_EXHAUSTED
+                    )
+                    event_result = quota_account_router.register_event(
+                        provider=provider,
+                        account_name=selected_account.account.name,
+                        mode=selected_account.mode,
+                        pool=selected_account.pool,
+                        event=event,
+                        model=current_model,
+                    )
+                    if event_result.all_exhausted:
+                        return create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429), 429
+                    if event_result.all_cooldown:
+                        return create_openai_error("All quota accounts are temporarily rate-limited", "upstream_error", 429), 429
+
+                    if event_result.switched and selected_account.mode == "rounding":
+                        selected_account = quota_account_router.select_account(provider, current_model)
                         if provider == "gemini":
                             account = selected_account.account
                             if not isinstance(account, GeminiAccount):

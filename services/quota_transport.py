@@ -5,6 +5,7 @@ import os
 import re
 import time
 import uuid
+from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -18,6 +19,15 @@ _CAPTURE_ENABLED = os.environ.get("PARITY_CAPTURE_ENABLED", "false").lower() in 
     "yes",
     "on",
 }
+
+
+class Quota429Type(str, Enum):
+    """Semantic classification for HTTP 429 responses."""
+
+    NOT_429 = "not_429"
+    RATE_LIMIT = "rate_limit"
+    QUOTA_EXHAUSTED = "quota_exhausted"
+    UNKNOWN_429 = "unknown_429"
 
 
 def build_quota_payload(
@@ -154,31 +164,102 @@ def parse_cloud_code_sse_line(line: str) -> dict[str, Any] | None:
     return unwrap_cloud_code_response(parsed)
 
 
-_QUOTA_LIMIT_PATTERNS = [
+_RATE_LIMIT_PATTERNS = [
     re.compile(pat, re.IGNORECASE)
     for pat in [
-        r"quota",
-        r"capacity",
-        r"limit",
-        r"resource[_ ]?exhausted",
-        r"model_capacity_exhausted",
         r"too many requests",
         r"rate[_ ]?limit",
+        r"slow[_ ]?down",
+        r"retry[_ -]?after",
+        r"requests? per (minute|second)",
+        r"rpm",
+    ]
+]
+
+_QUOTA_EXHAUSTED_PATTERNS = [
+    re.compile(pat, re.IGNORECASE)
+    for pat in [
+        r"insufficient[_ ]?quota",
+        r"quota",
+        r"model_capacity_exhausted",
+        r"resource[_ ]?exhausted",
+        r"capacity",
+        r"daily[_ ]?limit",
+        r"usage[_ ]?limit",
+        r"quota[_ ]?exceeded",
+        r"exceeded.*quota",
         r"insufficient[_ ]?quota",
     ]
 ]
 
 
-def is_quota_limit_response(status_code: int, response_text: str) -> bool:
-    """Detect quota/capacity limit errors for account rotation logic."""
+def _contains_any(text: str, patterns: list[re.Pattern[str]]) -> bool:
+    return any(pattern.search(text) for pattern in patterns)
+
+
+def classify_429_response(status_code: int, response_text: str) -> Quota429Type:
+    """Classify HTTP response by semantic 429 category."""
     if status_code != 429:
-        return False
+        return Quota429Type.NOT_429
 
     body = response_text or ""
-    for pattern in _QUOTA_LIMIT_PATTERNS:
-        if pattern.search(body):
-            return True
-    return False
+    if _contains_any(body, _RATE_LIMIT_PATTERNS):
+        return Quota429Type.RATE_LIMIT
+    if _contains_any(body, _QUOTA_EXHAUSTED_PATTERNS):
+        return Quota429Type.QUOTA_EXHAUSTED
+    return Quota429Type.UNKNOWN_429
+
+
+def classify_429_error_payload(error_payload: Any) -> Quota429Type:
+    """Classify SSE/JSON error payloads that may contain 429 semantics."""
+    if error_payload is None:
+        return Quota429Type.UNKNOWN_429
+
+    status_code: int | None = None
+    body_text: str
+    if isinstance(error_payload, dict):
+        raw_status = error_payload.get("code") or error_payload.get("status")
+        if isinstance(raw_status, int):
+            status_code = raw_status
+        elif isinstance(raw_status, str) and raw_status.isdigit():
+            status_code = int(raw_status)
+        body_text = json.dumps(error_payload, ensure_ascii=False)
+    else:
+        body_text = str(error_payload)
+
+    if status_code is not None and status_code != 429:
+        return Quota429Type.NOT_429
+
+    return classify_429_response(429, body_text)
+
+
+def parse_stream_exception(error: Exception) -> tuple[int | None, str]:
+    """Extract status/body from stream exceptions like '429:...'."""
+    err_text = str(error)
+    status_code: int | None = None
+    body = err_text
+
+    if ":" in err_text:
+        prefix, rest = err_text.split(":", 1)
+        if prefix.isdigit():
+            status_code = int(prefix)
+            body = rest
+
+    return status_code, body
+
+
+def classify_429_exception(error: Exception) -> Quota429Type:
+    """Classify stream exception into semantic 429 category."""
+    status_code, body = parse_stream_exception(error)
+    if status_code is None:
+        return Quota429Type.NOT_429
+    return classify_429_response(status_code, body)
+
+
+def is_quota_limit_response(status_code: int, response_text: str) -> bool:
+    """Detect quota/capacity limit errors for account rotation logic."""
+    kind = classify_429_response(status_code, response_text)
+    return kind in {Quota429Type.RATE_LIMIT, Quota429Type.QUOTA_EXHAUSTED}
 
 
 def _capture(kind: str, payload: dict[str, Any]) -> None:
