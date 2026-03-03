@@ -179,8 +179,14 @@ class OpenAIContractTests(unittest.TestCase):
         self.assertEqual(body["error"]["code"], 503)
 
     @patch("api.openai.routes.quota_account_router.select_account")
-    @patch("api.openai.routes.quota_account_router.all_accounts_exhausted", return_value=False)
-    @patch("api.openai.routes.quota_account_router.register_quota_limit", return_value=True)
+    @patch(
+        "api.openai.routes.quota_account_router.register_event",
+        return_value=type(
+            "EventResult",
+            (),
+            {"switched": True, "all_exhausted": False, "all_cooldown": False},
+        )(),
+    )
     @patch("api.openai.routes.get_gemini_access_token_from_file", return_value="token-123")
     @patch("api.openai.routes.get_auth_lock", return_value=threading.Lock())
     @patch("api.openai.routes.send_generate")
@@ -189,8 +195,7 @@ class OpenAIContractTests(unittest.TestCase):
         mock_send_generate,
         _mock_lock,
         _mock_token,
-        _mock_register_quota_limit,
-        _mock_all_exhausted,
+        _mock_register_event,
         mock_select_account,
     ):
         mock_select_account.side_effect = [
