@@ -1,6 +1,15 @@
 {
   "active_account": "lisa",
   "mode": "single",
+  "rotation_policy": {
+    "rate_limit_threshold": 2,
+    "quota_exhausted_threshold": 2,
+    "rate_limit_cooldown_seconds": 5
+  },
+  "model_quota_resets": {
+    "default": "00:00",
+    "gemini-3-flash-preview": "10:00"
+  },
   "all_accounts": [
     "lisa",
     "petr"

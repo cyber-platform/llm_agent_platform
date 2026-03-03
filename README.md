@@ -77,6 +77,12 @@ docker-compose up -d --build
 | **API Key** | `any-string` |
 | **Provider** | Gemini (Google AI Studio / Vertex AI) |
 
+### 4. заархивировать репозиторий
+
+```
+zip -r9e model-proxy.zip model_proxy -x qwen-code/* kilocode/*
+```
+
 ---
 
 ## 📸 Скриншоты работы

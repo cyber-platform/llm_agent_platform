@@ -2,9 +2,12 @@
 
 ## Scope
 - Проверка выбора аккаунта в режиме `single` через `active_account`.
-- Проверка переключения в режиме `rounding` после 2 подряд quota-limit ошибок.
-- Проверка состояния исчерпания всех аккаунтов (`all_accounts_exceed_quota`).
+- Проверка переключения в режиме `rounding` с раздельной реакцией на `rate_limit` (cooldown) и `quota_exhausted` (exhausted-until).
+- Проверка состояний `all_accounts_on_cooldown` и `all_accounts_exceed_quota`.
 - Проверка сохранения OpenAI stream/non-stream контракта при ротации.
+
+## Contract References
+- 429 error contract: [`docs/contracts/api/openai/errors/429-error.schema.json`](../../contracts/api/openai/errors/429-error.schema.json)
 
 ## Requirement Traceability
 - Requirement: unified quota multi-account ротация для `gemini` и `qwen`.

@@ -49,8 +49,10 @@
 Для quota-провайдеров поддерживаются режимы `single` и `rounding`.
 
 - `single`: используется только `active_account`.
-- `rounding`: round-robin по `all_accounts`, переключение после 2 подряд quota-limit ошибок текущего аккаунта.
-- Если лимиты исчерпаны у всех аккаунтов, возвращается ошибка `all_accounts_exceed_quota`.
+- `rounding`: round-robin по `all_accounts` с раздельной обработкой `rate_limit` (cooldown) и `quota_exhausted` (exhausted-until).
+- Если все аккаунты во временном cooldown, возвращается `all_accounts_on_cooldown`.
+- Если все аккаунты исчерпали quota для модели, возвращается `all_accounts_exceed_quota`.
+- Нормативный формат `429` ошибок: [`docs/contracts/api/openai/errors/429-error.schema.json`](contracts/api/openai/errors/429-error.schema.json).
 
 Конфиги и примеры структуры:
 - рабочие файлы: `secrets/gemini_accounts_config.json`, `secrets/qwen_accounts_config.json`

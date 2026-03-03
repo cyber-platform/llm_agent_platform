@@ -70,9 +70,13 @@
 
 Режимы:
 - `single` — используется только `active_account`.
-- `rounding` — round-robin по `all_accounts`, переключение после 2 подряд quota-limit ошибок текущего аккаунта.
+- `rounding` — round-robin по `all_accounts` с раздельной обработкой `rate_limit` (cooldown) и `quota_exhausted` (exhausted-until).
 
-Если лимиты исчерпаны у всех аккаунтов, прокси возвращает ошибку `all_accounts_exceed_quota`.
+Состояния исчерпания в `rounding`:
+- если все аккаунты во временном cooldown, прокси возвращает `all_accounts_on_cooldown`;
+- если все аккаунты исчерпали quota для модели, прокси возвращает `all_accounts_exceed_quota`.
+
+Нормативный формат `429` ошибок закреплен в [`docs/contracts/api/openai/errors/429-error.schema.json`](contracts/api/openai/errors/429-error.schema.json).
 
 ---
 
