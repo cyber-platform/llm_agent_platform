@@ -1,7 +1,7 @@
 services:
-  gemini-proxy:
+  model-proxy:
     build: .
-    container_name: gemini-proxy
+    container_name: model-proxy
     ports:
       - "4000:4000"
     volumes:
