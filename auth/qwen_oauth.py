@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import secrets
 import time
 from pathlib import Path
@@ -10,6 +11,8 @@ from urllib.parse import urlencode
 from uuid import uuid4
 
 from services.http_pool import get_http_client
+
+logger = logging.getLogger(__name__)
 from config import (
     QWEN_DEFAULT_RESOURCE_URL,
     QWEN_OAUTH_CLIENT_ID,
@@ -64,6 +67,18 @@ def generate_pkce_pair() -> tuple[str, str]:
 
 
 def request_device_authorization(code_challenge: str) -> dict:
+    """Request device authorization from Qwen OAuth server.
+
+    Args:
+        code_challenge: PKCE code challenge.
+
+    Returns:
+        Device authorization response dict.
+
+    Raises:
+        QwenOAuthError: On HTTP error or missing device_code.
+    """
+    logger.info(f"Requesting device authorization from {QWEN_OAUTH_DEVICE_CODE_ENDPOINT}")
     client = get_http_client()
     payload = {
         "client_id": QWEN_OAUTH_CLIENT_ID,
@@ -78,33 +93,64 @@ def request_device_authorization(code_challenge: str) -> dict:
         "User-Agent": "qwen-code",
         "x-request-id": request_id,
     }
-    response = client.post(
-        QWEN_OAUTH_DEVICE_CODE_ENDPOINT,
-        headers=headers,
-        content=urlencode(payload),
-    )
+
+    try:
+        response = client.post(
+            QWEN_OAUTH_DEVICE_CODE_ENDPOINT,
+            headers=headers,
+            content=urlencode(payload),
+        )
+    except Exception as exc:
+        logger.error(f"HTTP error during device authorization: {type(exc).__name__}: {exc}")
+        raise QwenOAuthError(f"Device authorization HTTP error: {type(exc).__name__}: {exc}") from exc
+
     if response.status_code != 200:
         content_type = response.headers.get("content-type", "<missing>")
-        raise QwenOAuthError(
-            "Device authorization failed: "
+        error_msg = (
+            f"Device authorization failed: "
             f"status={response.status_code}, content-type={content_type}, "
             f"body_preview='{_body_preview(response.text)}'"
         )
+        logger.error(error_msg)
+        raise QwenOAuthError(error_msg)
 
     data = _parse_json_dict(response, "Device authorization response parse failed")
     if "device_code" not in data:
+        logger.error(f"Device authorization response missing device_code: {data}")
         raise QwenOAuthError(f"Device authorization error: {data}")
+
+    logger.info(f"Device authorization successful, device_code={data['device_code'][:20]}...")
     return data
 
 
 def poll_device_token(device_code: str, code_verifier: str, timeout_seconds: int = 600) -> dict:
+    """Poll token endpoint until authorization completes or times out.
+
+    Args:
+        device_code: Device code from authorization request.
+        code_verifier: PKCE code verifier.
+        timeout_seconds: Maximum time to wait for authorization.
+
+    Returns:
+        Token response dict with access_token.
+
+    Raises:
+        QwenOAuthError: On timeout or unexpected error.
+    """
     client = get_http_client()
     started = time.time()
     interval = 2.0
+    attempt = 0
+
+    logger.info(f"Starting token polling, timeout={timeout_seconds}s")
 
     while True:
-        if time.time() - started > timeout_seconds:
-            raise QwenOAuthError("Qwen OAuth device flow timed out")
+        attempt += 1
+        elapsed = time.time() - started
+
+        if elapsed > timeout_seconds:
+            logger.error(f"Polling timed out after {elapsed:.1f}s ({attempt} attempts)")
+            raise QwenOAuthError(f"Qwen OAuth device flow timed out after {timeout_seconds}s")
 
         payload = {
             "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
@@ -119,15 +165,24 @@ def poll_device_token(device_code: str, code_verifier: str, timeout_seconds: int
             "User-Agent": "qwen-code",
             "x-request-id": request_id,
         }
-        response = client.post(
-            QWEN_OAUTH_TOKEN_ENDPOINT,
-            headers=headers,
-            content=urlencode(payload),
-        )
+
+        logger.debug(f"Poll attempt #{attempt}, elapsed={elapsed:.1f}s, interval={interval:.1f}s")
+
+        try:
+            response = client.post(
+                QWEN_OAUTH_TOKEN_ENDPOINT,
+                headers=headers,
+                content=urlencode(payload),
+            )
+        except Exception as exc:
+            # Важно: логируем любые HTTP ошибки для диагностики
+            logger.error(f"HTTP error on attempt #{attempt}: {type(exc).__name__}: {exc}")
+            raise QwenOAuthError(f"HTTP request failed: {type(exc).__name__}: {exc}") from exc
 
         if response.status_code == 200:
             data = _parse_json_dict(response, "Device token response parse failed")
             if data.get("access_token"):
+                logger.info(f"Authorization successful after {elapsed:.1f}s ({attempt} attempts)")
                 return data
             raise QwenOAuthError(f"Token response missing access_token: {data}")
 
@@ -138,20 +193,24 @@ def poll_device_token(device_code: str, code_verifier: str, timeout_seconds: int
             pass
 
         if response.status_code == 400 and data.get("error") == "authorization_pending":
+            logger.debug(f"Authorization pending (attempt #{attempt})")
             time.sleep(interval)
             continue
 
         if response.status_code == 429 and data.get("error") == "slow_down":
             interval = min(interval * 1.5, 10.0)
+            logger.warning(f"Rate limited, increasing interval to {interval:.1f}s")
             time.sleep(interval)
             continue
 
         content_type = response.headers.get("content-type", "<missing>")
-        raise QwenOAuthError(
-            "Device token polling failed: "
-            f"status={response.status_code}, content-type={content_type}, "
-            f"body_preview='{_body_preview(response.text)}'"
+        error_msg = (
+            f"Device token polling failed: "
+            f"status={response.status_code}, error={data.get('error', 'unknown')}, "
+            f"content-type={content_type}, body='{_body_preview(response.text)}'"
         )
+        logger.error(error_msg)
+        raise QwenOAuthError(error_msg)
 
 
 def refresh_access_token(refresh_token: str, client_id: str | None = None) -> dict:

@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 # Позволяет запускать скрипт напрямую: `python scripts/get_qwen_oauth_credentials.py`
 # и `uv run scripts/get_qwen_oauth_credentials.py`.
@@ -28,10 +36,15 @@ def main() -> None:
     The script writes credentials to `secrets/user_qwen_credentials.json`.
     """
     print("=== Qwen OAuth Credentials Generator ===")
-    print("[INFO] Starting OAuth device authorization flow...")
+    logger.info("Starting OAuth device authorization flow...")
 
+    print("[INFO] Generating PKCE pair...")
     verifier, challenge = generate_pkce_pair()
+    logger.debug(f"PKCE challenge generated: {challenge[:20]}...")
+
+    print("[INFO] Requesting device authorization...")
     device = request_device_authorization(challenge)
+    logger.info(f"Device code received, expires_in={device.get('expires_in', 'unknown')}")
 
     verification_uri_complete = device.get("verification_uri_complete")
     verification_uri = device.get("verification_uri")
@@ -49,18 +62,30 @@ def main() -> None:
             print(f"User code: {user_code}")
 
     timeout_seconds = int(device.get("expires_in", 600))
-    print(f"\n[WAIT] Polling token endpoint (timeout: {timeout_seconds}s)...")
+    print(f"\n[WAIT] Waiting for authorization (timeout: {timeout_seconds}s)...")
+    print("[INFO] The script will poll the server every 2 seconds.")
+    print("[INFO] Do NOT press Ctrl+C unless you want to cancel.\n")
 
-    token_data = poll_device_token(
-        device_code=device["device_code"],
-        code_verifier=verifier,
-        timeout_seconds=timeout_seconds,
-    )
+    logger.info(f"Starting token polling with timeout={timeout_seconds}s")
+
+    try:
+        token_data = poll_device_token(
+            device_code=device["device_code"],
+            code_verifier=verifier,
+            timeout_seconds=timeout_seconds,
+        )
+    except Exception:
+        # Перехватываем и логируем перед пробросом
+        logger.exception("Token polling failed")
+        raise
+
+    logger.info("Token received, normalizing credentials...")
     normalized = normalize_qwen_credentials(token_data)
     file_path = write_qwen_credentials(normalized)
 
     print(f"\n[SUCCESS] Credentials saved to '{file_path}'")
     print("[INFO] You can now use qwen quota model via proxy.")
+    logger.info(f"Credentials saved to {file_path}")
 
 
 def _is_true_env(name: str) -> bool:
@@ -91,8 +116,17 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n[INFO] Authorization interrupted by user.")
+        # Это реальное прерывание пользователем (Ctrl+C)
+        print("\n[INFO] Authorization interrupted by user (Ctrl+C).")
+        logger.info("KeyboardInterrupt: User pressed Ctrl+C")
+        sys.exit(130)  # Стандартный exit code для прерывания по Ctrl+C
     except QwenOAuthError as exc:
         print(f"\n[ERROR] OAuth flow failed: {exc}")
+        logger.error(f"QwenOAuthError: {exc}")
+        sys.exit(1)
     except Exception as exc:
-        print(f"\n[ERROR] Unexpected failure: {exc}")
+        # Важно: логируем полную трассировку для диагностики
+        logger.exception(f"Unexpected failure: {type(exc).__name__}: {exc}")
+        print(f"\n[ERROR] Unexpected failure: {type(exc).__name__}: {exc}")
+        print("[DEBUG] Check logs above for full traceback.")
+        sys.exit(1)
