@@ -1,5 +1,6 @@
 import os
 import json
+from dataclasses import dataclass
 from flask import Blueprint, request, Response, stream_with_context
 from config import CLOUD_CODE_ENDPOINT
 from core.logging import get_logger
@@ -33,6 +34,14 @@ from services.quota_transport import (
 
 gemini_bp = Blueprint('gemini', __name__)
 logger = get_logger(__name__)
+
+
+@dataclass
+class GeminiStreamState:
+    token: str | None
+    payload: dict
+    selected_account: object | None
+    user_prompt_id: str | None
 
 @gemini_bp.route('/v1beta/models/<model_id>:<action>', methods=['POST'])
 @gemini_bp.route('/v1/models/<model_id>:<action>', methods=['POST'])
@@ -119,33 +128,44 @@ def gemini_proxy(model_id, action):
 
         # Execute Request
         if action == 'streamGenerateContent':
+            stream_state = GeminiStreamState(
+                token=token,
+                payload=payload,
+                selected_account=selected_account,
+                user_prompt_id=user_prompt_id,
+            )
+
             def generate_stream():
                 try:
                     if is_quota_mode:
-                        max_attempts = len(selected_account.pool) if selected_account and selected_account.mode == "rounding" else 1
+                        max_attempts = (
+                            len(stream_state.selected_account.pool)
+                            if stream_state.selected_account and stream_state.selected_account.mode == "rounding"
+                            else 1
+                        )
                         attempts = 0
 
                         while attempts < max_attempts:
                             try:
-                                for line in stream_generate_lines(token, payload):
+                                for line in stream_generate_lines(stream_state.token, stream_state.payload):
                                     chunk_data = parse_cloud_code_sse_line(line)
                                     if not chunk_data:
                                         continue
                                     if chunk_data.get("done"):
-                                        if selected_account is not None:
-                                            quota_account_router.register_success("gemini", selected_account.account.name)
+                                        if stream_state.selected_account is not None:
+                                            quota_account_router.register_success("gemini", stream_state.selected_account.account.name)
                                         yield "data: [DONE]\n\n"
                                         return
                                     yield f"data: {json.dumps(chunk_data)}\n\n"
 
-                                if selected_account is not None:
-                                    quota_account_router.register_success("gemini", selected_account.account.name)
+                                if stream_state.selected_account is not None:
+                                    quota_account_router.register_success("gemini", stream_state.selected_account.account.name)
                                 return
                             except Exception as stream_error:
                                 err_text = str(stream_error)
                                 error_kind = classify_429_exception(stream_error)
 
-                                if error_kind in {Quota429Type.RATE_LIMIT, Quota429Type.QUOTA_EXHAUSTED} and selected_account is not None:
+                                if error_kind in {Quota429Type.RATE_LIMIT, Quota429Type.QUOTA_EXHAUSTED} and stream_state.selected_account is not None:
                                     event = (
                                         RotationEvent.RATE_LIMIT
                                         if error_kind == Quota429Type.RATE_LIMIT
@@ -153,9 +173,9 @@ def gemini_proxy(model_id, action):
                                     )
                                     event_result = quota_account_router.register_event(
                                         provider="gemini",
-                                        account_name=selected_account.account.name,
-                                        mode=selected_account.mode,
-                                        pool=selected_account.pool,
+                                        account_name=stream_state.selected_account.account.name,
+                                        mode=stream_state.selected_account.mode,
+                                        pool=stream_state.selected_account.pool,
                                         event=event,
                                         model=target_model,
                                     )
@@ -165,20 +185,20 @@ def gemini_proxy(model_id, action):
                                     if event_result.all_cooldown:
                                         yield f"data: {create_openai_error('All quota accounts are temporarily rate-limited', 'upstream_error', 429)}\n\n"
                                         return
-                                    if event_result.switched and selected_account.mode == "rounding":
+                                    if event_result.switched and stream_state.selected_account.mode == "rounding":
                                         attempts += 1
-                                        selected_account = quota_account_router.select_account("gemini", target_model)
-                                        next_account = selected_account.account
+                                        stream_state.selected_account = quota_account_router.select_account("gemini", target_model)
+                                        next_account = stream_state.selected_account.account
                                         if not isinstance(next_account, GeminiAccount):
                                             yield f"data: {create_openai_error('Invalid Gemini account configuration', 'config_error', 500)}\n\n"
                                             return
                                         with get_auth_lock():
-                                            token = get_gemini_access_token_from_file(next_account.credentials_path)
-                                        payload = build_quota_payload(
+                                            stream_state.token = get_gemini_access_token_from_file(next_account.credentials_path)
+                                        stream_state.payload = build_quota_payload(
                                             model=target_model,
                                             project=next_account.project_id,
                                             request_payload=quota_request_payload,
-                                            user_prompt_id=user_prompt_id or generate_user_prompt_id(),
+                                            user_prompt_id=stream_state.user_prompt_id or generate_user_prompt_id(),
                                             session_id=session_id,
                                         )
                                         continue

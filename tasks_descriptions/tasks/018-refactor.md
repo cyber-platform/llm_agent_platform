@@ -31,13 +31,13 @@
 
 ## Execution Status
 
-- **Current State**: Выполнены P0-правки: устранён import-break (`get_user_creds`), унифицировано error/logging в OpenAI/Gemini routes (без `print()`/`traceback.print_exc()`), удалены bare `except` в `api/openai/transform.py`.
-- **Next Step**: Перейти к P1: декомпозиция `chat_completions()` в `api/openai/routes.py` на pipeline-шаги без изменения публичного API-контракта.
+- **Current State**: P2 завершён полностью. Добавлены smoke/endpoint тесты для импорта приложения и `/v1/models`, покрыты native Gemini proxy и parity relay. Завершена ревизия `config.py`: чувствительные OAuth defaults удалены из кода, конфигурация опирается на env/секреты (`GEMINI_CLI_CLIENT_ID`, `GEMINI_CLI_CLIENT_SECRET`, `QWEN_OAUTH_CLIENT_ID`), добавлена fail-fast валидация для OAuth flow и refresh.
+- **Next Step**: Начать P1: декомпозиция `chat_completions()` в `api/openai/routes.py` на pipeline-слои и вынос provider-specific стратегий.
 - **Blockers**: none
 - **Contract Changes**: none
 - **Verification**:
   - `uv run python -m compileall api auth core services main.py tests` — success.
-  - `uv run python -m unittest discover -s tests -p "test_*.py"` — success (`Ran 18 tests`, `OK`).
+  - `uv run python -m unittest discover -s tests -p "test_*.py"` — success (`Ran 24 tests`, `OK`).
 
 ## Handoff Notes
 
@@ -62,14 +62,27 @@
   - `tests/test_quota_429_classification.py`
   - `tests/test_quota_transport_parity.py`
 - Верификация после P0: `compileall` и `unittest` успешны (`Ran 18 tests`, `OK`).
+- Выполнен P2 (тестовое укрепление):
+  - добавлен новый тестовый набор `tests/test_refactor_p2_routes.py`:
+    - smoke-тест импорта `main.app`;
+    - endpoint-тест `/v1/models`;
+    - тесты native Gemini proxy (non-stream/stream + exhausted path);
+    - тесты parity relay (non-stream и stream).
+  - обновлена тестовая карта `docs/testing/test-map.md` (добавлен suite `proxy-routes.md`);
+  - добавлен suite `docs/testing/suites/proxy-routes.md`.
+- Исправлен дефект, обнаруженный новыми тестами:
+  - в `api/gemini/routes.py` stream-контур переведён на state-контейнер `GeminiStreamState`, что устранило `UnboundLocalError` при ротации аккаунта.
+- Верификация после P2: `compileall` и `unittest` успешны (`Ran 24 tests`, `OK`).
+- Выполнен P2.3 (ревизия конфигурации):
+  - в `config.py` удалены чувствительные дефолты из кода для `GEMINI_CLI_CLIENT_ID`, `GEMINI_CLI_CLIENT_SECRET`, `QWEN_OAUTH_CLIENT_ID`;
+  - добавлены защитные проверки в `auth/credentials.py`, `auth/qwen_oauth.py`, `scripts/get_oauth_credentials.py` с явной диагностикой при отсутствии обязательных env;
+  - обновлён `.env.example` (placeholder-значения вместо секретов, уточнение обязательности переменных).
 
 ### Immediate fix first
 - Начать P1: вынести из `chat_completions()` в `api/openai/routes.py` отдельный слой provider strategy (Gemini quota / Qwen quota / Vertex) без изменения внешнего OpenAI-контракта.
 
 ### Pending work
-1. P1: декомпозиция `chat_completions()` на pipeline-шаги и устранение дублирования stream mapping.
-2. P2: расширение тестов для `api/gemini/routes.py` и `api/parity/routes.py`.
-3. P2: ревизия `config.py` для минимизации чувствительных defaults в коде.
+1. P1: декомпозиция `chat_completions()` и вынос provider-specific стратегий.
 
 ### Commands to run
 - `uv run python -m compileall api auth core services main.py tests`

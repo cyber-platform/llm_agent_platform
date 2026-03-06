@@ -156,8 +156,19 @@ def get_auth_availability() -> AuthAvailability:
 
 
 def _refresh_gemini_token(info: dict) -> str:
-    client_id = info.get("client_id", GEMINI_CLI_CLIENT_ID)
-    client_secret = info.get("client_secret", GEMINI_CLI_CLIENT_SECRET)
+    client_id = (info.get("client_id") or GEMINI_CLI_CLIENT_ID or "").strip()
+    client_secret = (info.get("client_secret") or GEMINI_CLI_CLIENT_SECRET or "").strip()
+
+    if not client_id:
+        raise ValueError(
+            "Gemini OAuth client_id is missing. Set GEMINI_CLI_CLIENT_ID in env "
+            "or provide client_id in credentials JSON."
+        )
+    if not client_secret:
+        raise ValueError(
+            "Gemini OAuth client_secret is missing. Set GEMINI_CLI_CLIENT_SECRET in env "
+            "or provide client_secret in credentials JSON."
+        )
 
     creds = Credentials(
         token=None,
@@ -202,8 +213,26 @@ def initialize_auth() -> bool:
 
     if availability.gemini_quota:
         print("[AUTH] Gemini quota auth detected.", flush=True)
+        if not GEMINI_CLI_CLIENT_ID:
+            print(
+                "[AUTH] - Warning: GEMINI_CLI_CLIENT_ID is not set in env. "
+                "Token refresh will rely on client_id from credentials files.",
+                flush=True,
+            )
+        if not GEMINI_CLI_CLIENT_SECRET:
+            print(
+                "[AUTH] - Warning: GEMINI_CLI_CLIENT_SECRET is not set in env. "
+                "Token refresh will rely on client_secret from credentials files.",
+                flush=True,
+            )
     if availability.qwen_quota:
         print("[AUTH] Qwen quota auth detected.", flush=True)
+        if not os.environ.get("QWEN_OAUTH_CLIENT_ID", "").strip():
+            print(
+                "[AUTH] - Warning: QWEN_OAUTH_CLIENT_ID is not set in env. "
+                "Qwen OAuth flows may fail.",
+                flush=True,
+            )
     if availability.vertex:
         print("[AUTH] Vertex auth detected.", flush=True)
     return True

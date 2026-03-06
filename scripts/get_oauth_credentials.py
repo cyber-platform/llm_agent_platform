@@ -16,13 +16,7 @@ if __package__ is None or __package__ == "":
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
-from config import USER_GEMINI_CREDS_PATH
-
-# --- Gemini CLI Constants ---
-# These are the official Client ID and Secret used by Gemini CLI / Cloud Code.
-# Using them allows us to access the "User Quota" (1500 req/day) instead of the "Project Quota" (20 req/day).
-GEMINI_CLI_CLIENT_ID = '681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com'
-GEMINI_CLI_CLIENT_SECRET = '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'
+from config import GEMINI_CLI_CLIENT_ID, GEMINI_CLI_CLIENT_SECRET, USER_GEMINI_CREDS_PATH
 
 # Scopes required for Cloud Code API
 SCOPES = [
@@ -101,6 +95,15 @@ def main():
     print("=== Google OAuth 2.0 Credentials Generator (Gemini CLI Emulation) ===")
     print("\n[INFO] This script will authenticate you using the official Gemini CLI Client ID.")
     print("       This is required to access the 1500 req/day user quota.")
+
+    if not GEMINI_CLI_CLIENT_ID:
+        raise RuntimeError(
+            "GEMINI_CLI_CLIENT_ID is not set. Configure it in environment before running OAuth script."
+        )
+    if not GEMINI_CLI_CLIENT_SECRET:
+        raise RuntimeError(
+            "GEMINI_CLI_CLIENT_SECRET is not set. Configure it in environment before running OAuth script."
+        )
 
     callback_port = _get_callback_port()
     bind_addr = _get_bind_addr()

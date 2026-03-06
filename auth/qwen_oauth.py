@@ -27,6 +27,15 @@ class QwenOAuthError(RuntimeError):
     """Qwen OAuth flow runtime error."""
 
 
+def _require_qwen_client_id() -> str:
+    client_id = (QWEN_OAUTH_CLIENT_ID or "").strip()
+    if client_id:
+        return client_id
+    raise QwenOAuthError(
+        "QWEN_OAUTH_CLIENT_ID is not set. Configure it via environment before running Qwen OAuth flows."
+    )
+
+
 def _body_preview(text: str, limit: int = 400) -> str:
     compact = (text or "").replace("\n", "\\n").replace("\r", "")
     if len(compact) <= limit:
@@ -80,8 +89,9 @@ def request_device_authorization(code_challenge: str) -> dict:
     """
     logger.info(f"Requesting device authorization from {QWEN_OAUTH_DEVICE_CODE_ENDPOINT}")
     client = get_http_client()
+    client_id = _require_qwen_client_id()
     payload = {
-        "client_id": QWEN_OAUTH_CLIENT_ID,
+        "client_id": client_id,
         "scope": QWEN_OAUTH_SCOPE,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
@@ -138,6 +148,7 @@ def poll_device_token(device_code: str, code_verifier: str, timeout_seconds: int
         QwenOAuthError: On timeout or unexpected error.
     """
     client = get_http_client()
+    client_id = _require_qwen_client_id()
     started = time.time()
     interval = 2.0
     attempt = 0
@@ -154,7 +165,7 @@ def poll_device_token(device_code: str, code_verifier: str, timeout_seconds: int
 
         payload = {
             "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-            "client_id": QWEN_OAUTH_CLIENT_ID,
+            "client_id": client_id,
             "device_code": device_code,
             "code_verifier": code_verifier,
         }
@@ -215,7 +226,7 @@ def poll_device_token(device_code: str, code_verifier: str, timeout_seconds: int
 
 def refresh_access_token(refresh_token: str, client_id: str | None = None) -> dict:
     client = get_http_client()
-    effective_client_id = client_id or QWEN_OAUTH_CLIENT_ID
+    effective_client_id = (client_id or _require_qwen_client_id()).strip()
     payload = {
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
@@ -249,8 +260,9 @@ def refresh_access_token(refresh_token: str, client_id: str | None = None) -> di
 
 def normalize_qwen_credentials(token_data: dict) -> dict:
     expires_in = int(token_data.get("expires_in", 3600))
+    fallback_client_id = _require_qwen_client_id() if not token_data.get("client_id") else ""
     return {
-        "client_id": token_data.get("client_id", QWEN_OAUTH_CLIENT_ID),
+        "client_id": token_data.get("client_id") or fallback_client_id,
         "access_token": token_data.get("access_token"),
         "refresh_token": token_data.get("refresh_token"),
         "token_type": token_data.get("token_type", "Bearer"),
@@ -290,7 +302,7 @@ def refresh_qwen_credentials_file(path: str | Path = USER_QWEN_CREDS_PATH) -> di
         {
             **creds,
             **refreshed,
-            "client_id": refreshed.get("client_id") or creds.get("client_id") or QWEN_OAUTH_CLIENT_ID,
+            "client_id": refreshed.get("client_id") or creds.get("client_id") or _require_qwen_client_id(),
             "refresh_token": refreshed.get("refresh_token") or creds.get("refresh_token"),
             "resource_url": refreshed.get("resource_url") or creds.get("resource_url"),
         }

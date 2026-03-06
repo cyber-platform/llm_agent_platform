@@ -1,0 +1,17 @@
+# Suite: Proxy routes smoke and endpoint coverage
+
+## Scope
+- Smoke-проверка импорта приложения и регистрации blueprint-маршрутов.
+- Endpoint-тест `/v1/models` для базовой проверки контракта списка моделей.
+- Тесты native Gemini proxy (`/v1/models/<model>:generateContent`, `/v1/models/<model>:streamGenerateContent`) в quota-контуре.
+- Тесты parity relay (`/parity-relay/<path>`) для non-stream и stream проксирования.
+
+## Requirement Traceability
+- Requirement: укрепление testability/maintainability после рефакторинга маршрутов.
+- Task links: [`018-refactor.md`](tasks_descriptions/tasks/018-refactor.md)
+- Script:
+  - [`test_refactor_p2_routes.py`](tests/test_refactor_p2_routes.py)
+
+## Verification Command
+- `uv run python -m unittest tests/test_refactor_p2_routes.py`
+- `uv run python -m unittest discover -s tests -p "test_*.py"`
