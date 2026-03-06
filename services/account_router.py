@@ -9,6 +9,9 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from config import GEMINI_ACCOUNTS_CONFIG_PATH, QWEN_ACCOUNTS_CONFIG_PATH
+from core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class AccountRouterError(RuntimeError):
@@ -118,10 +121,16 @@ class QuotaAccountRouter:
 
             if self._all_exhausted(state, cfg.all_accounts, model):
                 # Fail fast and allow future recovery attempts on next requests.
+                logger.warning(
+                    f"[{provider}] rounding: all accounts exhausted (model={model})"
+                )
                 self._reset_exhausted_unlocked(provider)
                 raise AllAccountsExhaustedError("all_accounts_exceed_quota")
 
             if self._all_cooldown(state, cfg.all_accounts):
+                logger.warning(
+                    f"[{provider}] rounding: all accounts on cooldown (model={model})"
+                )
                 raise AccountRouterError("all_accounts_on_cooldown")
 
             start = state.next_index % len(cfg.all_accounts)
@@ -134,6 +143,11 @@ class QuotaAccountRouter:
                     continue
                 state.next_index = idx
                 account = self._require_account(cfg, candidate)
+                reason = "rotation" if offset > 0 else "initial"
+                logger.info(
+                    f"[{provider}] rounding: selected account={candidate} "
+                    f"(reason={reason}|attempt={offset + 1}|model={model})"
+                )
                 return SelectedAccount(
                     provider=provider,
                     mode=cfg.mode,
@@ -205,6 +219,11 @@ class QuotaAccountRouter:
                 state.consecutive_rate_limit_errors[account_name] = current
                 state.consecutive_quota_exhausted_errors[account_name] = 0
 
+                logger.info(
+                    f"[{provider}] rounding: rate_limit error for {account_name} "
+                    f"(consecutive={current}/{cfg.rate_limit_threshold}|model={model})"
+                )
+
                 if current < cfg.rate_limit_threshold:
                     return EventResult(
                         decision=RotationDecision.RETRY_SAME,
@@ -215,8 +234,17 @@ class QuotaAccountRouter:
 
                 state.consecutive_rate_limit_errors[account_name] = 0
                 state.cooldown_until[account_name] = time.time() + cfg.rate_limit_cooldown_seconds
+                logger.warning(
+                    f"[{provider}] rounding: account {account_name} on cooldown "
+                    f"(trigger=RATE_LIMIT|duration={cfg.rate_limit_cooldown_seconds}s)"
+                )
 
                 if self._set_next_available_unlocked(state, pool, account_name, model):
+                    next_account = pool[state.next_index]
+                    logger.info(
+                        f"[{provider}] rounding: switching {account_name} -> {next_account} "
+                        f"(trigger=RATE_LIMIT|consecutive_errors={current})"
+                    )
                     return EventResult(
                         decision=RotationDecision.SWITCH_ACCOUNT,
                         switched=True,
@@ -224,6 +252,10 @@ class QuotaAccountRouter:
                         all_cooldown=False,
                     )
 
+                logger.error(
+                    f"[{provider}] rounding: all accounts on cooldown "
+                    f"(trigger=RATE_LIMIT|model={model})"
+                )
                 return EventResult(
                     decision=RotationDecision.ALL_COOLDOWN,
                     switched=True,
@@ -234,6 +266,11 @@ class QuotaAccountRouter:
             current = state.consecutive_quota_exhausted_errors.get(account_name, 0) + 1
             state.consecutive_quota_exhausted_errors[account_name] = current
             state.consecutive_rate_limit_errors[account_name] = 0
+
+            logger.info(
+                f"[{provider}] rounding: quota_exhausted error for {account_name} "
+                f"(consecutive={current}/{cfg.quota_exhausted_threshold}|model={model})"
+            )
 
             if current < cfg.quota_exhausted_threshold:
                 return EventResult(
@@ -248,7 +285,18 @@ class QuotaAccountRouter:
             exhausted_for_model = state.quota_exhausted_until.setdefault(account_name, {})
             exhausted_for_model[self._model_key(model)] = until
 
+            from datetime import datetime
+            reset_time = datetime.fromtimestamp(until).strftime("%Y-%m-%d %H:%M:%S")
+            logger.warning(
+                f"[{provider}] rounding: account {account_name} exhausted for model {model} "
+                f"(trigger=QUOTA_EXHAUSTED|reset_at={reset_time})"
+            )
+
             if self._all_exhausted(state, pool, model):
+                logger.error(
+                    f"[{provider}] rounding: all accounts exhausted "
+                    f"(trigger=QUOTA_EXHAUSTED|model={model})"
+                )
                 return EventResult(
                     decision=RotationDecision.ALL_EXHAUSTED,
                     switched=True,
@@ -257,6 +305,11 @@ class QuotaAccountRouter:
                 )
 
             if self._set_next_available_unlocked(state, pool, account_name, model):
+                next_account = pool[state.next_index]
+                logger.info(
+                    f"[{provider}] rounding: switching {account_name} -> {next_account} "
+                    f"(trigger=QUOTA_EXHAUSTED|consecutive_errors={current})"
+                )
                 return EventResult(
                     decision=RotationDecision.SWITCH_ACCOUNT,
                     switched=True,
@@ -264,6 +317,10 @@ class QuotaAccountRouter:
                     all_cooldown=False,
                 )
 
+            logger.error(
+                f"[{provider}] rounding: all accounts exhausted or on cooldown "
+                f"(trigger=QUOTA_EXHAUSTED|model={model})"
+            )
             return EventResult(
                 decision=RotationDecision.ALL_COOLDOWN,
                 switched=True,

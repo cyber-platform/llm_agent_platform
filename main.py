@@ -1,9 +1,13 @@
 import threading
 from flask import Flask
+from core.logging import setup_logging
 from auth.credentials import refresh_user_creds
 from api.openai.routes import openai_bp
 from api.gemini.routes import gemini_bp
 from api.parity.routes import parity_bp
+
+# Setup logging
+logger = setup_logging()
 
 app = Flask(__name__)
 
@@ -16,7 +20,7 @@ if __name__ == "__main__":
     # Initialize authentication first
     from auth.credentials import initialize_auth
     if not initialize_auth():
-        print("[ERROR] Failed to initialize authentication. Exiting.")
+        logger.error("[ERROR] Failed to initialize authentication. Exiting.")
         exit(1)
     
     # Start background refresh thread

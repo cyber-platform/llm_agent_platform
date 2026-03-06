@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 from flask import Blueprint, request, Response, stream_with_context
 from config import CLOUD_CODE_ENDPOINT, DEFAULT_QUOTA_MODEL, STRICT_CLI_PARITY
+from core.logging import get_logger
 from auth.credentials import (
     get_auth_availability,
     get_auth_lock,
@@ -45,6 +46,7 @@ from services.quota_transport import (
 )
 
 openai_bp = Blueprint('openai', __name__)
+logger = get_logger(__name__)
 
 
 def _is_qwen_quota_model(raw_model: str) -> bool:
@@ -141,7 +143,7 @@ def chat_completions():
         stream_options = data.get('stream_options', {})
         include_usage = stream_options.get('include_usage', False) if stream else False
         
-        print(f"[REQ] Model: {raw_model} -> {target_model} | Stream: {stream} | Usage: {include_usage}", flush=True)
+        logger.info(f"[REQ] Model: {raw_model} -> {target_model} | Stream: {stream} | Usage: {include_usage}")
 
         contents, system_instruction = transform_openai_to_gemini(messages)
         
@@ -372,7 +374,7 @@ def chat_completions():
                         with response as r:
                             if r.status_code != 200:
                                 err_text = r.read().decode()
-                                print(f"[ERROR] Stream API Error {r.status_code}: {err_text}", flush=True)
+                                logger.error(f"[ERROR] Stream API Error {r.status_code}: {err_text}")
                                 yield f"data: {create_openai_error(f'Upstream API Error: {err_text}', 'upstream_error', r.status_code)}\n\n"
                                 return
 
@@ -522,8 +524,12 @@ def chat_completions():
                                             yield f"data: {create_openai_error('All quota accounts are temporarily rate-limited', 'upstream_error', 429)}\n\n"
                                             return
                                         if event_result.switched:
+                                            old_account = state.selected_account.account.name if state.selected_account else "unknown"
+                                            logger.info(f"[qwen] Account rotation triggered in stream, switching from {old_account}")
                                             try:
                                                 state.selected_account = quota_account_router.select_account("qwen", target_model)
+                                                new_account = state.selected_account.account.name if state.selected_account else "unknown"
+                                                logger.info(f"[qwen] Switched to account {new_account}")
                                             except AllAccountsExhaustedError:
                                                 yield f"data: {create_openai_error('all_accounts_exceed_quota', 'quota_exhausted', 429)}\n\n"
                                                 return
@@ -697,8 +703,12 @@ def chat_completions():
                                 )
                                 return
                             if event_result.switched and state.selected_account.mode == "rounding":
+                                old_account = state.selected_account.account.name
+                                logger.info(f"[{provider}] Account rotation triggered in exception handler, switching from {old_account}")
                                 try:
                                     state.selected_account = quota_account_router.select_account(provider, target_model)
+                                    new_account = state.selected_account.account.name
+                                    logger.info(f"[{provider}] Switched to account {new_account}")
                                 except AllAccountsExhaustedError:
                                     yield from _stream_quota_error(
                                         create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429)
@@ -710,7 +720,7 @@ def chat_completions():
                                     )
                                     return
 
-                    print(f"[ERROR] Stream Exception: {e}", flush=True)
+                    logger.error(f"[ERROR] Stream Exception: {e}")
                     yield f"data: {create_openai_error(str(e), 'stream_exception')}\n\n"
 
             return Response(stream_with_context(generate_stream()), mimetype='text/event-stream')
@@ -784,7 +794,11 @@ def chat_completions():
                         return create_openai_error("All quota accounts are temporarily rate-limited", "upstream_error", 429), 429
 
                     if event_result.switched and selected_account.mode == "rounding":
+                        old_account = selected_account.account.name
+                        logger.info(f"[{provider}] Account rotation triggered in non-stream, switching from {old_account}")
                         selected_account = quota_account_router.select_account(provider, current_model)
+                        new_account = selected_account.account.name
+                        logger.info(f"[{provider}] Switched to account {new_account}")
                         if provider == "gemini":
                             account = selected_account.account
                             if not isinstance(account, GeminiAccount):
@@ -816,12 +830,12 @@ def chat_completions():
                         continue
 
                 if r.status_code == 429 and "capacity" in r.text.lower() and len(fallback_chain) > 1 and not is_quota_mode:
-                    print(f"[WARN] Model {current_model} exhausted (capacity). Trying fallback...", flush=True)
+                    logger.warning(f"[WARN] Model {current_model} exhausted (capacity). Trying fallback...")
                     attempt += 1
                     continue
 
                 if r.status_code != 200:
-                    print(f"[ERROR] API Error {r.status_code}: {r.text}", flush=True)
+                    logger.error(f"[ERROR] API Error {r.status_code}: {r.text}")
                     return create_openai_error(f"Upstream Error: {r.text}", "upstream_error", r.status_code), r.status_code
 
                 try:

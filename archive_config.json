@@ -1,0 +1,27 @@
+{
+  "compression": {
+    "method": "deflated",
+    "level": 9
+  },
+  "gitignore": {
+    "enabled": true,
+    "paths": [
+      ".gitignore"
+    ]
+  },
+  "force_include": [
+    ".kilocode",
+    "secrets"
+  ],
+  "force_exclude": [
+    ".venv",
+    "qwen-code",
+    "gemini-cli",
+    "kilocode",
+    "model_proxy.zip"
+  ],
+  "output": {
+    "filename": "model_proxy.zip",
+    "directory": "."
+  }
+}

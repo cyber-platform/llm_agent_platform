@@ -9,9 +9,13 @@ services:
       # user_credentials.json - для Quota (OAuth)
       # service_account.json - для Vertex (Credits)
       - ./secrets:/app/secrets:rw
+      # Монтируем директорию для логов (HDD для снижения нагрузки на SSD)
+      - /data/model_proxy_logs:/app/logs:rw
     environment:
       # Переменные из .env файла
       VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID}
       VERTEX_LOCATION: ${VERTEX_LOCATION:-us-central1}
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_DIR: /app/logs
     restart: unless-stopped

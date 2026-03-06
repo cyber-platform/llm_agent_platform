@@ -1,5 +1,9 @@
 import os
 
+# --- Logging Configuration ---
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+LOG_DIR = os.environ.get("LOG_DIR", "./logs")
+
 # --- Configuration ---
 USER_GEMINI_CREDS_PATH = os.environ.get(
     "USER_GEMINI_CREDS_PATH",

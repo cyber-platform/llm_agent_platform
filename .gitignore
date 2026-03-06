@@ -15,3 +15,9 @@ wheels/
 gemini-cli/
 kilocode/
 ./kilocode
+
+# Linter's cache
+.ruff_cache
+
+# Logs
+logs/
