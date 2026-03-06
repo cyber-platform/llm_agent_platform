@@ -40,7 +40,7 @@
 ### Что создаётся
 - Базовый файл OAuth: `secrets/user_qwen_credentials.json`.
 - Далее пользователь может вручную переименовывать/копировать его в именованные аккаунты (например, `secrets/qwen_lisa.json`, `secrets/qwen_petr.json`) и указывать их в `qwen_accounts_config.json`.
-- В credentials также сохраняется `client_id` (для стабильного refresh даже при изменении env-конфига).
+- В credentials также сохраняется `client_id` (runtime refresh прокси использует именно его).
 
 ### Шаги
 1. Запустите OAuth device-flow скрипт:
@@ -53,6 +53,10 @@
 Рекомендованный `QWEN_OAUTH_SCOPE` по parity с upstream `qwen-code`:
 - `openid profile email model.completion`
 - источник: `qwen-code/packages/core/src/qwen/qwenOAuth2.ts` (`QWEN_OAUTH_SCOPE`)
+
+Важно по разделению bootstrap/runtime:
+- `QWEN_OAUTH_CLIENT_ID` и `QWEN_OAUTH_SCOPE` нужны для bootstrap device-flow (скрипт `scripts/get_qwen_oauth_credentials.py`).
+- Runtime прокси при refresh берёт `client_id` из credentials-файла аккаунта.
 
 ---
 

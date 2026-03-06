@@ -227,12 +227,10 @@ def initialize_auth() -> bool:
             )
     if availability.qwen_quota:
         print("[AUTH] Qwen quota auth detected.", flush=True)
-        if not os.environ.get("QWEN_OAUTH_CLIENT_ID", "").strip():
-            print(
-                "[AUTH] - Warning: QWEN_OAUTH_CLIENT_ID is not set in env. "
-                "Qwen OAuth flows may fail.",
-                flush=True,
-            )
+        print(
+            "[AUTH] - Qwen runtime refresh uses client_id from credentials file.",
+            flush=True,
+        )
     if availability.vertex:
         print("[AUTH] Vertex auth detected.", flush=True)
     return True

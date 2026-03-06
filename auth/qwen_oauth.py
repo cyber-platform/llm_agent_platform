@@ -226,7 +226,12 @@ def poll_device_token(device_code: str, code_verifier: str, timeout_seconds: int
 
 def refresh_access_token(refresh_token: str, client_id: str | None = None) -> dict:
     client = get_http_client()
-    effective_client_id = (client_id or _require_qwen_client_id()).strip()
+    effective_client_id = (client_id or "").strip()
+    if not effective_client_id:
+        raise QwenOAuthError(
+            "Qwen token refresh requires client_id from credentials file. "
+            "Re-run scripts/get_qwen_oauth_credentials.py to regenerate credentials."
+        )
     payload = {
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
@@ -258,11 +263,16 @@ def refresh_access_token(refresh_token: str, client_id: str | None = None) -> di
     return data
 
 
-def normalize_qwen_credentials(token_data: dict) -> dict:
+def normalize_qwen_credentials(token_data: dict, *, fallback_client_id: str | None = None) -> dict:
     expires_in = int(token_data.get("expires_in", 3600))
-    fallback_client_id = _require_qwen_client_id() if not token_data.get("client_id") else ""
+    resolved_client_id = (token_data.get("client_id") or fallback_client_id or "").strip()
+    if not resolved_client_id:
+        raise QwenOAuthError(
+            "Qwen OAuth credentials missing client_id. "
+            "Provide client_id in token response or explicit fallback_client_id."
+        )
     return {
-        "client_id": token_data.get("client_id") or fallback_client_id,
+        "client_id": resolved_client_id,
         "access_token": token_data.get("access_token"),
         "refresh_token": token_data.get("refresh_token"),
         "token_type": token_data.get("token_type", "Bearer"),
@@ -294,15 +304,22 @@ def write_qwen_credentials(data: dict, path: str | Path = USER_QWEN_CREDS_PATH) 
 
 def refresh_qwen_credentials_file(path: str | Path = USER_QWEN_CREDS_PATH) -> dict:
     creds = read_qwen_credentials(path)
+    credentials_client_id = (creds.get("client_id") or "").strip()
+    if not credentials_client_id:
+        raise QwenOAuthError(
+            f"Missing client_id in {Path(path)}. "
+            "Re-run scripts/get_qwen_oauth_credentials.py to regenerate credentials."
+        )
+
     refreshed = refresh_access_token(
         creds["refresh_token"],
-        client_id=creds.get("client_id"),
+        client_id=credentials_client_id,
     )
     normalized = normalize_qwen_credentials(
         {
             **creds,
             **refreshed,
-            "client_id": refreshed.get("client_id") or creds.get("client_id") or _require_qwen_client_id(),
+            "client_id": refreshed.get("client_id") or credentials_client_id,
             "refresh_token": refreshed.get("refresh_token") or creds.get("refresh_token"),
             "resource_url": refreshed.get("resource_url") or creds.get("resource_url"),
         }
