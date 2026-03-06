@@ -2,6 +2,7 @@ import os
 import json
 from flask import Blueprint, request, Response, stream_with_context
 from config import CLOUD_CODE_ENDPOINT
+from core.logging import get_logger
 from auth.credentials import (
     get_auth_lock,
     get_gemini_access_token_from_file,
@@ -31,6 +32,7 @@ from services.quota_transport import (
 )
 
 gemini_bp = Blueprint('gemini', __name__)
+logger = get_logger(__name__)
 
 @gemini_bp.route('/v1beta/models/<model_id>:<action>', methods=['POST'])
 @gemini_bp.route('/v1/models/<model_id>:<action>', methods=['POST'])
@@ -188,7 +190,7 @@ def gemini_proxy(model_id, action):
                         with client.stream("POST", url, headers=headers, json=payload, params=params) as r:
                             if r.status_code != 200:
                                 err_text = r.read().decode()
-                                print(f"[ERROR] Stream API Error {r.status_code}: {err_text}", flush=True)
+                                logger.error(f"[ERROR] Stream API Error {r.status_code}: {err_text}")
                                 yield f"data: {json.dumps({'error': {'code': r.status_code, 'message': err_text}})}\n\n"
                                 return
 
@@ -199,7 +201,7 @@ def gemini_proxy(model_id, action):
                                 yield out + "\n"
 
                 except Exception as e:
-                    print(f"[ERROR] Stream Exception: {e}", flush=True)
+                    logger.exception("[ERROR] Stream Exception")
                     yield f"data: {json.dumps({'error': {'message': str(e)}})}\n\n"
 
             return Response(stream_with_context(generate_stream()), mimetype='text/event-stream')
@@ -270,6 +272,5 @@ def gemini_proxy(model_id, action):
             return json.dumps(resp_data), 200
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("[ERROR] Internal Proxy Error in gemini_proxy")
         return create_openai_error(f"Internal Proxy Error: {str(e)}", "internal_error", 500), 500

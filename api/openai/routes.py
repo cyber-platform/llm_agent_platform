@@ -9,7 +9,6 @@ from auth.credentials import (
     get_auth_availability,
     get_auth_lock,
     get_gemini_access_token_from_file,
-    get_user_creds,
     get_vertex_token,
 )
 from auth.qwen_oauth import (
@@ -941,8 +940,7 @@ def chat_completions():
             return json.dumps(sanitize_data(openai_response), ensure_ascii=False), 200
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("[ERROR] Internal Proxy Error in chat_completions")
         return create_openai_error(f"Internal Proxy Error: {str(e)}", "internal_error", 500), 500
 
 @openai_bp.route('/v1/models', methods=['GET'])

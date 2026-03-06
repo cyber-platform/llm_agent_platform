@@ -40,7 +40,9 @@ def transform_openai_to_gemini(messages):
                                         "data": data_part
                                     }
                                 })
-                            except: pass
+                            except (ValueError, IndexError, KeyError):
+                                # Ignore malformed data URLs and continue processing other parts
+                                pass
                 elif isinstance(part, str):
                     gemini_parts.append({"text": part})
 
@@ -59,7 +61,9 @@ def transform_openai_to_gemini(messages):
                     }
 
                     gemini_parts.append(function_call_part)
-                except: pass
+                except (json.JSONDecodeError, TypeError):
+                    # Ignore malformed tool args and continue processing other calls
+                    pass
 
         # 3. Обработка ответов инструментов (tool)
         if role == 'tool':
@@ -68,7 +72,7 @@ def transform_openai_to_gemini(messages):
             try:
                 # Пытаемся распарсить контент как JSON, если это возможно
                 resp_obj = json.loads(raw_content) if isinstance(raw_content, str) else raw_content
-            except:
+            except (json.JSONDecodeError, TypeError):
                 resp_obj = raw_content
             
             # Gemini требует, чтобы response был объектом

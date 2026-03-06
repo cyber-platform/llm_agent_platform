@@ -1,7 +1,6 @@
 import json
 import os
 import threading
-import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,15 +14,7 @@ from config import (
     GEMINI_CLI_CLIENT_SECRET,
     QWEN_ACCOUNTS_CONFIG_PATH,
     SERVICE_ACCOUNT_PATH,
-    USER_GEMINI_CREDS_PATH,
 )
-
-
-@dataclass(slots=True)
-class ProviderCredentials:
-    provider: str
-    token: str
-    source_path: str
 
 
 @dataclass(slots=True)
@@ -38,28 +29,8 @@ class AuthAvailability:
 
 
 _auth_state = {
-    "user_creds": None,
     "auth_lock": threading.Lock(),
 }
-
-
-def get_user_creds() -> ProviderCredentials | None:
-    """Get current user credentials for Gemini quota flow.
-
-    Returns:
-        ProviderCredentials | None: cached credentials state.
-    """
-    return _auth_state["user_creds"]
-
-
-def set_user_creds(creds: ProviderCredentials) -> None:
-    """Set user credentials in thread-safe manner.
-
-    Args:
-        creds: provider credentials to cache.
-    """
-    with _auth_state["auth_lock"]:
-        _auth_state["user_creds"] = creds
 
 
 def get_auth_lock() -> threading.Lock:
@@ -236,42 +207,6 @@ def initialize_auth() -> bool:
     if availability.vertex:
         print("[AUTH] Vertex auth detected.", flush=True)
     return True
-
-
-def refresh_user_creds() -> None:
-    """Background refresher for Gemini OAuth credentials."""
-    availability = get_auth_availability()
-    if not availability.gemini_quota:
-        print("[AUTH] Gemini quota auth is not configured. Background refresh disabled.", flush=True)
-        return
-
-    creds_path = Path(USER_GEMINI_CREDS_PATH)
-
-    while True:
-        sleep_time = 3000
-        try:
-            if not creds_path.exists():
-                print(f"[AUTH] Error: {creds_path} not found!", flush=True)
-                sleep_time = 60
-            else:
-                info = _load_gemini_refresh_token(creds_path)
-                token = _refresh_gemini_token(info)
-                set_user_creds(
-                    ProviderCredentials(
-                        provider="gemini",
-                        token=token,
-                        source_path=str(creds_path),
-                    )
-                )
-                print(
-                    "[AUTH] User OAuth token refreshed (Gemini CLI Mode).",
-                    flush=True,
-                )
-        except Exception as e:
-            print(f"[AUTH] User refresh failed: {e}", flush=True)
-            sleep_time = 30
-
-        time.sleep(sleep_time)
 
 
 def get_vertex_token() -> str | None:
