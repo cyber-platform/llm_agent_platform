@@ -11,7 +11,8 @@
   },
   "force_include": [
     ".kilocode",
-    "secrets"
+    "secrets",
+    ".env"
   ],
   "force_exclude": [
     ".venv",
