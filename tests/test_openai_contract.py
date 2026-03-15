@@ -69,10 +69,10 @@ class OpenAIContractTests(unittest.TestCase):
             pool=pool,
         )
 
-    @patch("api.openai.routes.quota_account_router.select_account")
-    @patch("api.openai.routes.get_gemini_access_token_from_file", return_value="token-123")
-    @patch("api.openai.routes.get_auth_lock", return_value=threading.Lock())
-    @patch("api.openai.routes.send_generate")
+    @patch("api.openai.strategies.rotate_on_429_rounding.quota_account_router.select_account")
+    @patch("api.openai.providers.gemini_cli.get_gemini_access_token_from_file", return_value="token-123")
+    @patch("api.openai.providers.gemini_cli.get_auth_lock", return_value=threading.Lock())
+    @patch("api.openai.providers.gemini_cli.send_generate")
     def test_non_stream_text_usage_contract(self, mock_send_generate, _mock_lock, _mock_token, mock_select_account):
         mock_select_account.return_value = self._gemini_selected_account()
         mock_send_generate.return_value = FakeResponse(
@@ -112,10 +112,10 @@ class OpenAIContractTests(unittest.TestCase):
         self.assertEqual(body["usage"]["completion_tokens"], 8)
         self.assertEqual(body["usage"]["total_tokens"], 20)
 
-    @patch("api.openai.routes.quota_account_router.select_account")
-    @patch("api.openai.routes.get_gemini_access_token_from_file", return_value="token-123")
-    @patch("api.openai.routes.get_auth_lock", return_value=threading.Lock())
-    @patch("api.openai.routes.stream_generate_lines")
+    @patch("api.openai.strategies.rotate_on_429_rounding.quota_account_router.select_account")
+    @patch("api.openai.providers.gemini_cli.get_gemini_access_token_from_file", return_value="token-123")
+    @patch("api.openai.providers.gemini_cli.get_auth_lock", return_value=threading.Lock())
+    @patch("api.openai.providers.gemini_cli.stream_generate_lines")
     def test_stream_usage_chunk_and_done(self, mock_stream_generate_lines, _mock_lock, _mock_token, mock_select_account):
         mock_select_account.return_value = self._gemini_selected_account()
         mock_stream_generate_lines.return_value = iter(
@@ -155,10 +155,10 @@ class OpenAIContractTests(unittest.TestCase):
         self.assertIsNotNone(usage_chunk)
         self.assertEqual(usage_chunk["usage"]["total_tokens"], 5)
 
-    @patch("api.openai.routes.quota_account_router.select_account")
-    @patch("api.openai.routes.get_gemini_access_token_from_file", return_value="token-123")
-    @patch("api.openai.routes.get_auth_lock", return_value=threading.Lock())
-    @patch("api.openai.routes.send_generate")
+    @patch("api.openai.strategies.rotate_on_429_rounding.quota_account_router.select_account")
+    @patch("api.openai.providers.gemini_cli.get_gemini_access_token_from_file", return_value="token-123")
+    @patch("api.openai.providers.gemini_cli.get_auth_lock", return_value=threading.Lock())
+    @patch("api.openai.providers.gemini_cli.send_generate")
     def test_non_stream_upstream_error_mapped_to_openai_shape(self, mock_send_generate, _mock_lock, _mock_token, mock_select_account):
         mock_select_account.return_value = self._gemini_selected_account()
         mock_send_generate.return_value = FakeResponse(503, payload=None, text="backend unavailable")
@@ -178,18 +178,18 @@ class OpenAIContractTests(unittest.TestCase):
         self.assertEqual(body["error"]["type"], "upstream_error")
         self.assertEqual(body["error"]["code"], 503)
 
-    @patch("api.openai.routes.quota_account_router.select_account")
+    @patch("api.openai.strategies.rotate_on_429_rounding.quota_account_router.select_account")
     @patch(
-        "api.openai.routes.quota_account_router.register_event",
+        "api.openai.strategies.rotate_on_429_rounding.quota_account_router.register_event",
         return_value=type(
             "EventResult",
             (),
             {"switched": True, "all_exhausted": False, "all_cooldown": False},
         )(),
     )
-    @patch("api.openai.routes.get_gemini_access_token_from_file", return_value="token-123")
-    @patch("api.openai.routes.get_auth_lock", return_value=threading.Lock())
-    @patch("api.openai.routes.send_generate")
+    @patch("api.openai.providers.gemini_cli.get_gemini_access_token_from_file", return_value="token-123")
+    @patch("api.openai.providers.gemini_cli.get_auth_lock", return_value=threading.Lock())
+    @patch("api.openai.providers.gemini_cli.send_generate")
     def test_non_stream_quota_rotation_contract(
         self,
         mock_send_generate,
@@ -241,15 +241,15 @@ class OpenAIContractTests(unittest.TestCase):
         self.assertEqual(mock_send_generate.call_count, 2)
         self.assertEqual(mock_select_account.call_count, 2)
 
-    @patch("api.openai.routes.quota_account_router.select_account")
+    @patch("api.openai.strategies.rotate_on_429_rounding.quota_account_router.select_account")
     @patch(
-        "api.openai.routes.refresh_qwen_credentials_file",
+        "api.openai.providers.qwen_code.refresh_qwen_credentials_file",
         return_value={
             "access_token": "qwen-token",
             "resource_url": "https://dashscope.aliyuncs.com/compatible-mode",
         },
     )
-    @patch("api.openai.routes.stream_generate_lines_from_url")
+    @patch("api.openai.providers.qwen_code.stream_generate_lines_from_url")
     def test_stream_quota_rotation_usage_contract(
         self,
         mock_stream_generate_lines,
