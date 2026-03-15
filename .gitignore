@@ -21,3 +21,7 @@ kilocode/
 
 # Logs
 logs/
+
+# Nested Git repositories
+.kilocode/
+tools/repo-archiver/
