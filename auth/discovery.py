@@ -1,5 +1,9 @@
 import os
 
+from core.logging import get_logger
+
+logger = get_logger(__name__)
+
 # Global state for project ID
 project_id_cache = None
 
@@ -16,14 +20,14 @@ def discover_project_id(token):
     # Check env var first
     if os.environ.get("GOOGLE_CLOUD_PROJECT"):
         project_id_cache = os.environ.get("GOOGLE_CLOUD_PROJECT")
-        print(f"[AUTH] Using Project ID from env: {project_id_cache}", flush=True)
+        logger.info(f"[AUTH] Using Project ID from env: {project_id_cache}")
         return project_id_cache
 
     # Fallback to a hardcoded default if known, or try to infer from user info
     # For now, we strongly rely on the env var because the Cloud Code API discovery endpoint
     # itself requires the API to be enabled, creating a chicken-and-egg problem.
     
-    print("[AUTH] Warning: GOOGLE_CLOUD_PROJECT env var not set. Using fallback project discovery.", flush=True)
+    logger.warning("[AUTH] Warning: GOOGLE_CLOUD_PROJECT env var not set. Using fallback project discovery.")
     
     # Try to get project from userinfo (not standard, but sometimes helpful for debugging)
     # or just return a placeholder that might work if the user has a default project set

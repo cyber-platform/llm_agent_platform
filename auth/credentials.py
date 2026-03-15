@@ -15,6 +15,9 @@ from config import (
     QWEN_ACCOUNTS_CONFIG_PATH,
     SERVICE_ACCOUNT_PATH,
 )
+from core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass(slots=True)
@@ -206,33 +209,28 @@ def initialize_auth() -> bool:
     """
     availability = get_auth_availability()
     if not availability.has_any():
-        print("[AUTH] No authentication data found. Configure at least one source:", flush=True)
+        logger.warning("[AUTH] No authentication data found. Configure at least one source:")
         for message in availability.diagnostics:
-            print(f"[AUTH] - {message}", flush=True)
+            logger.warning(f"[AUTH] - {message}")
         return False
 
     if availability.gemini_quota:
-        print("[AUTH] Gemini quota auth detected.", flush=True)
+        logger.info("[AUTH] Gemini quota auth detected.")
         if not GEMINI_CLI_CLIENT_ID:
-            print(
+            logger.warning(
                 "[AUTH] - Warning: GEMINI_CLI_CLIENT_ID is not set in env. "
-                "Token refresh will rely on client_id from credentials files.",
-                flush=True,
+                "Token refresh will rely on client_id from credentials files."
             )
         if not GEMINI_CLI_CLIENT_SECRET:
-            print(
+            logger.warning(
                 "[AUTH] - Warning: GEMINI_CLI_CLIENT_SECRET is not set in env. "
-                "Token refresh will rely on client_secret from credentials files.",
-                flush=True,
+                "Token refresh will rely on client_secret from credentials files."
             )
     if availability.qwen_quota:
-        print("[AUTH] Qwen quota auth detected.", flush=True)
-        print(
-            "[AUTH] - Qwen runtime refresh uses client_id from credentials file.",
-            flush=True,
-        )
+        logger.info("[AUTH] Qwen quota auth detected.")
+        logger.info("[AUTH] - Qwen runtime refresh uses client_id from credentials file.")
     if availability.vertex:
-        print("[AUTH] Vertex auth detected.", flush=True)
+        logger.info("[AUTH] Vertex auth detected.")
     return True
 
 
