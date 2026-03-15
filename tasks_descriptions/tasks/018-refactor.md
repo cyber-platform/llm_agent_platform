@@ -31,58 +31,45 @@
 
 ## Execution Status
 
-- **Current State**: P2 завершён полностью. Добавлены smoke/endpoint тесты для импорта приложения и `/v1/models`, покрыты native Gemini proxy и parity relay. Завершена ревизия `config.py`: чувствительные OAuth defaults удалены из кода, конфигурация опирается на env/секреты (`GEMINI_CLI_CLIENT_ID`, `GEMINI_CLI_CLIENT_SECRET`, `QWEN_OAUTH_CLIENT_ID`), добавлена fail-fast валидация для OAuth flow и refresh.
-- **Next Step**: Начать P1: декомпозиция `chat_completions()` в `api/openai/routes.py` на pipeline-слои и вынос provider-specific стратегий.
+- **Current State**: P1/P0/P2 завершены. Providers/Strategies/Pipeline внедрены, контракт stream/non-stream подтверждён тестами OpenAI, P0/P2 закрыты, верификация пройдена.
+  - Типы контекста и ошибки: [`api/openai/types.py`](api/openai/types.py:1)
+  - Pipeline: [`api/openai/pipeline.py`](api/openai/pipeline.py:1)
+  - Providers: [`api/openai/providers/base.py`](api/openai/providers/base.py:1), [`api/openai/providers/google_vertex.py`](api/openai/providers/google_vertex.py:1), [`api/openai/providers/gemini_cli.py`](api/openai/providers/gemini_cli.py:1), [`api/openai/providers/qwen_code.py`](api/openai/providers/qwen_code.py:1)
+  - Strategies: [`api/openai/strategies/base.py`](api/openai/strategies/base.py:1), [`api/openai/strategies/direct.py`](api/openai/strategies/direct.py:1), [`api/openai/strategies/rotate_on_429_rounding.py`](api/openai/strategies/rotate_on_429_rounding.py:1), [`api/openai/strategies/registry.py`](api/openai/strategies/registry.py:1)
+  - Streaming/response shaping: [`api/openai/streaming.py`](api/openai/streaming.py:1), [`api/openai/response_shaper.py`](api/openai/response_shaper.py:1)
+  - Роут `chat_completions` переведён на pipeline/strategy оркестрацию: [`api/openai/routes.py`](api/openai/routes.py:1)
+  - Обновлены моки в тестах OpenAI контракта: [`tests/test_openai_contract.py`](tests/test_openai_contract.py:1)
+- **Next Step**: Перейти к задачам 019/020.
 - **Blockers**: none
 - **Contract Changes**: none
-- **Verification**:
-  - `uv run python -m compileall api auth core services main.py tests` — success.
-  - `uv run python -m unittest discover -s tests -p "test_*.py"` — success (`Ran 24 tests`, `OK`).
+- **Verification**: `uv run python -m compileall api auth core services main.py tests`; `uv run python -m unittest discover -s tests -p "test_*.py"` (`Ran 24 tests`, `OK`).
 
 ## Handoff Notes
 
 ### What is done
-- Проанализированы ключевые модули:
-  - `api/openai/routes.py`
-  - `api/gemini/routes.py`
-  - `api/parity/routes.py`
-  - `services/account_router.py`
-  - `services/quota_transport.py`
-  - `auth/credentials.py`
-  - `auth/qwen_oauth.py`
-  - `core/logging.py`
-- Выполнены P0-изменения:
-  - удалён невалидный импорт `get_user_creds` в `api/openai/routes.py`;
-  - заменены `print()`/`traceback.print_exc()` на единый `logger` в `api/openai/routes.py` и `api/gemini/routes.py`;
-  - заменены bare `except` на явные исключения в `api/openai/transform.py`.
-- Проверена тестовая карта и текущие тесты:
-  - `docs/testing/test-map.md`
-  - `tests/test_openai_contract.py`
-  - `tests/test_quota_account_router.py`
-  - `tests/test_quota_429_classification.py`
-  - `tests/test_quota_transport_parity.py`
-- Верификация после P0: `compileall` и `unittest` успешны (`Ran 18 tests`, `OK`).
-- Выполнен P2 (тестовое укрепление):
-  - добавлен новый тестовый набор `tests/test_refactor_p2_routes.py`:
-    - smoke-тест импорта `main.app`;
-    - endpoint-тест `/v1/models`;
-    - тесты native Gemini proxy (non-stream/stream + exhausted path);
-    - тесты parity relay (non-stream и stream).
-  - обновлена тестовая карта `docs/testing/test-map.md` (добавлен suite `proxy-routes.md`);
-  - добавлен suite `docs/testing/suites/proxy-routes.md`.
-- Исправлен дефект, обнаруженный новыми тестами:
-  - в `api/gemini/routes.py` stream-контур переведён на state-контейнер `GeminiStreamState`, что устранило `UnboundLocalError` при ротации аккаунта.
-- Верификация после P2: `compileall` и `unittest` успешны (`Ran 24 tests`, `OK`).
-- Выполнен P2.3 (ревизия конфигурации):
-  - в `config.py` удалены чувствительные дефолты из кода для `GEMINI_CLI_CLIENT_ID`, `GEMINI_CLI_CLIENT_SECRET`, `QWEN_OAUTH_CLIENT_ID`;
-  - добавлены защитные проверки в `auth/credentials.py`, `auth/qwen_oauth.py`, `scripts/get_oauth_credentials.py` с явной диагностикой при отсутствии обязательных env;
-  - обновлён `.env.example` (placeholder-значения вместо секретов, уточнение обязательности переменных).
+- Созданы базовые модули P1:
+  - [`api/openai/types.py`](api/openai/types.py:1)
+  - [`api/openai/pipeline.py`](api/openai/pipeline.py:1)
+  - [`api/openai/streaming.py`](api/openai/streaming.py:1)
+  - [`api/openai/response_shaper.py`](api/openai/response_shaper.py:1)
+- Добавлены Providers:
+  - [`api/openai/providers/base.py`](api/openai/providers/base.py:1)
+  - [`api/openai/providers/google_vertex.py`](api/openai/providers/google_vertex.py:1)
+  - [`api/openai/providers/gemini_cli.py`](api/openai/providers/gemini_cli.py:1)
+  - [`api/openai/providers/qwen_code.py`](api/openai/providers/qwen_code.py:1)
+- Добавлены Strategies:
+  - [`api/openai/strategies/base.py`](api/openai/strategies/base.py:1)
+  - [`api/openai/strategies/direct.py`](api/openai/strategies/direct.py:1)
+  - [`api/openai/strategies/rotate_on_429_rounding.py`](api/openai/strategies/rotate_on_429_rounding.py:1)
+  - [`api/openai/strategies/registry.py`](api/openai/strategies/registry.py:1)
+- `chat_completions` переведён на оркестрацию pipeline/strategy: [`api/openai/routes.py`](api/openai/routes.py:1)
+- Обновлены моки тестов OpenAI контракта под новые модули: [`tests/test_openai_contract.py`](tests/test_openai_contract.py:1)
 
 ### Immediate fix first
-- Начать P1: вынести из `chat_completions()` в `api/openai/routes.py` отдельный слой provider strategy (Gemini quota / Qwen quota / Vertex) без изменения внешнего OpenAI-контракта.
+- Верификация выполнена, ошибок импорта/моков не выявлено.
 
 ### Pending work
-1. P1: декомпозиция `chat_completions()` и вынос provider-specific стратегий.
+1. Нет.
 
 ### Commands to run
 - `uv run python -m compileall api auth core services main.py tests`
@@ -91,4 +78,6 @@
 ### User constraints
 - Использовать `uv` как основной инструмент запуска/сборки Python.
 - Сохранять quota-first и OpenAI-compatible контракт.
-- Не менять требования задачи без явного согласования.
+- Providers и Strategies должны быть разделены (Providers в `api/openai/providers`, Strategies в `api/openai/strategies`).
+- `qwen_oauth` переименован в `qwen_code`.
+- Credential Acquisition выполняется bootstrap-скриптами [`scripts/get_oauth_credentials.py`](scripts/get_oauth_credentials.py:1) и [`scripts/get_qwen_oauth_credentials.py`](scripts/get_qwen_oauth_credentials.py:1).
