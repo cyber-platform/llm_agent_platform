@@ -23,6 +23,7 @@ Non-scope:
   - Suite: [`docs/testing/suites/quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md:1)
   - Test map: [`docs/testing/test-map.md`](docs/testing/test-map.md:1)
 - ADR по URL-prefix groups и group-aware models: [`docs/adr/0017-url-prefix-groups-and-group-aware-models.md`](docs/adr/0017-url-prefix-groups-and-group-aware-models.md:1)
+- Breaking расширение: reset periods + persisted account state: [`docs/architecture/quota-reset-periods-and-account-state.md`](docs/architecture/quota-reset-periods-and-account-state.md:1)
 
 ## Конфигурация (provider accounts-config)
 Ключевые элементы accounts-config (см. примеры):
@@ -42,6 +43,9 @@ Non-scope:
 - `groups.<gid>.models: list[str]` — список моделей, который будет возвращён `GET /<gid>/v1/models`.
 - Backward compatibility:
   - если `groups` отсутствует, эквивалентно одной группе `g0`, построенной из `all_accounts`.
+
+Инвариант (breaking):
+- если `groups` присутствует, аккаунт может входить **только в одну группу** (disjoint groups).
 
 ## Внешний HTTP контракт (OpenAI-compatible)
 ### Group selection: URL-prefix (вариант B)
@@ -75,6 +79,10 @@ State ведётся по ключу `(provider_id, group_id)`:
 Инварианты:
 - 429 policy всегда имеет приоритет над by-N.
 - by-N считает только успешные запросы (best-effort при параллельных запросах).
+
+Расширение (breaking):
+- `model_quota_resets` теперь задаёт **период восстановления квоты** (`DD:HH:MM`), а не время суток.
+- exhausted state должен переживать рестарт процесса через persisted account state, см. [`docs/architecture/quota-reset-periods-and-account-state.md`](docs/architecture/quota-reset-periods-and-account-state.md:1).
 
 ## Потоки
 ```mermaid
