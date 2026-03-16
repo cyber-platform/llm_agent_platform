@@ -22,25 +22,24 @@
 - Подготовить test design (L1–L4) и coverage matrix для разработки из задачи 021.
 
 ## Шаги реализации
-- [ ] Создать/обновить suite-документ под новые возможности (возможно расширить существующий): [`docs/testing/suites/quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md:1)
-- [ ] Зафиксировать новые test cases:
+- [x] Создать/обновить suite-документ под новые возможности (возможно расширить существующий): [`docs/testing/suites/quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md:1)
+- [x] Зафиксировать новые test cases:
   - random-order (детерминировать через patch RNG)
   - by-N (ровно N успехов -> switch)
   - group isolation (g0 vs g1 vs g2, state независим)
   - group-aware `/v1/models`
   - all-cooldown error message `all accounts on cooldown please wait <seconds>`
-- [ ] Обновить индекс: [`docs/testing/test-map.md`](docs/testing/test-map.md:1)
-- [ ] Подготовить конкретные команды верификации для dev (unittest, smoke).
+- [x] Обновить индекс: [`docs/testing/test-map.md`](docs/testing/test-map.md:1)
+- [x] Подготовить конкретные команды верификации для dev (unittest, smoke).
 
 ## Definition of Done
-- [ ] Есть документ test design с трассировкой requirement -> suite -> test scripts
-- [ ] Есть список конкретных тестовых файлов, которые должны быть изменены/добавлены
-- [ ] Test-map обновлён
+- [x] Есть документ test design с трассировкой requirement -> suite -> test scripts
+- [x] Есть список конкретных тестовых файлов, которые должны быть изменены/добавлены
+- [x] Test-map обновлён
 
 ## Execution Status
-- Current State: task создан, test design не выполнен.
-- Next Step: определить suite-структуру и список тест-кейсов.
+- Current State: test design согласован (TC + levels + coverage matrix), suite/test-map обновлены.
+- Next Step: в Code stage реализовать изменения из [`tasks_descriptions/tasks/021-rotation-policies-groups-and-models.md`](tasks_descriptions/tasks/021-rotation-policies-groups-and-models.md:1) и добавить/обновить тесты согласно coverage matrix в [`docs/testing/suites/quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md:1).
 - Blockers: none
 - Contract Changes: none
-- Verification: not started
-
+- Verification: `uv run python -m unittest discover -s tests -p "test_*.py"`

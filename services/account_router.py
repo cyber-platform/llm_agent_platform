@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import math
+import random
 import threading
 import time
 from dataclasses import dataclass, field
@@ -34,6 +36,12 @@ class GeminiAccount(BaseAccount):
 
 
 @dataclass(slots=True)
+class ProviderGroup:
+    accounts: list[str]
+    models: list[str]
+
+
+@dataclass(slots=True)
 class ProviderConfig:
     provider: str
     mode: str
@@ -43,7 +51,10 @@ class ProviderConfig:
     rate_limit_threshold: int
     quota_exhausted_threshold: int
     rate_limit_cooldown_seconds: int
+    random_order: bool
+    rotate_after_n_successes: int
     model_quota_resets: dict[str, str]
+    groups: dict[str, ProviderGroup]
 
 
 @dataclass(slots=True)
@@ -62,6 +73,7 @@ class _ProviderState:
     consecutive_quota_exhausted_errors: dict[str, int] = field(default_factory=dict)
     cooldown_until: dict[str, float] = field(default_factory=dict)
     quota_exhausted_until: dict[str, dict[str, float]] = field(default_factory=dict)
+    successes_on_account: dict[str, int] = field(default_factory=dict)
 
 
 class RotationEvent:
@@ -96,10 +108,17 @@ class QuotaAccountRouter:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._state: dict[str, _ProviderState] = {}
+        self._state: dict[tuple[str, str], _ProviderState] = {}
 
-    def select_account(self, provider: str, model: str | None = None) -> SelectedAccount:
+    def select_account(
+        self,
+        provider: str,
+        model: str | None = None,
+        group_id: str = "g0",
+    ) -> SelectedAccount:
+        provider = self._normalize_provider_id(provider)
         cfg = self._load_provider_config(provider)
+        pool = self._resolve_pool(cfg, group_id)
         if cfg.mode == "single":
             account = self._require_account(cfg, cfg.active_account)
             return SelectedAccount(
@@ -110,33 +129,37 @@ class QuotaAccountRouter:
                 model=model,
             )
 
-        if not cfg.all_accounts:
+        if not pool:
             raise AccountRouterError(
-                f"Provider '{provider}' has mode=rounding but all_accounts is empty"
+                f"Provider '{provider}' has mode=rounding but pool is empty"
             )
 
         with self._lock:
-            state = self._state.setdefault(provider, _ProviderState())
+            state = self._state.setdefault((provider, group_id), _ProviderState())
             self._cleanup_state_for_model_unlocked(state, cfg, model)
 
-            if self._all_exhausted(state, cfg.all_accounts, model):
+            if self._all_exhausted(state, pool, model):
                 # Fail fast and allow future recovery attempts on next requests.
                 logger.warning(
-                    f"[{provider}] rounding: all accounts exhausted (model={model})"
+                    f"[{provider}] rounding: all accounts exhausted (model={model}|group={group_id})"
                 )
-                self._reset_exhausted_unlocked(provider)
+                self._reset_exhausted_unlocked(provider, group_id)
                 raise AllAccountsExhaustedError("all_accounts_exceed_quota")
 
-            if self._all_cooldown(state, cfg.all_accounts):
+            if self._all_cooldown(state, pool):
+                wait_seconds = self._cooldown_wait_seconds(state, pool)
                 logger.warning(
-                    f"[{provider}] rounding: all accounts on cooldown (model={model})"
+                    f"[{provider}] rounding: all accounts on cooldown "
+                    f"(model={model}|group={group_id}|wait={wait_seconds}s)"
                 )
-                raise AccountRouterError("all_accounts_on_cooldown")
+                raise AccountRouterError(
+                    f"all accounts on cooldown please wait {wait_seconds}"
+                )
 
-            start = state.next_index % len(cfg.all_accounts)
-            for offset in range(len(cfg.all_accounts)):
-                idx = (start + offset) % len(cfg.all_accounts)
-                candidate = cfg.all_accounts[idx]
+            start = state.next_index % len(pool)
+            for offset in range(len(pool)):
+                idx = (start + offset) % len(pool)
+                candidate = pool[idx]
                 if self._is_exhausted(state, candidate, model):
                     continue
                 if self._is_on_cooldown(state, candidate):
@@ -146,27 +169,62 @@ class QuotaAccountRouter:
                 reason = "rotation" if offset > 0 else "initial"
                 logger.info(
                     f"[{provider}] rounding: selected account={candidate} "
-                    f"(reason={reason}|attempt={offset + 1}|model={model})"
+                    f"(reason={reason}|attempt={offset + 1}|model={model}|group={group_id})"
                 )
                 return SelectedAccount(
                     provider=provider,
                     mode=cfg.mode,
                     account=account,
-                    pool=list(cfg.all_accounts),
+                    pool=list(pool),
                     model=model,
                 )
 
-        if self._all_exhausted(state, cfg.all_accounts, model):
+        if self._all_exhausted(state, pool, model):
             raise AllAccountsExhaustedError("all_accounts_exceed_quota")
 
-        raise AccountRouterError("all_accounts_on_cooldown")
+        wait_seconds = self._cooldown_wait_seconds(state, pool)
+        raise AccountRouterError(
+            f"all accounts on cooldown please wait {wait_seconds}"
+        )
 
-    def register_success(self, provider: str, account_name: str) -> None:
+    def register_success(
+        self,
+        provider: str,
+        account_name: str,
+        group_id: str = "g0",
+    ) -> None:
+        provider = self._normalize_provider_id(provider)
+        cfg = self._load_provider_config(provider)
+        pool = self._resolve_pool(cfg, group_id)
         with self._lock:
-            state = self._state.setdefault(provider, _ProviderState())
+            state = self._state.setdefault((provider, group_id), _ProviderState())
             state.consecutive_rate_limit_errors[account_name] = 0
             state.consecutive_quota_exhausted_errors[account_name] = 0
             state.cooldown_until.pop(account_name, None)
+
+            if cfg.mode != "rounding":
+                return
+            if cfg.rotate_after_n_successes <= 0:
+                return
+
+            current = state.successes_on_account.get(account_name, 0) + 1
+            state.successes_on_account[account_name] = current
+            if current < cfg.rotate_after_n_successes:
+                return
+
+            state.successes_on_account[account_name] = 0
+            if self._set_next_available_unlocked(
+                state,
+                pool,
+                account_name,
+                model=None,
+                random_order=cfg.random_order,
+            ):
+                next_account = pool[state.next_index]
+                logger.info(
+                    f"[{provider}] rounding: switching {account_name} -> {next_account} "
+                    f"(trigger=BY_N|group={group_id}|threshold={cfg.rotate_after_n_successes})"
+                )
 
     def register_quota_limit(
         self,
@@ -174,6 +232,7 @@ class QuotaAccountRouter:
         account_name: str,
         mode: str,
         pool: list[str],
+        group_id: str = "g0",
     ) -> bool:
         """Register quota-limit error.
 
@@ -187,6 +246,7 @@ class QuotaAccountRouter:
             pool=pool,
             event=RotationEvent.QUOTA_EXHAUSTED,
             model=None,
+            group_id=group_id,
         )
         return result.switched
 
@@ -199,7 +259,9 @@ class QuotaAccountRouter:
         pool: list[str],
         event: str,
         model: str | None,
+        group_id: str = "g0",
     ) -> EventResult:
+        provider = self._normalize_provider_id(provider)
         if mode != "rounding":
             return EventResult(
                 decision=RotationDecision.NO_ACTION,
@@ -211,17 +273,18 @@ class QuotaAccountRouter:
         cfg = self._load_provider_config(provider)
 
         with self._lock:
-            state = self._state.setdefault(provider, _ProviderState())
+            state = self._state.setdefault((provider, group_id), _ProviderState())
             self._cleanup_state_for_model_unlocked(state, cfg, model)
 
             if event == RotationEvent.RATE_LIMIT:
                 current = state.consecutive_rate_limit_errors.get(account_name, 0) + 1
                 state.consecutive_rate_limit_errors[account_name] = current
                 state.consecutive_quota_exhausted_errors[account_name] = 0
+                state.successes_on_account.pop(account_name, None)
 
                 logger.info(
                     f"[{provider}] rounding: rate_limit error for {account_name} "
-                    f"(consecutive={current}/{cfg.rate_limit_threshold}|model={model})"
+                    f"(consecutive={current}/{cfg.rate_limit_threshold}|model={model}|group={group_id})"
                 )
 
                 if current < cfg.rate_limit_threshold:
@@ -236,14 +299,20 @@ class QuotaAccountRouter:
                 state.cooldown_until[account_name] = time.time() + cfg.rate_limit_cooldown_seconds
                 logger.warning(
                     f"[{provider}] rounding: account {account_name} on cooldown "
-                    f"(trigger=RATE_LIMIT|duration={cfg.rate_limit_cooldown_seconds}s)"
+                    f"(trigger=RATE_LIMIT|duration={cfg.rate_limit_cooldown_seconds}s|group={group_id})"
                 )
 
-                if self._set_next_available_unlocked(state, pool, account_name, model):
+                if self._set_next_available_unlocked(
+                    state,
+                    pool,
+                    account_name,
+                    model,
+                    random_order=cfg.random_order,
+                ):
                     next_account = pool[state.next_index]
                     logger.info(
                         f"[{provider}] rounding: switching {account_name} -> {next_account} "
-                        f"(trigger=RATE_LIMIT|consecutive_errors={current})"
+                        f"(trigger=RATE_LIMIT|consecutive_errors={current}|group={group_id})"
                     )
                     return EventResult(
                         decision=RotationDecision.SWITCH_ACCOUNT,
@@ -254,7 +323,7 @@ class QuotaAccountRouter:
 
                 logger.error(
                     f"[{provider}] rounding: all accounts on cooldown "
-                    f"(trigger=RATE_LIMIT|model={model})"
+                    f"(trigger=RATE_LIMIT|model={model}|group={group_id})"
                 )
                 return EventResult(
                     decision=RotationDecision.ALL_COOLDOWN,
@@ -266,10 +335,11 @@ class QuotaAccountRouter:
             current = state.consecutive_quota_exhausted_errors.get(account_name, 0) + 1
             state.consecutive_quota_exhausted_errors[account_name] = current
             state.consecutive_rate_limit_errors[account_name] = 0
+            state.successes_on_account.pop(account_name, None)
 
             logger.info(
                 f"[{provider}] rounding: quota_exhausted error for {account_name} "
-                f"(consecutive={current}/{cfg.quota_exhausted_threshold}|model={model})"
+                f"(consecutive={current}/{cfg.quota_exhausted_threshold}|model={model}|group={group_id})"
             )
 
             if current < cfg.quota_exhausted_threshold:
@@ -289,13 +359,13 @@ class QuotaAccountRouter:
             reset_time = datetime.fromtimestamp(until).strftime("%Y-%m-%d %H:%M:%S")
             logger.warning(
                 f"[{provider}] rounding: account {account_name} exhausted for model {model} "
-                f"(trigger=QUOTA_EXHAUSTED|reset_at={reset_time})"
+                f"(trigger=QUOTA_EXHAUSTED|reset_at={reset_time}|group={group_id})"
             )
 
             if self._all_exhausted(state, pool, model):
                 logger.error(
                     f"[{provider}] rounding: all accounts exhausted "
-                    f"(trigger=QUOTA_EXHAUSTED|model={model})"
+                    f"(trigger=QUOTA_EXHAUSTED|model={model}|group={group_id})"
                 )
                 return EventResult(
                     decision=RotationDecision.ALL_EXHAUSTED,
@@ -304,11 +374,17 @@ class QuotaAccountRouter:
                     all_cooldown=False,
                 )
 
-            if self._set_next_available_unlocked(state, pool, account_name, model):
+            if self._set_next_available_unlocked(
+                state,
+                pool,
+                account_name,
+                model,
+                random_order=cfg.random_order,
+            ):
                 next_account = pool[state.next_index]
                 logger.info(
                     f"[{provider}] rounding: switching {account_name} -> {next_account} "
-                    f"(trigger=QUOTA_EXHAUSTED|consecutive_errors={current})"
+                    f"(trigger=QUOTA_EXHAUSTED|consecutive_errors={current}|group={group_id})"
                 )
                 return EventResult(
                     decision=RotationDecision.SWITCH_ACCOUNT,
@@ -319,7 +395,7 @@ class QuotaAccountRouter:
 
             logger.error(
                 f"[{provider}] rounding: all accounts exhausted or on cooldown "
-                f"(trigger=QUOTA_EXHAUSTED|model={model})"
+                f"(trigger=QUOTA_EXHAUSTED|model={model}|group={group_id})"
             )
             return EventResult(
                 decision=RotationDecision.ALL_COOLDOWN,
@@ -328,17 +404,41 @@ class QuotaAccountRouter:
                 all_cooldown=True,
             )
 
-    def all_accounts_exhausted(self, provider: str, pool: list[str], model: str | None = None) -> bool:
+    def all_accounts_exhausted(
+        self,
+        provider: str,
+        pool: list[str],
+        model: str | None = None,
+        group_id: str = "g0",
+    ) -> bool:
+        provider = self._normalize_provider_id(provider)
         cfg = self._load_provider_config(provider)
         with self._lock:
-            state = self._state.setdefault(provider, _ProviderState())
+            state = self._state.setdefault((provider, group_id), _ProviderState())
             self._cleanup_state_for_model_unlocked(state, cfg, model)
             return self._all_exhausted(state, pool, model)
 
-    def all_accounts_on_cooldown(self, provider: str, pool: list[str]) -> bool:
+    def all_accounts_on_cooldown(
+        self,
+        provider: str,
+        pool: list[str],
+        group_id: str = "g0",
+    ) -> bool:
+        provider = self._normalize_provider_id(provider)
         with self._lock:
-            state = self._state.setdefault(provider, _ProviderState())
+            state = self._state.setdefault((provider, group_id), _ProviderState())
             return self._all_cooldown(state, pool)
+
+    def cooldown_wait_seconds(
+        self,
+        provider: str,
+        pool: list[str],
+        group_id: str = "g0",
+    ) -> int:
+        provider = self._normalize_provider_id(provider)
+        with self._lock:
+            state = self._state.setdefault((provider, group_id), _ProviderState())
+            return self._cooldown_wait_seconds(state, pool)
 
     def _all_exhausted(self, state: _ProviderState, pool: list[str], model: str | None) -> bool:
         if not pool:
@@ -369,7 +469,25 @@ class QuotaAccountRouter:
         pool: list[str],
         current_account: str,
         model: str | None,
+        random_order: bool = False,
     ) -> bool:
+        if not pool:
+            return False
+
+        if random_order:
+            candidates = [
+                account
+                for account in pool
+                if account != current_account
+                and not self._is_exhausted(state, account, model)
+                and not self._is_on_cooldown(state, account)
+            ]
+            if not candidates:
+                return False
+            chosen = random.choice(candidates)
+            state.next_index = pool.index(chosen)
+            return True
+
         idx = pool.index(current_account)
         for offset in range(1, len(pool) + 1):
             candidate_idx = (idx + offset) % len(pool)
@@ -406,8 +524,8 @@ class QuotaAccountRouter:
             if not models:
                 state.quota_exhausted_until.pop(account_name, None)
 
-    def _reset_exhausted_unlocked(self, provider: str) -> None:
-        state = self._state.setdefault(provider, _ProviderState())
+    def _reset_exhausted_unlocked(self, provider: str, group_id: str) -> None:
+        state = self._state.setdefault((provider, group_id), _ProviderState())
         state.quota_exhausted_until.clear()
         state.consecutive_quota_exhausted_errors.clear()
 
@@ -430,7 +548,32 @@ class QuotaAccountRouter:
     def _model_key(self, model: str | None) -> str:
         return model or "<unknown-model>"
 
+    def _normalize_provider_id(self, provider: str) -> str:
+        if provider == "gemini":
+            return "gemini_cli"
+        if provider == "qwen":
+            return "qwen_code"
+        return provider
+
+    def _resolve_pool(self, cfg: ProviderConfig, group_id: str) -> list[str]:
+        if not cfg.groups:
+            return cfg.all_accounts
+        if group_id in cfg.groups:
+            return list(cfg.groups[group_id].accounts)
+        if group_id == "g0":
+            return cfg.all_accounts
+        raise AccountRouterError(f"Unknown group_id '{group_id}' for provider '{cfg.provider}'")
+
+    def _cooldown_wait_seconds(self, state: _ProviderState, pool: list[str]) -> int:
+        now = time.time()
+        until_values = [state.cooldown_until.get(account) for account in pool]
+        active = [value for value in until_values if value is not None and value > now]
+        if not active:
+            return 0
+        return max(0, math.ceil(min(active) - now))
+
     def _load_provider_config(self, provider: str) -> ProviderConfig:
+        provider = self._normalize_provider_id(provider)
         file_path = self._config_path_for_provider(provider)
         if not file_path.exists():
             raise AccountRouterError(
@@ -460,6 +603,8 @@ class QuotaAccountRouter:
         rate_limit_threshold = int(policy_payload.get("rate_limit_threshold", 2))
         quota_exhausted_threshold = int(policy_payload.get("quota_exhausted_threshold", 2))
         rate_limit_cooldown_seconds = int(policy_payload.get("rate_limit_cooldown_seconds", 5))
+        random_order = bool(policy_payload.get("random_order", False))
+        rotate_after_n_successes = int(policy_payload.get("rotate_after_n_successes", 0))
 
         model_quota_resets = payload.get("model_quota_resets") or {"default": "00:00"}
         if not isinstance(model_quota_resets, dict):
@@ -481,7 +626,7 @@ class QuotaAccountRouter:
                     f"Missing credentials_path for account '{account_name}' in {file_path}"
                 )
 
-            if provider == "gemini":
+            if provider == "gemini_cli":
                 project_id = account_data.get("project_id")
                 if not project_id:
                     raise AccountRouterError(
@@ -498,6 +643,28 @@ class QuotaAccountRouter:
                     credentials_path=creds_path,
                 )
 
+        groups_payload = payload.get("groups") or {}
+        if not isinstance(groups_payload, dict):
+            raise AccountRouterError(f"groups must be object in {file_path}")
+        groups: dict[str, ProviderGroup] = {}
+        for group_key, group_data in groups_payload.items():
+            if not isinstance(group_data, dict):
+                raise AccountRouterError(f"Group '{group_key}' must be object in {file_path}")
+            group_accounts = group_data.get("accounts") or []
+            if not isinstance(group_accounts, list):
+                raise AccountRouterError(
+                    f"Group '{group_key}' accounts must be list in {file_path}"
+                )
+            group_models = group_data.get("models") or []
+            if not isinstance(group_models, list):
+                raise AccountRouterError(
+                    f"Group '{group_key}' models must be list in {file_path}"
+                )
+            groups[group_key] = ProviderGroup(
+                accounts=[str(item) for item in group_accounts],
+                models=[str(item) for item in group_models],
+            )
+
         return ProviderConfig(
             provider=provider,
             mode=mode,
@@ -507,7 +674,10 @@ class QuotaAccountRouter:
             rate_limit_threshold=rate_limit_threshold,
             quota_exhausted_threshold=quota_exhausted_threshold,
             rate_limit_cooldown_seconds=rate_limit_cooldown_seconds,
+            random_order=random_order,
+            rotate_after_n_successes=rotate_after_n_successes,
             model_quota_resets={str(k): str(v) for k, v in model_quota_resets.items()},
+            groups=groups,
         )
 
     def _require_account(self, cfg: ProviderConfig, account_name: str) -> BaseAccount:
@@ -519,9 +689,9 @@ class QuotaAccountRouter:
         return account
 
     def _config_path_for_provider(self, provider: str) -> Path:
-        if provider == "gemini":
+        if provider in {"gemini_cli", "gemini"}:
             return Path(GEMINI_ACCOUNTS_CONFIG_PATH)
-        if provider == "qwen":
+        if provider in {"qwen_code", "qwen"}:
             return Path(QWEN_ACCOUNTS_CONFIG_PATH)
         raise AccountRouterError(f"Unsupported provider: {provider}")
 

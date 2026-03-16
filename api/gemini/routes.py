@@ -71,14 +71,14 @@ def gemini_proxy(model_id, action):
         if is_quota_mode:
             # --- Gemini CLI / Cloud Code Emulation Mode ---
             try:
-                selected_account = quota_account_router.select_account("gemini", target_model)
+                selected_account = quota_account_router.select_account("gemini_cli", target_model)
             except AllAccountsExhaustedError:
                 return create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429), 429
             except AccountRouterError as router_error:
-                if str(router_error) == "all_accounts_on_cooldown":
+                if "all accounts on cooldown" in str(router_error):
                     return create_openai_error(
-                        "All quota accounts are temporarily rate-limited",
-                        "upstream_error",
+                        str(router_error),
+                        "rate_limit_error",
                         429,
                     ), 429
                 raise
@@ -153,13 +153,19 @@ def gemini_proxy(model_id, action):
                                         continue
                                     if chunk_data.get("done"):
                                         if stream_state.selected_account is not None:
-                                            quota_account_router.register_success("gemini", stream_state.selected_account.account.name)
+                                            quota_account_router.register_success(
+                                                "gemini_cli",
+                                                stream_state.selected_account.account.name,
+                                            )
                                         yield "data: [DONE]\n\n"
                                         return
                                     yield f"data: {json.dumps(chunk_data)}\n\n"
 
                                 if stream_state.selected_account is not None:
-                                    quota_account_router.register_success("gemini", stream_state.selected_account.account.name)
+                                    quota_account_router.register_success(
+                                        "gemini_cli",
+                                        stream_state.selected_account.account.name,
+                                    )
                                 return
                             except Exception as stream_error:
                                 err_text = str(stream_error)
@@ -172,7 +178,7 @@ def gemini_proxy(model_id, action):
                                         else RotationEvent.QUOTA_EXHAUSTED
                                     )
                                     event_result = quota_account_router.register_event(
-                                        provider="gemini",
+                                        provider="gemini_cli",
                                         account_name=stream_state.selected_account.account.name,
                                         mode=stream_state.selected_account.mode,
                                         pool=stream_state.selected_account.pool,
@@ -183,11 +189,18 @@ def gemini_proxy(model_id, action):
                                         yield f"data: {create_openai_error('all_accounts_exceed_quota', 'quota_exhausted', 429)}\n\n"
                                         return
                                     if event_result.all_cooldown:
-                                        yield f"data: {create_openai_error('All quota accounts are temporarily rate-limited', 'upstream_error', 429)}\n\n"
+                                        wait_seconds = quota_account_router.cooldown_wait_seconds(
+                                            "gemini_cli",
+                                            stream_state.selected_account.pool,
+                                        )
+                                        yield f"data: {create_openai_error(f'all accounts on cooldown please wait {wait_seconds}', 'rate_limit_error', 429)}\n\n"
                                         return
                                     if event_result.switched and stream_state.selected_account.mode == "rounding":
                                         attempts += 1
-                                        stream_state.selected_account = quota_account_router.select_account("gemini", target_model)
+                                        stream_state.selected_account = quota_account_router.select_account(
+                                            "gemini_cli",
+                                            target_model,
+                                        )
                                         next_account = stream_state.selected_account.account
                                         if not isinstance(next_account, GeminiAccount):
                                             yield f"data: {create_openai_error('Invalid Gemini account configuration', 'config_error', 500)}\n\n"
@@ -243,7 +256,7 @@ def gemini_proxy(model_id, action):
                             else RotationEvent.QUOTA_EXHAUSTED
                         )
                         event_result = quota_account_router.register_event(
-                            provider="gemini",
+                            provider="gemini_cli",
                             account_name=selected_account.account.name,
                             mode=selected_account.mode,
                             pool=selected_account.pool,
@@ -253,10 +266,21 @@ def gemini_proxy(model_id, action):
                         if event_result.all_exhausted:
                             return create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429), 429
                         if event_result.all_cooldown:
-                            return create_openai_error("All quota accounts are temporarily rate-limited", "upstream_error", 429), 429
+                            wait_seconds = quota_account_router.cooldown_wait_seconds(
+                                "gemini_cli",
+                                selected_account.pool,
+                            )
+                            return create_openai_error(
+                                f"all accounts on cooldown please wait {wait_seconds}",
+                                "rate_limit_error",
+                                429,
+                            ), 429
                         if event_result.switched and selected_account.mode == "rounding":
                             attempts += 1
-                            selected_account = quota_account_router.select_account("gemini", target_model)
+                            selected_account = quota_account_router.select_account(
+                                "gemini_cli",
+                                target_model,
+                            )
                             next_account = selected_account.account
                             if not isinstance(next_account, GeminiAccount):
                                 return create_openai_error("Invalid Gemini account configuration", "config_error", 500), 500
@@ -286,7 +310,10 @@ def gemini_proxy(model_id, action):
 
             if is_quota_mode:
                 if selected_account is not None:
-                    quota_account_router.register_success("gemini", selected_account.account.name)
+                    quota_account_router.register_success(
+                        "gemini_cli",
+                        selected_account.account.name,
+                    )
                 resp_data = unwrap_cloud_code_response(resp_data)
 
             return json.dumps(resp_data), 200

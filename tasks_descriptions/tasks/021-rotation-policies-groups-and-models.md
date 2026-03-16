@@ -52,9 +52,76 @@
 - [ ] Документация и примеры конфигов обновлены
 
 ## Execution Status
-- Current State: task создан, реализация не начиналась.
-- Next Step: выполнить test design (см. задача 022) и затем приступить к изменениям в [`services/account_router.py`](services/account_router.py:1).
+- Current State: реализованы rotation policies (random + by-N), группы и group-aware `/v1/models`, добавлены тесты; проверки `compileall` и `unittest` проходят.
+- Next Step: обновить примеры конфигов в [`docs/examples/gemini_accounts_config.example.json`](docs/examples/gemini_accounts_config.example.json:1) и [`docs/examples/qwen_accounts_config.example.json`](docs/examples/qwen_accounts_config.example.json:1) под новые поля `groups` и `rotation_policy`.
 - Blockers: none
-- Contract Changes: none
-- Verification: not started
+- Contract Changes: present
+- Verification:
+  - `uv run python -m compileall api auth core services main.py tests` (ok)
+  - `uv run python -m unittest discover -s tests -p "test_*.py"` (ok)
 
+## Handoff Notes
+- What is done:
+  - Реализованы новые поля и логика ротации в [`services/account_router.py`](services/account_router.py:1) (random-order, by-N, группы, all-cooldown wait-seconds).
+  - Добавлены group-prefixed маршруты и group-aware `/v1/models` в [`api/openai/routes.py`](api/openai/routes.py:1).
+  - Протянут `group_id` через контекст запроса в [`api/openai/pipeline.py`](api/openai/pipeline.py:83) и [`api/openai/types.py`](api/openai/types.py:8).
+  - Обновлена стратегия ротации и обработка all-cooldown в [`api/openai/strategies/rotate_on_429_rounding.py`](api/openai/strategies/rotate_on_429_rounding.py:30).
+  - Обновлён gemini native proxy для новых provider ids и cooldown-message в [`api/gemini/routes.py`](api/gemini/routes.py:46).
+  - Добавлены тесты: router L1 в [`tests/test_quota_account_router.py`](tests/test_quota_account_router.py:17), group-aware `/v1/models` в [`tests/test_refactor_p2_routes.py`](tests/test_refactor_p2_routes.py:77), all-cooldown contract в [`tests/test_openai_contract.py`](tests/test_openai_contract.py:39).
+  - Верификация: `compileall` и `unittest` успешно выполнены.
+- Immediate fix first:
+  - Обновить примеры конфигов в [`docs/examples/gemini_accounts_config.example.json`](docs/examples/gemini_accounts_config.example.json:1) и [`docs/examples/qwen_accounts_config.example.json`](docs/examples/qwen_accounts_config.example.json:1).
+- Pending work:
+  - Привести docs/examples в соответствие с `groups` и `rotation_policy`.
+- Commands to run:
+  - `uv run python -m compileall api auth core services main.py tests`
+  - `uv run python -m unittest discover -s tests -p "test_*.py"`
+- User constraints:
+  - Используем `uv` для проверок.
+  - Сохраняем OpenAI-compatible контракт и quota-first поведение.
+
+## Implementation Handoff (для Code stage)
+
+Канонический test design и coverage matrix: [`docs/testing/suites/quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md:1).
+
+### 1) Изменения в доменной логике ротации (L1)
+Центральная точка: [`services/account_router.py`](services/account_router.py:1)
+
+Ожидаемые изменения:
+- Provider IDs в quota-роутере и стратегиях: `gemini`→`gemini_cli`, `qwen`→`qwen_code`.
+- Расширить парсинг accounts-config:
+  - `rotation_policy.random_order: bool` (default false)
+  - `rotation_policy.rotate_after_n_successes: int` (default 0)
+  - `groups.<gid>.accounts: list[str]`
+  - `groups.<gid>.models: list[str]`
+  - default: если `groups` отсутствует — работаем как `g0` с пулом `all_accounts`.
+- Group isolation: ключ state должен стать `(provider, group_id)` вместо одного `provider`.
+- Random-order:
+  - при switch (429 / by-N) выбирать следующий аккаунт случайно среди доступных кандидатов (не exhausted и не cooldown), детерминируемо тестами через patch RNG.
+- Rotate-after-N-successes:
+  - хранить счётчик успешных запросов на аккаунте в state,
+  - при достижении `N` триггерить switch на следующий доступный (и учитывать `random_order` если включён).
+- All-cooldown fast-fail:
+  - при невозможности выбрать аккаунт из-за cooldown вернуть 429 с message `all accounts on cooldown please wait <seconds>`,
+  - `<seconds>` = время до ближайшего `cooldown_until` (ceil/округление зафиксировать в тесте).
+
+### 2) Изменения в API (L2/L3)
+Маршруты OpenAI:
+- Добавить URL-prefix для групп (вариант B) для:
+  - `POST /<group_id>/v1/chat/completions`
+  - `GET /<group_id>/v1/models`
+  - при этом сохранить `POST /v1/chat/completions` и `GET /v1/models` как default `g0`.
+
+Ожидаемая точка модификации: [`api/openai/routes.py`](api/openai/routes.py:1)
+
+Group-aware models:
+- `GET /v1/models` и `GET /<group_id>/v1/models` должны возвращать модели из `groups.<gid>.models` (union по провайдерам группы).
+- Backward compatibility: если `groups` отсутствует в accounts-config — поведение не ломается (допускается fallback к текущему поведению по availability, как эквивалент `g0`).
+
+### 3) Тесты (что должно быть добавлено/обновлено)
+- L1 router unit: [`tests/test_quota_account_router.py`](tests/test_quota_account_router.py:1)
+  - TC-RAND-1/2, TC-N-1/2, TC-GRP-1, TC-CD-1 (см. suite).
+- L3 routes: [`tests/test_refactor_p2_routes.py`](tests/test_refactor_p2_routes.py:1)
+  - TC-MODELS-1/2: `GET /g1/v1/models` vs `GET /g2/v1/models`.
+- L2/L3 contract: [`tests/test_openai_contract.py`](tests/test_openai_contract.py:1)
+  - TC-CD-2: 429 all-cooldown message с `please wait <seconds>`.

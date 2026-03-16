@@ -54,18 +54,21 @@ class RotateOn429RoundingStrategy:
             }],
         }
 
-    def _select_account(self, provider: str, model: str) -> SelectedAccount:
-        return quota_account_router.select_account(provider, model)
+    def _select_account(self, provider: str, model: str, group_id: str) -> SelectedAccount:
+        return quota_account_router.select_account(provider, model, group_id=group_id)
 
     def execute_non_stream(self, ctx: ChatRequestContext, provider: Provider) -> tuple[str, int]:
-        provider_id = "qwen" if ctx.is_qwen_quota_mode else "gemini"
+        provider_id = "qwen_code" if ctx.is_qwen_quota_mode else "gemini_cli"
+        group_id = ctx.group_id
         try:
-            selected_account = self._select_account(provider_id, ctx.target_model)
+            selected_account = self._select_account(provider_id, ctx.target_model, group_id)
         except AllAccountsExhaustedError:
             return create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429), 429
         except AccountRouterError as router_error:
             if str(router_error) == "all_accounts_on_cooldown":
-                return create_openai_error("All quota accounts are temporarily rate-limited", "upstream_error", 429), 429
+                return create_openai_error(str(router_error), "rate_limit_error", 429), 429
+            if "all accounts on cooldown" in str(router_error):
+                return create_openai_error(str(router_error), "rate_limit_error", 429), 429
             raise
 
         creds = provider.load_runtime_credentials(selected_account.account)
@@ -102,22 +105,36 @@ class RotateOn429RoundingStrategy:
                     pool=selected_account.pool,
                     event=event,
                     model=current_model,
+                    group_id=group_id,
                 )
                 if event_result.all_exhausted:
                     return create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429), 429
                 if event_result.all_cooldown:
-                    return create_openai_error("All quota accounts are temporarily rate-limited", "upstream_error", 429), 429
+                    wait_seconds = quota_account_router.cooldown_wait_seconds(
+                        provider_id,
+                        selected_account.pool,
+                        group_id=group_id,
+                    )
+                    return create_openai_error(
+                        f"all accounts on cooldown please wait {wait_seconds}",
+                        "rate_limit_error",
+                        429,
+                    ), 429
 
                 if event_result.switched and selected_account.mode == "rounding":
                     old_account = selected_account.account.name
                     logger.info(f"[{provider_id}] Account rotation triggered in non-stream, switching from {old_account}")
                     try:
-                        selected_account = quota_account_router.select_account(provider_id, current_model)
+                        selected_account = quota_account_router.select_account(
+                            provider_id,
+                            current_model,
+                            group_id=group_id,
+                        )
                     except AllAccountsExhaustedError:
                         return create_openai_error("all_accounts_exceed_quota", "quota_exhausted", 429), 429
                     except AccountRouterError as router_error:
-                        if str(router_error) == "all_accounts_on_cooldown":
-                            return create_openai_error("All quota accounts are temporarily rate-limited", "upstream_error", 429), 429
+                        if "all accounts on cooldown" in str(router_error):
+                            return create_openai_error(str(router_error), "rate_limit_error", 429), 429
                         raise
 
                     creds = provider.load_runtime_credentials(selected_account.account)
@@ -130,14 +147,14 @@ class RotateOn429RoundingStrategy:
             if ctx.is_qwen_quota_mode:
                 if isinstance(data, dict):
                     data["model"] = ctx.raw_model
-                quota_account_router.register_success(provider_id, selected_account.account.name)
+                quota_account_router.register_success(provider_id, selected_account.account.name, group_id=group_id)
                 return json.dumps(sanitize_data(data), ensure_ascii=False), 200
 
             if not isinstance(data, dict):
                 return create_openai_error(f"Upstream Error: {data_text}", "upstream_error", 502), 502
 
             data = unwrap_cloud_code_response(data)
-            quota_account_router.register_success(provider_id, selected_account.account.name)
+            quota_account_router.register_success(provider_id, selected_account.account.name, group_id=group_id)
             return shape_gemini_nonstream_response(data, ctx.raw_model)
 
         if last_status is None:
@@ -150,15 +167,16 @@ class RotateOn429RoundingStrategy:
         ), last_status
 
     def stream(self, ctx: ChatRequestContext, provider: Provider):
-        provider_id = "qwen" if ctx.is_qwen_quota_mode else "gemini"
+        provider_id = "qwen_code" if ctx.is_qwen_quota_mode else "gemini_cli"
+        group_id = ctx.group_id
         try:
-            selected_account = self._select_account(provider_id, ctx.target_model)
+            selected_account = self._select_account(provider_id, ctx.target_model, group_id)
         except AllAccountsExhaustedError:
             yield f"data: {create_openai_error('all_accounts_exceed_quota', 'quota_exhausted', 429)}\n\n"
             return
         except AccountRouterError as router_error:
-            if str(router_error) == "all_accounts_on_cooldown":
-                yield f"data: {create_openai_error('All quota accounts are temporarily rate-limited', 'upstream_error', 429)}\n\n"
+            if "all accounts on cooldown" in str(router_error):
+                yield f"data: {create_openai_error(str(router_error), 'rate_limit_error', 429)}\n\n"
                 return
             raise
 
@@ -175,7 +193,7 @@ class RotateOn429RoundingStrategy:
                 if ctx.is_qwen_quota_mode and isinstance(line, str) and line.startswith("data: "):
                     raw = line[6:].strip()
                     if raw == "[DONE]":
-                        quota_account_router.register_success(provider_id, selected_account.account.name)
+                        quota_account_router.register_success(provider_id, selected_account.account.name, group_id=group_id)
                         break
                     try:
                         parsed = json.loads(raw)
@@ -196,26 +214,36 @@ class RotateOn429RoundingStrategy:
                                 pool=selected_account.pool,
                                 event=event,
                                 model=ctx.target_model,
+                                group_id=group_id,
                             )
                             if event_result.all_exhausted:
                                 yield f"data: {create_openai_error('all_accounts_exceed_quota', 'quota_exhausted', 429)}\n\n"
                                 return
                             if event_result.all_cooldown:
-                                yield f"data: {create_openai_error('All quota accounts are temporarily rate-limited', 'upstream_error', 429)}\n\n"
+                                wait_seconds = quota_account_router.cooldown_wait_seconds(
+                                    provider_id,
+                                    selected_account.pool,
+                                    group_id=group_id,
+                                )
+                                yield f"data: {create_openai_error(f'all accounts on cooldown please wait {wait_seconds}', 'rate_limit_error', 429)}\n\n"
                                 return
                             if event_result.switched:
                                 old_account = selected_account.account.name
                                 logger.info(f"[{provider_id}] Account rotation triggered in stream, switching from {old_account}")
                                 try:
-                                    selected_account = quota_account_router.select_account(provider_id, ctx.target_model)
+                                    selected_account = quota_account_router.select_account(
+                                        provider_id,
+                                        ctx.target_model,
+                                        group_id=group_id,
+                                    )
                                     creds = provider.load_runtime_credentials(selected_account.account)
                                     upstream = provider.prepare_upstream(ctx, creds, selected_account.account)
                                 except AllAccountsExhaustedError:
                                     yield f"data: {create_openai_error('all_accounts_exceed_quota', 'quota_exhausted', 429)}\n\n"
                                     return
                                 except AccountRouterError as router_error:
-                                    if str(router_error) == "all_accounts_on_cooldown":
-                                        yield f"data: {create_openai_error('All quota accounts are temporarily rate-limited', 'upstream_error', 429)}\n\n"
+                                    if "all accounts on cooldown" in str(router_error):
+                                        yield f"data: {create_openai_error(str(router_error), 'rate_limit_error', 429)}\n\n"
                                         return
                                     raise
 
@@ -253,7 +281,7 @@ class RotateOn429RoundingStrategy:
                 yield build_usage_stream_chunk(ctx.raw_model, usage_accumulated)
 
             if not ctx.is_qwen_quota_mode:
-                quota_account_router.register_success(provider_id, selected_account.account.name)
+                quota_account_router.register_success(provider_id, selected_account.account.name, group_id=group_id)
 
             yield "data: [DONE]\n\n"
 
@@ -272,12 +300,18 @@ class RotateOn429RoundingStrategy:
                     pool=selected_account.pool,
                     event=event,
                     model=ctx.target_model,
+                    group_id=group_id,
                 )
                 if event_result.all_exhausted:
                     yield f"data: {create_openai_error('all_accounts_exceed_quota', 'quota_exhausted', 429)}\n\n"
                     return
                 if event_result.all_cooldown:
-                    yield f"data: {create_openai_error('All quota accounts are temporarily rate-limited', 'upstream_error', 429)}\n\n"
+                    wait_seconds = quota_account_router.cooldown_wait_seconds(
+                        provider_id,
+                        selected_account.pool,
+                        group_id=group_id,
+                    )
+                    yield f"data: {create_openai_error(f'all accounts on cooldown please wait {wait_seconds}', 'rate_limit_error', 429)}\n\n"
                     return
 
             logger.error(f"[ERROR] Stream Exception: {exc}")

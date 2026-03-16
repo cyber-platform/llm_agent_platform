@@ -1,19 +1,41 @@
 {
   "active_account": "lisa",
-  "mode": "single",
+  "mode": "rounding",
   "rotation_policy": {
     "rate_limit_threshold": 2,
     "quota_exhausted_threshold": 2,
-    "rate_limit_cooldown_seconds": 5
+    "rate_limit_cooldown_seconds": 5,
+    "random_order": true,
+    "rotate_after_n_successes": 3
   },
   "model_quota_resets": {
     "default": "00:00",
-    "gemini-3-flash-preview": "10:00"
+    "gemini-3-flash-preview-quota": "10:00"
   },
   "all_accounts": [
     "lisa",
     "petr"
   ],
+  "groups": {
+    "g0": {
+      "accounts": [
+        "lisa",
+        "petr"
+      ],
+      "models": [
+        "gemini-3-flash-preview-quota",
+        "gemini-2.5-pro-quota"
+      ]
+    },
+    "g1": {
+      "accounts": [
+        "lisa"
+      ],
+      "models": [
+        "gemini-3-flash-preview-quota"
+      ]
+    }
+  },
   "accounts": {
     "lisa": {
       "credentials_path": "secrets/gemini_lisa.json",

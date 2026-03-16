@@ -76,6 +76,16 @@
 - `single` — используется только `active_account`.
 - `rounding` — round-robin по `all_accounts` с раздельной обработкой `rate_limit` (cooldown) и `quota_exhausted` (exhausted-until).
 
+Опции `rotation_policy` (актуально для `rounding`):
+- `rotation_policy.random_order`: при переключении выбирать следующий аккаунт случайно из доступных.
+- `rotation_policy.rotate_after_n_successes`: принудительно переключать аккаунт после N успешных запросов.
+
+Quota groups (URL-prefix вариант B):
+- В provider-config можно задать `groups`: `groups.<group_id>.accounts` и `groups.<group_id>.models`.
+- Для вызовов OpenAI-compatible API можно использовать префикс `/<group_id>/v1/*` (например, `/<group_id>/v1/chat/completions`).
+- Без префикса используется дефолтная группа `g0`.
+- Важно: если `groups` присутствует, то `GET /v1/models` и `GET /<group_id>/v1/models` берут модели из `groups.<group_id>.models` (по всем провайдерам). Поэтому в `groups.g0.models` нужно явно задать модели для дефолтного пути `/v1/models`.
+
 Состояния исчерпания в `rounding`:
 - если все аккаунты во временном cooldown, прокси возвращает `all_accounts_on_cooldown`;
 - если все аккаунты исчерпали quota для модели, прокси возвращает `all_accounts_exceed_quota`.
@@ -121,9 +131,12 @@
 
 ## Поведение прокси при наличии/отсутствии авторизации
 
-- `/v1/models` теперь формируется динамически и показывает только модели, для которых реально доступна авторизация:
-  - Gemini quota модели — если валиден `gemini_accounts_config.json` и есть `refresh_token` в credentials активного (или любого из `all_accounts` для `rounding`) аккаунта.
-  - Qwen quota модели — если валиден `qwen_accounts_config.json` и есть `refresh_token` в credentials активного (или любого из `all_accounts` для `rounding`) аккаунта.
-  - Vertex модели — если задан `VERTEX_PROJECT_ID` и существует `secrets/service_account.json`.
+- `GET /v1/models` и `GET /<group_id>/v1/models`:
+  - Если в provider-config присутствует `groups`, список моделей формируется как объединение `groups.<group_id>.models` по провайдерам.
+    - Примеры структуры: [`docs/examples/gemini_accounts_config.example.json`](docs/examples/gemini_accounts_config.example.json:1), [`docs/examples/qwen_accounts_config.example.json`](docs/examples/qwen_accounts_config.example.json:1).
+  - Если `groups` отсутствует, используется backward-compatible поведение: список моделей формируется динамически и показывает только модели, для которых реально доступна авторизация:
+    - Gemini quota модели — если валиден `gemini_accounts_config.json` и есть `refresh_token` в credentials активного (или любого из `all_accounts` для `rounding`) аккаунта.
+    - Qwen quota модели — если валиден `qwen_accounts_config.json` и есть `refresh_token` в credentials активного (или любого из `all_accounts` для `rounding`) аккаунта.
+    - Vertex модели — если задан `VERTEX_PROJECT_ID` и существует `secrets/service_account.json`.
 
 - При старте прокси выполняется fail-fast проверка: если не найден ни один валидный источник авторизации (Gemini quota / Qwen quota / Vertex), контейнер завершается с ошибкой и пишет диагностику в логи.

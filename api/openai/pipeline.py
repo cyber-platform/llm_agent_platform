@@ -109,6 +109,12 @@ def build_request_context() -> ChatRequestContext:
     session_id = data.get("session_id") or request.headers.get("x-session-id") or generate_session_id()
     user_prompt_id = data.get("user_prompt_id") or request.headers.get("x-user-prompt-id") or generate_user_prompt_id()
 
+    path = request.path.strip("/")
+    group_id = "g0"
+    parts = path.split("/") if path else []
+    if len(parts) >= 3 and parts[1] == "v1":
+        group_id = parts[0]
+
     return ChatRequestContext(
         data=data,
         raw_model=raw_model,
@@ -125,6 +131,7 @@ def build_request_context() -> ChatRequestContext:
         is_quota_mode=is_quota_mode,
         session_id=session_id,
         user_prompt_id=user_prompt_id,
+        group_id=group_id,
     )
 
 

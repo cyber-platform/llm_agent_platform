@@ -22,6 +22,7 @@ class ChatRequestContext:
     is_quota_mode: bool
     session_id: str | None
     user_prompt_id: str | None
+    group_id: str
 
 
 @dataclass

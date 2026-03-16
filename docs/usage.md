@@ -50,9 +50,16 @@
 
 - `single`: используется только `active_account`.
 - `rounding`: round-robin по `all_accounts` с раздельной обработкой `rate_limit` (cooldown) и `quota_exhausted` (exhausted-until).
+- Опции `rotation_policy` для `rounding`:
+  - `random_order`: случайный выбор следующего аккаунта из доступных.
+  - `rotate_after_n_successes`: принудительное переключение после N успешных запросов.
 - Если все аккаунты во временном cooldown, возвращается `all_accounts_on_cooldown`.
 - Если все аккаунты исчерпали quota для модели, возвращается `all_accounts_exceed_quota`.
 - Нормативный формат `429` ошибок: [`docs/contracts/api/openai/errors/429-error.schema.json`](contracts/api/openai/errors/429-error.schema.json).
+
+Quota groups (URL-prefix):
+- Можно использовать префикс группы в пути: `/<group_id>/v1/*`.
+- `GET /v1/models` и `GET /<group_id>/v1/models` становятся group-aware: при наличии `groups` в provider-config модели берутся из `groups.<group_id>.models`.
 
 Конфиги и примеры структуры:
 - рабочие файлы: `secrets/gemini_accounts_config.json`, `secrets/qwen_accounts_config.json`

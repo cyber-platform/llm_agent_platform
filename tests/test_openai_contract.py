@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from main import app
 from services.account_router import BaseAccount, GeminiAccount, SelectedAccount
+from services.account_router import AccountRouterError
 
 
 class FakeResponse:
@@ -240,6 +241,25 @@ class OpenAIContractTests(unittest.TestCase):
         self.assertEqual(body["usage"]["total_tokens"], 14)
         self.assertEqual(mock_send_generate.call_count, 2)
         self.assertEqual(mock_select_account.call_count, 2)
+
+    @patch(
+        "api.openai.strategies.rotate_on_429_rounding.quota_account_router.select_account",
+        side_effect=AccountRouterError("all accounts on cooldown please wait 4"),
+    )
+    def test_all_cooldown_message_contract(self, _mock_select_account):
+        response = self.client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gemini-3-flash-preview-quota",
+                "messages": [{"role": "user", "content": "ping"}],
+                "stream": False,
+            },
+        )
+
+        self.assertEqual(response.status_code, 429)
+        body = json.loads(response.data.decode("utf-8"))
+        self.assertIn("error", body)
+        self.assertIn("all accounts on cooldown please wait 4", body["error"]["message"])
 
     @patch("api.openai.strategies.rotate_on_429_rounding.quota_account_router.select_account")
     @patch(

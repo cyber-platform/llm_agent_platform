@@ -7,12 +7,12 @@
 - где лежит код (текущий и целевой путь);
 - какие артефакты описывают правила (ADR/spec/docs).
 
-Связанные решения:
+Связанные решения и канонические документы:
 
-- [`ADR 0015`](docs/adr/0015-env-separation-runtime-vs-oauth-bootstrap.md:1)
-- [`ADR 0016`](docs/adr/0016-codebase-layout-separate-runtime-app-and-local-scripts.md:1)
-- [`Spec 019`](plans/019-env-separation-runtime-vs-oauth-bootstrap-spec.md:1)
-- [`Spec 020`](plans/020-repo-layout-src-model_proxy-and-scripts-spec.md:1)
+- Env split (runtime vs OAuth bootstrap): [`ADR 0015`](docs/adr/0015-env-separation-runtime-vs-oauth-bootstrap.md:1), [`docs/configuration/env-files.md`](docs/configuration/env-files.md:1)
+- Repo layout `src/` (пока Proposed): [`ADR 0016`](docs/adr/0016-codebase-layout-separate-runtime-app-and-local-scripts.md:1)
+- Quota rotation + groups: [`docs/architecture/quota-account-rotation-groups-and-models.md`](docs/architecture/quota-account-rotation-groups-and-models.md:1)
+- OpenAI chat_completions pipeline: [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1)
 
 ## 1) Границы workspace
 

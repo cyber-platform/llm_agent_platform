@@ -1,7 +1,9 @@
 import json
+import tempfile
 import threading
 import unittest
 from unittest.mock import patch
+from pathlib import Path
 
 from main import app
 from auth.credentials import AuthAvailability
@@ -79,6 +81,10 @@ class RefactorP2RoutesTests(unittest.TestCase):
         self.client = app.test_client()
 
     @staticmethod
+    def _write_json(path: Path, payload: dict) -> None:
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    @staticmethod
     def _selected_gemini_account() -> SelectedAccount:
         return SelectedAccount(
             provider="gemini",
@@ -112,6 +118,78 @@ class RefactorP2RoutesTests(unittest.TestCase):
 
         self.assertIn("gemini-3-flash-preview-quota", model_ids)
         self.assertIn("qwen-coder-model-quota", model_ids)
+
+    def test_group_aware_models_endpoint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            gemini_path = tmp_dir / "gemini_accounts_config.json"
+            qwen_path = tmp_dir / "qwen_accounts_config.json"
+
+            gemini_cfg = {
+                "mode": "single",
+                "active_account": "lisa",
+                "all_accounts": ["lisa"],
+                "accounts": {
+                    "lisa": {
+                        "credentials_path": "secrets/gemini_lisa.json",
+                        "project_id": "project-lisa",
+                    }
+                },
+                "rotation_policy": {
+                    "rate_limit_threshold": 2,
+                    "quota_exhausted_threshold": 2,
+                    "rate_limit_cooldown_seconds": 5,
+                },
+                "model_quota_resets": {
+                    "default": "00:00",
+                },
+            }
+            qwen_cfg = {
+                "mode": "rounding",
+                "active_account": "lisa",
+                "all_accounts": ["lisa", "petr"],
+                "groups": {
+                    "g1": {
+                        "accounts": ["lisa"],
+                        "models": ["qwen-g1-model-quota"],
+                    },
+                    "g2": {
+                        "accounts": ["petr"],
+                        "models": ["qwen-g2-model-quota"],
+                    },
+                },
+                "accounts": {
+                    "lisa": {"credentials_path": "secrets/qwen_lisa.json"},
+                    "petr": {"credentials_path": "secrets/qwen_petr.json"},
+                },
+                "rotation_policy": {
+                    "rate_limit_threshold": 2,
+                    "quota_exhausted_threshold": 2,
+                    "rate_limit_cooldown_seconds": 5,
+                },
+                "model_quota_resets": {
+                    "default": "00:00",
+                },
+            }
+
+            self._write_json(gemini_path, gemini_cfg)
+            self._write_json(qwen_path, qwen_cfg)
+
+            with (
+                patch("services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH", str(gemini_path)),
+                patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+            ):
+                g1_response = self.client.get("/g1/v1/models")
+                self.assertEqual(g1_response.status_code, 200)
+                g1_payload = json.loads(g1_response.data.decode("utf-8"))
+                g1_ids = {item["id"] for item in g1_payload["data"]}
+                self.assertEqual(g1_ids, {"qwen-g1-model-quota"})
+
+                g2_response = self.client.get("/g2/v1/models")
+                self.assertEqual(g2_response.status_code, 200)
+                g2_payload = json.loads(g2_response.data.decode("utf-8"))
+                g2_ids = {item["id"] for item in g2_payload["data"]}
+                self.assertEqual(g2_ids, {"qwen-g2-model-quota"})
 
     @patch("api.gemini.routes.quota_account_router.select_account")
     @patch("api.gemini.routes.get_gemini_access_token_from_file", return_value="token-123")

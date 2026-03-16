@@ -1,19 +1,40 @@
 {
   "active_account": "lisa",
-  "mode": "single",
+  "mode": "rounding",
   "rotation_policy": {
     "rate_limit_threshold": 2,
     "quota_exhausted_threshold": 2,
-    "rate_limit_cooldown_seconds": 5
+    "rate_limit_cooldown_seconds": 5,
+    "random_order": true,
+    "rotate_after_n_successes": 3
   },
   "model_quota_resets": {
     "default": "00:00",
-    "qwen-coder-model": "08:00"
+    "qwen-coder-model-quota": "08:00"
   },
   "all_accounts": [
     "lisa",
     "petr"
   ],
+  "groups": {
+    "g0": {
+      "accounts": [
+        "lisa",
+        "petr"
+      ],
+      "models": [
+        "qwen-coder-model-quota"
+      ]
+    },
+    "g1": {
+      "accounts": [
+        "lisa"
+      ],
+      "models": [
+        "qwen-coder-model-quota"
+      ]
+    }
+  },
   "accounts": {
     "lisa": {
       "credentials_path": "secrets/qwen_lisa.json"
