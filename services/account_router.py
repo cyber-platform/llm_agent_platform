@@ -6,12 +6,16 @@ import random
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from config import GEMINI_ACCOUNTS_CONFIG_PATH, QWEN_ACCOUNTS_CONFIG_PATH
 from core.logging import get_logger
+from services.account_state_store import (
+    AccountStatePaths,
+    load_quota_exhausted_at,
+    save_quota_exhausted_at,
+)
 
 logger = get_logger(__name__)
 
@@ -137,6 +141,8 @@ class QuotaAccountRouter:
 
         with self._lock:
             state = self._state.setdefault((provider, group_id), _ProviderState())
+            for account_name in pool:
+                self._hydrate_exhausted_state(cfg, state, account_name, model)
             self._cleanup_state_for_model_unlocked(state, cfg, model)
 
             if self._all_exhausted(state, pool, model):
@@ -214,6 +220,8 @@ class QuotaAccountRouter:
         pool = self._resolve_pool(cfg, group_id)
         with self._lock:
             state = self._state.setdefault((provider, group_id), _ProviderState())
+            if account_name in pool:
+                self._hydrate_exhausted_state(cfg, state, account_name, None)
             state.consecutive_rate_limit_errors[account_name] = 0
             state.consecutive_quota_exhausted_errors[account_name] = 0
             state.cooldown_until.pop(account_name, None)
@@ -290,6 +298,8 @@ class QuotaAccountRouter:
 
         with self._lock:
             state = self._state.setdefault((provider, group_id), _ProviderState())
+            if model is not None:
+                self._hydrate_exhausted_state(cfg, state, account_name, model)
             self._cleanup_state_for_model_unlocked(state, cfg, model)
 
             if event == RotationEvent.RATE_LIMIT:
@@ -367,11 +377,12 @@ class QuotaAccountRouter:
                 )
 
             state.consecutive_quota_exhausted_errors[account_name] = 0
-            until = self._quota_reset_timestamp(cfg, model)
+            exhausted_at = datetime.now(tz=timezone.utc)
+            until = self._quota_reset_timestamp(cfg, model, exhausted_at=exhausted_at)
             exhausted_for_model = state.quota_exhausted_until.setdefault(account_name, {})
             exhausted_for_model[self._model_key(model)] = until
+            self._persist_quota_exhausted_at(cfg, account_name, model, exhausted_at)
 
-            from datetime import datetime
             reset_time = datetime.fromtimestamp(until).strftime("%Y-%m-%d %H:%M:%S")
             logger.warning(
                 f"[{provider}] rounding: account {account_name} exhausted for model {model} "
@@ -431,6 +442,8 @@ class QuotaAccountRouter:
         cfg = self._load_provider_config(provider)
         with self._lock:
             state = self._state.setdefault((provider, group_id), _ProviderState())
+            for account_name in pool:
+                self._hydrate_exhausted_state(cfg, state, account_name, model)
             self._cleanup_state_for_model_unlocked(state, cfg, model)
             return self._all_exhausted(state, pool, model)
 
@@ -533,10 +546,6 @@ class QuotaAccountRouter:
             for model_name, until in account_models.items():
                 if until <= now:
                     models.pop(model_name, None)
-            if model and model_key in models:
-                reset_ts = self._quota_reset_timestamp(cfg, model)
-                if models[model_key] > reset_ts:
-                    models[model_key] = reset_ts
             if not models:
                 state.quota_exhausted_until.pop(account_name, None)
 
@@ -545,20 +554,17 @@ class QuotaAccountRouter:
         state.quota_exhausted_until.clear()
         state.consecutive_quota_exhausted_errors.clear()
 
-    def _quota_reset_timestamp(self, cfg: ProviderConfig, model: str | None) -> float:
-        reset_time = cfg.model_quota_resets.get(model or "") or cfg.model_quota_resets.get("default", "00:00")
-        try:
-            hour_str, minute_str = reset_time.split(":", 1)
-            hour = int(hour_str)
-            minute = int(minute_str)
-        except Exception as exc:
-            raise AccountRouterError(f"Invalid reset time '{reset_time}'. Use HH:MM") from exc
+    def _quota_reset_timestamp(
+        self,
+        cfg: ProviderConfig,
+        model: str | None,
+        exhausted_at: datetime | None = None,
+    ) -> float:
+        reset_time = cfg.model_quota_resets.get(model or "") or cfg.model_quota_resets.get("default", "00:00:00")
+        days, hours, minutes = _parse_period(reset_time)
 
-        tz = ZoneInfo("Asia/Vladivostok")
-        now = datetime.now(tz)
-        reset_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if reset_dt <= now:
-            reset_dt = reset_dt + timedelta(days=1)
+        base = exhausted_at or datetime.now(tz=timezone.utc)
+        reset_dt = base + timedelta(days=days, hours=hours, minutes=minutes)
         return reset_dt.timestamp()
 
     def _model_key(self, model: str | None) -> str:
@@ -638,9 +644,12 @@ class QuotaAccountRouter:
         random_order = bool(policy_payload.get("random_order", False))
         rotate_after_n_successes = int(policy_payload.get("rotate_after_n_successes", 0))
 
-        model_quota_resets = payload.get("model_quota_resets") or {"default": "00:00"}
+        model_quota_resets = payload.get("model_quota_resets") or {"default": "00:00:00"}
         if not isinstance(model_quota_resets, dict):
             raise AccountRouterError(f"model_quota_resets must be object in {file_path}")
+        model_quota_resets = self._validate_model_quota_resets(model_quota_resets, file_path)
+        if "default" not in model_quota_resets:
+            raise AccountRouterError(f"model_quota_resets must include 'default' in {file_path}")
 
         accounts_payload = payload.get("accounts") or {}
         if not isinstance(accounts_payload, dict):
@@ -697,6 +706,8 @@ class QuotaAccountRouter:
                 models=[str(item) for item in group_models],
             )
 
+        self._validate_disjoint_groups(groups, file_path)
+
         return ProviderConfig(
             provider=provider,
             mode=mode,
@@ -712,6 +723,27 @@ class QuotaAccountRouter:
             groups=groups,
         )
 
+    def _validate_model_quota_resets(self, model_quota_resets: dict, file_path: Path) -> dict[str, str]:
+        parsed: dict[str, str] = {}
+        for key, value in model_quota_resets.items():
+            value_str = str(value)
+            _parse_period(value_str, file_path=file_path)
+            parsed[str(key)] = value_str
+        return parsed
+
+    def _validate_disjoint_groups(self, groups: dict[str, ProviderGroup], file_path: Path) -> None:
+        if not groups:
+            return
+        seen: dict[str, str] = {}
+        for group_key, group in groups.items():
+            for account_name in group.accounts:
+                previous = seen.get(account_name)
+                if previous and previous != group_key:
+                    raise AccountRouterError(
+                        f"Account '{account_name}' appears in multiple groups ({previous}, {group_key}) in {file_path}"
+                    )
+                seen[account_name] = group_key
+
     def _require_account(self, cfg: ProviderConfig, account_name: str) -> BaseAccount:
         account = cfg.accounts.get(account_name)
         if account is None:
@@ -726,6 +758,54 @@ class QuotaAccountRouter:
         if provider in {"qwen_code", "qwen"}:
             return Path(QWEN_ACCOUNTS_CONFIG_PATH)
         raise AccountRouterError(f"Unsupported provider: {provider}")
+
+    def _persist_quota_exhausted_at(
+        self,
+        cfg: ProviderConfig,
+        account_name: str,
+        model: str | None,
+        exhausted_at: datetime,
+    ) -> None:
+        if model is None:
+            return
+        paths = AccountStatePaths(provider_id=cfg.provider, account_name=account_name, root_dir=Path("."))
+        save_quota_exhausted_at(paths, model, exhausted_at)
+
+    def _hydrate_exhausted_state(
+        self,
+        cfg: ProviderConfig,
+        state: _ProviderState,
+        account_name: str,
+        model: str | None,
+    ) -> None:
+        if model is None:
+            return
+        paths = AccountStatePaths(provider_id=cfg.provider, account_name=account_name, root_dir=Path("."))
+        exhausted_at = load_quota_exhausted_at(paths, model)
+        if exhausted_at is None:
+            return
+        until = self._quota_reset_timestamp(cfg, model, exhausted_at=exhausted_at)
+        exhausted_for_model = state.quota_exhausted_until.setdefault(account_name, {})
+        exhausted_for_model[self._model_key(model)] = until
+
+
+def _parse_period(value: str, file_path: Path | None = None) -> tuple[int, int, int]:
+    try:
+        day_str, hour_str, minute_str = value.split(":", 2)
+        days = int(day_str)
+        hours = int(hour_str)
+        minutes = int(minute_str)
+    except Exception as exc:
+        source = f" in {file_path}" if file_path else ""
+        raise AccountRouterError(f"Invalid reset period '{value}'{source}. Use DD:HH:MM") from exc
+
+    if days < 0 or not (0 <= hours <= 23) or not (0 <= minutes <= 59):
+        source = f" in {file_path}" if file_path else ""
+        raise AccountRouterError(
+            f"Invalid reset period '{value}'{source}. "
+            "Days must be >= 0, hours 0-23, minutes 0-59."
+        )
+    return days, hours, minutes
 
 
 quota_account_router = QuotaAccountRouter()
