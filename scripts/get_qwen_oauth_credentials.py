@@ -20,6 +20,29 @@ if __package__ is None or __package__ == "":
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
+
+def _load_dotenv(project_root: Path) -> None:
+    env_path = project_root / ".env"
+    if not env_path.exists():
+        return
+    try:
+        with env_path.open("r", encoding="utf-8") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                if not key or key in os.environ:
+                    continue
+                os.environ[key] = value.strip().strip('"').strip("'")
+    except Exception as exc:
+        logger.warning(f"Failed to load .env: {exc}")
+
+
+if __package__ is None or __package__ == "":
+    _load_dotenv(project_root)
+
 from auth.qwen_oauth import (
     QwenOAuthError,
     generate_pkce_pair,
@@ -80,7 +103,8 @@ def main() -> None:
         raise
 
     logger.info("Token received, normalizing credentials...")
-    normalized = normalize_qwen_credentials(token_data)
+    fallback_client_id = os.environ.get("QWEN_OAUTH_CLIENT_ID", "").strip() or None
+    normalized = normalize_qwen_credentials(token_data, fallback_client_id=fallback_client_id)
     file_path = write_qwen_credentials(normalized)
 
     print(f"\n[SUCCESS] Credentials saved to '{file_path}'")
