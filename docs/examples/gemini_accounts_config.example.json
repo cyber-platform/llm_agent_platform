@@ -9,8 +9,8 @@
     "rotate_after_n_successes": 3
   },
   "model_quota_resets": {
-    "default": "00:00",
-    "gemini-3-flash-preview-quota": "10:00"
+    "default": "01:00:00",
+    "gemini-3-flash-preview-quota": "01:00:00"
   },
   "all_accounts": [
     "lisa",
@@ -19,8 +19,7 @@
   "groups": {
     "g0": {
       "accounts": [
-        "lisa",
-        "petr"
+        "lisa"
       ],
       "models": [
         "gemini-3-flash-preview-quota",
@@ -29,7 +28,7 @@
     },
     "g1": {
       "accounts": [
-        "lisa"
+        "petr"
       ],
       "models": [
         "gemini-3-flash-preview-quota"
@@ -38,11 +37,11 @@
   },
   "accounts": {
     "lisa": {
-      "credentials_path": "secrets/gemini_lisa.json",
+      "credentials_path": "secrets/gemini_cli/accounts/lisa.json",
       "project_id": "my-gcp-project"
     },
     "petr": {
-      "credentials_path": "secrets/gemini_petr.json",
+      "credentials_path": "secrets/gemini_cli/accounts/petr.json",
       "project_id": "my-gcp-project-2"
     }
   }

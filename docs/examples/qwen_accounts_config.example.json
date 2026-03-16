@@ -9,8 +9,8 @@
     "rotate_after_n_successes": 3
   },
   "model_quota_resets": {
-    "default": "00:00",
-    "qwen-coder-model-quota": "08:00"
+    "default": "01:00:00",
+    "qwen-coder-model-quota": "01:00:00"
   },
   "all_accounts": [
     "lisa",
@@ -19,8 +19,7 @@
   "groups": {
     "g0": {
       "accounts": [
-        "lisa",
-        "petr"
+        "lisa"
       ],
       "models": [
         "qwen-coder-model-quota"
@@ -28,7 +27,7 @@
     },
     "g1": {
       "accounts": [
-        "lisa"
+        "petr"
       ],
       "models": [
         "qwen-coder-model-quota"
@@ -37,10 +36,10 @@
   },
   "accounts": {
     "lisa": {
-      "credentials_path": "secrets/qwen_lisa.json"
+      "credentials_path": "secrets/qwen_code/accounts/lisa.json"
     },
     "petr": {
-      "credentials_path": "secrets/qwen_petr.json"
+      "credentials_path": "secrets/qwen_code/accounts/petr.json"
     }
   }
 }
