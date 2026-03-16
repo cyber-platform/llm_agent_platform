@@ -133,6 +133,7 @@ class QwenCodeProvider(Provider):
         ctx: ChatRequestContext,
         upstream: UpstreamRequestContext,
     ) -> Iterable[str | bytes]:
+        had_activity = False
         try:
             for line in stream_generate_lines_from_url(
                 upstream.token,
@@ -140,17 +141,21 @@ class QwenCodeProvider(Provider):
                 upstream.url,
                 params=None,
             ):
+                had_activity = True
                 yield line
         except Exception as exc:
             message = str(exc)
             if upstream.credentials_path and (message.startswith("401:") or message.startswith("403:")):
                 retry = _refresh_and_retry(upstream, stream=True)
                 if retry is not None:
-                    yield from retry
+                    for line in retry:
+                        had_activity = True
+                        yield line
                     return
             raise
-        else:
-            _touch_last_used(upstream)
+        finally:
+            if had_activity:
+                _touch_last_used(upstream)
 
 
 def _state_paths(upstream: UpstreamRequestContext) -> AccountStatePaths | None:
