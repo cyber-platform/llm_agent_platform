@@ -28,11 +28,11 @@ USER_QWEN_CREDS_PATH = _env_str(
 )
 GEMINI_ACCOUNTS_CONFIG_PATH = _env_str(
     "GEMINI_ACCOUNTS_CONFIG_PATH",
-    "secrets/gemini_accounts_config.json",
+    "secrets/gemini_cli/accounts_config.json",
 )
 QWEN_ACCOUNTS_CONFIG_PATH = _env_str(
     "QWEN_ACCOUNTS_CONFIG_PATH",
-    "secrets/qwen_accounts_config.json",
+    "secrets/qwen_code/accounts_config.json",
 )
 SERVICE_ACCOUNT_PATH = _env_str("SERVICE_ACCOUNT_PATH", "secrets/service_account.json")
 
@@ -60,6 +60,9 @@ QWEN_OAUTH_TOKEN_ENDPOINT = _env_str(
 QWEN_DEFAULT_RESOURCE_URL = _env_str(
     "QWEN_DEFAULT_RESOURCE_URL",
     "https://dashscope.aliyuncs.com/compatible-mode",
+)
+QWEN_REFRESH_IDLE_THRESHOLD_SECONDS = int(
+    _env_str("QWEN_REFRESH_IDLE_THRESHOLD_SECONDS", "180")
 )
 QWEN_QUOTA_MODELS = [
     model.strip()

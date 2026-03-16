@@ -12,9 +12,7 @@ wheels/
 
 # Virtual environments
 .venv
-gemini-cli/
-kilocode/
-./kilocode
+externel_projects
 
 # Linter's cache
 .ruff_cache
