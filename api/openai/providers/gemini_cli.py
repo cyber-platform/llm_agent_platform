@@ -68,6 +68,8 @@ class GeminiCliProvider(Provider):
             quota_request_payload=quota_request_payload,
             session_id=ctx.session_id,
             user_prompt_id=ctx.user_prompt_id,
+            account_name=account.name,
+            credentials_path=account.credentials_path,
         )
 
     def execute_non_stream(

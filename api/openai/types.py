@@ -36,6 +36,8 @@ class UpstreamRequestContext:
     quota_request_payload: dict | None
     session_id: str | None
     user_prompt_id: str | None
+    account_name: str | None = None
+    credentials_path: str | None = None
 
 
 class UpstreamPreparationError(Exception):

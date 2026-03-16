@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Iterable, Any
 
 from api.openai.providers.base import Provider, ProviderRuntimeCreds
 from api.openai.types import ChatRequestContext, UpstreamRequestContext, UpstreamPreparationError
-from auth.qwen_oauth import refresh_qwen_credentials_file
+from auth.qwen_oauth import refresh_qwen_credentials_file, read_qwen_credentials
+from config import QWEN_REFRESH_IDLE_THRESHOLD_SECONDS
+from services.account_state_store import AccountStatePaths, load_last_used_at, save_last_used_at
+from services.account_router import BaseAccount
 from services.quota_transport import send_generate_to_url, stream_generate_lines_from_url
 
 
@@ -49,8 +54,17 @@ class QwenCodeProvider(Provider):
     id = "qwen_code"
 
     def load_runtime_credentials(self, account) -> ProviderRuntimeCreds:
+        if not isinstance(account, BaseAccount):
+            raise UpstreamPreparationError("Invalid Qwen account configuration", "config_error", 500)
+
+        paths = AccountStatePaths(provider_id=self.id, account_name=account.name, root_dir=Path("."))
+        should_refresh = _should_refresh_credentials(paths)
+
         try:
-            qwen_creds = refresh_qwen_credentials_file(account.credentials_path)
+            if should_refresh:
+                qwen_creds = refresh_qwen_credentials_file(account.credentials_path)
+            else:
+                qwen_creds = read_qwen_credentials(account.credentials_path)
         except Exception as exc:
             raise UpstreamPreparationError(f"Qwen OAuth refresh failed: {exc}", "auth_error", 401)
 
@@ -88,6 +102,8 @@ class QwenCodeProvider(Provider):
             quota_request_payload=None,
             session_id=ctx.session_id,
             user_prompt_id=ctx.user_prompt_id,
+            account_name=account.name if isinstance(account, BaseAccount) else None,
+            credentials_path=account.credentials_path if isinstance(account, BaseAccount) else None,
         )
 
     def execute_non_stream(
@@ -100,10 +116,16 @@ class QwenCodeProvider(Provider):
             upstream.payload,
             upstream.url,
         )
+        if response.status_code in {401, 403} and upstream.credentials_path:
+            retry = _refresh_and_retry(upstream)
+            if retry is not None:
+                response = retry
         try:
             data = response.json()
         except Exception:
             data = response.text
+        if response.status_code not in {401, 403}:
+            _touch_last_used(upstream)
         return data, response.status_code
 
     def stream_lines(
@@ -111,9 +133,84 @@ class QwenCodeProvider(Provider):
         ctx: ChatRequestContext,
         upstream: UpstreamRequestContext,
     ) -> Iterable[str | bytes]:
+        try:
+            for line in stream_generate_lines_from_url(
+                upstream.token,
+                upstream.payload,
+                upstream.url,
+                params=None,
+            ):
+                yield line
+        except Exception as exc:
+            message = str(exc)
+            if upstream.credentials_path and (message.startswith("401:") or message.startswith("403:")):
+                retry = _refresh_and_retry(upstream, stream=True)
+                if retry is not None:
+                    yield from retry
+                    return
+            raise
+        else:
+            _touch_last_used(upstream)
+
+
+def _state_paths(upstream: UpstreamRequestContext) -> AccountStatePaths | None:
+    if not upstream.account_name:
+        return None
+    return AccountStatePaths(provider_id="qwen_code", account_name=upstream.account_name, root_dir=Path("."))
+
+
+def _should_refresh_credentials(paths: AccountStatePaths) -> bool:
+    last_used = load_last_used_at(paths)
+    if last_used is None:
+        return True
+    elapsed = (datetime.now(tz=timezone.utc) - last_used).total_seconds()
+    return elapsed > QWEN_REFRESH_IDLE_THRESHOLD_SECONDS
+
+
+def _touch_last_used(upstream: UpstreamRequestContext) -> None:
+    paths = _state_paths(upstream)
+    if not paths:
+        return
+    save_last_used_at(paths, datetime.now(tz=timezone.utc))
+
+
+def _refresh_and_retry(
+    upstream: UpstreamRequestContext,
+    *,
+    stream: bool = False,
+) -> Any | None:
+    try:
+        refreshed = refresh_qwen_credentials_file(upstream.credentials_path)
+    except Exception:
+        return None
+
+    token = refreshed.get("access_token")
+    resource_url = refreshed.get("resource_url")
+    if not token or not resource_url:
+        return None
+
+    url = _qwen_completion_url(resource_url)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    upstream.token = token
+    upstream.url = url
+    upstream.headers = headers
+
+    if stream:
         return stream_generate_lines_from_url(
             upstream.token,
             upstream.payload,
             upstream.url,
             params=None,
+            extra_headers=headers,
         )
+
+    return send_generate_to_url(
+        upstream.token,
+        upstream.payload,
+        upstream.url,
+        extra_headers=headers,
+    )
