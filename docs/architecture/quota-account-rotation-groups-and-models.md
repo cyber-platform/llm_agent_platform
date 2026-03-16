@@ -30,7 +30,10 @@ Non-scope:
 - Qwen: [`docs/examples/qwen_accounts_config.example.json`](docs/examples/qwen_accounts_config.example.json:1)
 
 ### `rotation_policy`
-- `rotation_policy.random_order: bool` — при switch выбирать следующий аккаунт случайно среди доступных.
+- `rotation_policy.random_order: bool` — random-order поведение для rounding:
+  - первый выбор аккаунта для пары `(provider_id, group_id)` — случайный среди доступных;
+  - при недоступности текущего (cooldown/exhausted) следующий выбор тоже случайный среди доступных;
+  - переключение по триггерам (429/BY-N) использует тот же random-order алгоритм выбора.
 - `rotation_policy.rotate_after_n_successes: int` — after-N: переключать аккаунт после N успешных запросов.
 - `rotation_policy.rate_limit_threshold`, `rotation_policy.quota_exhausted_threshold`, `rotation_policy.rate_limit_cooldown_seconds` — параметры 429 policy.
 

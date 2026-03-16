@@ -69,6 +69,7 @@ class SelectedAccount:
 @dataclass(slots=True)
 class _ProviderState:
     next_index: int = 0
+    has_selected: bool = False
     consecutive_rate_limit_errors: dict[str, int] = field(default_factory=dict)
     consecutive_quota_exhausted_errors: dict[str, int] = field(default_factory=dict)
     cooldown_until: dict[str, float] = field(default_factory=dict)
@@ -155,6 +156,21 @@ class QuotaAccountRouter:
                 raise AccountRouterError(
                     f"all accounts on cooldown please wait {wait_seconds}"
                 )
+
+            if cfg.random_order:
+                if not state.has_selected:
+                    chosen = self._choose_random_available(state, pool, model)
+                    if chosen is not None:
+                        state.next_index = pool.index(chosen)
+                    state.has_selected = True
+                else:
+                    current_name = pool[state.next_index % len(pool)]
+                    if self._is_exhausted(state, current_name, model) or self._is_on_cooldown(
+                        state, current_name
+                    ):
+                        chosen = self._choose_random_available(state, pool, model)
+                        if chosen is not None:
+                            state.next_index = pool.index(chosen)
 
             start = state.next_index % len(pool)
             for offset in range(len(pool)):
@@ -571,6 +587,22 @@ class QuotaAccountRouter:
         if not active:
             return 0
         return max(0, math.ceil(min(active) - now))
+
+    def _choose_random_available(
+        self,
+        state: _ProviderState,
+        pool: list[str],
+        model: str | None,
+    ) -> str | None:
+        candidates = [
+            account
+            for account in pool
+            if not self._is_exhausted(state, account, model)
+            and not self._is_on_cooldown(state, account)
+        ]
+        if not candidates:
+            return None
+        return random.choice(candidates)
 
     def _load_provider_config(self, provider: str) -> ProviderConfig:
         provider = self._normalize_provider_id(provider)

@@ -363,9 +363,13 @@ class QuotaAccountRouterTests(unittest.TestCase):
             }
             _write_json(qwen_path, qwen_rounding_cfg)
 
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
+            with (
+                patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+                patch("services.account_router.random.choice", return_value="ivan") as mock_choice,
+            ):
                 selected = router.select_account("qwen_code", "qwen-coder-model")
-            self.assertEqual(selected.account.name, "lisa")
+            self.assertEqual(selected.account.name, "ivan")
+            self.assertTrue(mock_choice.called)
 
             with (
                 patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
@@ -415,8 +419,13 @@ class QuotaAccountRouterTests(unittest.TestCase):
             }
             _write_json(qwen_path, qwen_rounding_cfg)
 
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
+            with (
+                patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+                patch("services.account_router.random.choice", return_value="lisa") as mock_choice,
+            ):
                 selected = router.select_account("qwen_code", "qwen-coder-model")
+            self.assertEqual(selected.account.name, "lisa")
+            self.assertTrue(mock_choice.called)
 
             with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
                 router.register_event(
