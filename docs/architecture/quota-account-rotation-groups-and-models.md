@@ -14,7 +14,7 @@ Non-scope:
 - Реальные upstream лимиты и их SLA.
 - E2E тесты с реальными OAuth токенами.
 
-## Source of Truth (без зависимости от `plans/`)
+## Source of Truth (самодостаточно)
 - Реализация (ключевые точки):
   - Router: [`services/account_router.py`](services/account_router.py:1)
   - Strategy: [`api/openai/strategies/rotate_on_429_rounding.py`](api/openai/strategies/rotate_on_429_rounding.py:1)

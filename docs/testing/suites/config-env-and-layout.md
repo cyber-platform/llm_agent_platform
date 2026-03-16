@@ -11,21 +11,23 @@
 
 - [`ADR 0015`](docs/adr/0015-env-separation-runtime-vs-oauth-bootstrap.md:1)
 - [`ADR 0016`](docs/adr/0016-codebase-layout-separate-runtime-app-and-local-scripts.md:1)
-- [`Spec 019`](plans/019-env-separation-runtime-vs-oauth-bootstrap-spec.md:1)
-- [`Spec 020`](plans/020-repo-layout-src-model_proxy-and-scripts-spec.md:1)
 - Политика env: [`docs/configuration/env-files.md`](docs/configuration/env-files.md:1)
+- Runtime инъекция env: [`docker-compose.yml`](docker-compose.yml:1)
 
 ## Requirement Traceability
 
 ### Env split
 
-- US-001, US-002, US-003 из [`Spec 019`](plans/019-env-separation-runtime-vs-oauth-bootstrap-spec.md:1)
-- NFR-001, NFR-003 из [`Spec 019`](plans/019-env-separation-runtime-vs-oauth-bootstrap-spec.md:1)
+- Локальные OAuth скрипты **должны** загружать [`.env`](.env:1) и [`.env.oauth`](.env.oauth:1) до импорта [`config.py`](config.py:1).
+- Bootstrap ключи **не должны** попадать в контейнер автоматически.
+- Runtime ключи **должны** инъектироваться **явно** через [`docker-compose.yml`](docker-compose.yml:1) и быть задокументированы в [`.env.example`](.env.example:1).
 
 ### Repo layout
 
-- US-101, US-102, US-103 из [`Spec 020`](plans/020-repo-layout-src-model_proxy-and-scripts-spec.md:1)
-- NFR-101 из [`Spec 020`](plans/020-repo-layout-src-model_proxy-and-scripts-spec.md:1)
+- Целевое состояние:
+  - runtime приложение оформлено как модуль и запускается через `uv run python -m model_proxy`.
+  - runtime код расположен в `src/model_proxy/`, локальные скрипты — в `src/scripts/`.
+  - после переноса в `src/` тесты продолжают проходить.
 
 ## Test Cases (Given / When / Then)
 
@@ -114,4 +116,3 @@ Then:
 ## Verification Command
 
 Команды верификации должны быть уточнены и зафиксированы в task-артефактах реализации.
-

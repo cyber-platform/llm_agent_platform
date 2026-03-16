@@ -7,8 +7,10 @@
 - Тесты parity relay (`/parity-relay/<path>`) для non-stream и stream проксирования.
 
 ## Requirement Traceability
-- Requirement: укрепление testability/maintainability после рефакторинга маршрутов.
-- Task links: [`018-refactor.md`](tasks_descriptions/tasks/018-refactor.md)
+- Requirement: укрепление testability/maintainability после изменения структуры маршрутов.
+- Canonical references:
+  - Архитектура pipeline: [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1)
+  - Карта компонентов: [`docs/architecture/component-map.md`](docs/architecture/component-map.md:1)
 - Script:
   - [`test_refactor_p2_routes.py`](tests/test_refactor_p2_routes.py)
 

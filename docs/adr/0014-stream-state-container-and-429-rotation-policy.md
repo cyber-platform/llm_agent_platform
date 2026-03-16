@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-03-03
-- Related plan: [`tasks_descriptions/plans/429-rotation-unification-plan.md`](../tasks_descriptions/plans/429-rotation-unification-plan.md)
+- Related: унификация 429 rotation policy и stream state-контейнера (реализовано в runtime).
 
 ## Контекст
 

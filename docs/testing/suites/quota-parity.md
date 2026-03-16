@@ -7,7 +7,9 @@
 
 ## Requirement Traceability
 - Requirement: strict parity outbound к контракту `gemini-cli`.
-- Task links: [`009-cli-transport-parity-core.md`](tasks_descriptions/tasks/009-cli-transport-parity-core.md), [`012-quota-cli-parity-and-kilo-openai-compat.md`](tasks_descriptions/tasks/012-quota-cli-parity-and-kilo-openai-compat.md)
+- Canonical references:
+  - Parity relay endpoint: [`api/parity/routes.py`](api/parity/routes.py:1)
+  - Test map: [`docs/testing/test-map.md`](docs/testing/test-map.md:1)
 - Scripts:
   - [`test_quota_transport_parity.py`](tests/test_quota_transport_parity.py)
   - [`golden_cli_generate_request.json`](tests/fixtures/parity/golden_cli_generate_request.json)
@@ -15,4 +17,3 @@
 
 ## Verification Command
 - `uv run python -m unittest tests/test_quota_transport_parity.py`
-

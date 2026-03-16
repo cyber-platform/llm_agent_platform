@@ -10,7 +10,9 @@
 
 ## Requirement Traceability
 - Requirement: стабильный OpenAI-compatible контракт для Kilo Code.
-- Task links: [`008-openai-stream-and-contract-tests.md`](tasks_descriptions/tasks/008-openai-stream-and-contract-tests.md), [`012-quota-cli-parity-and-kilo-openai-compat.md`](tasks_descriptions/tasks/012-quota-cli-parity-and-kilo-openai-compat.md)
+- Canonical references:
+  - Архитектура pipeline: [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1)
+  - Нормативные схемы ошибок: [`docs/contracts/api/openai/errors/429-error.schema.json`](docs/contracts/api/openai/errors/429-error.schema.json:1)
 - Script: [`test_openai_contract.py`](tests/test_openai_contract.py)
 
 ## Verification Command
