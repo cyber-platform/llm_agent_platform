@@ -27,6 +27,10 @@
 - REQ-GRP-ISO: group isolation (state изолирован между группами).
 - REQ-MODELS-GROUP: group-aware models endpoint.
 - REQ-COOLDOWN-WAIT: all-cooldown message `please wait <seconds>`.
+- REQ-RESET-PERIOD: period-based quota reset через `model_quota_resets` в формате `DD:HH:MM`.
+- REQ-STATE-PERSIST: persisted exhausted state переживает рестарт процесса.
+- REQ-DISJOINT-GROUPS: аккаунт может быть только в одной группе.
+- REQ-QWEN-IDLE-REFRESH: Qwen refresh по idle-threshold и retry на 401/403.
 
 ### Source links
 - Канонический архитектурный документ: [`docs/architecture/quota-account-rotation-groups-and-models.md`](docs/architecture/quota-account-rotation-groups-and-models.md:1)
@@ -36,8 +40,8 @@
 ## Risk Register (test-focused)
 - RISK-1 (RNG nondeterminism): random-order требует детерминирования через patch RNG (например patch `random.choice`).
 - RISK-2 (time dependency): cooldown/exhausted зависят от `time.time()`; тесты должны фиксировать время (patch time) и проверять вычисление `wait_seconds`.
-- RISK-3 (concurrency): state-счётчики best-effort при параллельных запросах; тестируем корректность (нет corruption/исключений), но не exactly-N.
-- RISK-4 (backward compatibility): отсутствие `groups`/новых ключей не ломает текущее поведение.
+- RISK-3 (file state): появится файловое состояние `secrets/<provider>/state/*`; тесты должны быть изолированы через temp dir.
+- RISK-4 (breaking change): `model_quota_resets` больше не `HH:MM`.
 
 ## Test Levels (L1–L4)
 - L1 Unit: чистая логика роутера (изменения в [`services/account_router.py`](services/account_router.py)), без Flask.
@@ -66,6 +70,19 @@
 - TC-CD-1 (L1): Given все аккаунты на cooldown с разными `cooldown_until`, When `select_account()` не может выбрать, Then ошибка содержит `wait_seconds = min(cooldown_until) - now` (округление/ceil фиксируется в тесте).
 - TC-CD-2 (L2/L3): When quota rounding path возвращает all-cooldown, Then HTTP `429` и `error.message` содержит `all accounts on cooldown please wait <seconds>`.
 
+### REQ-RESET-PERIOD (period-based quota reset)
+- TC-PERIOD-1 (L1): Given `model_quota_resets.default="01:00:00"`, When фиксируем `quota_exhausted_at=now`, Then exhausted-until вычисляется как `now + 86400`.
+
+### REQ-STATE-PERSIST (persisted exhausted state)
+- TC-STATE-1 (L1): Given persisted `quota_exhausted_at` на аккаунт+модель, When создаём новый router instance (симуляция рестарта), Then select_account() уважает exhausted до истечения периода.
+
+### REQ-DISJOINT-GROUPS
+- TC-DISJOINT-1 (L1): Given `groups` с пересечением account’ов, When load config, Then config error.
+
+### REQ-QWEN-IDLE-REFRESH
+- TC-QWEN-REFRESH-1 (L1/L2): Given `last_used_at` старше threshold, When делаем запрос, Then refresh вызывается.
+- TC-QWEN-REFRESH-2 (L2): Given upstream 401/403, When запрос, Then refresh + retry один раз.
+
 ## Coverage Matrix
 | Requirement | Test cases | Level | Target scripts |
 | :--- | :--- | :---: | :--- |
@@ -74,6 +91,10 @@
 | REQ-GRP-ISO | TC-GRP-1 | L1 | `tests/test_quota_account_router.py` |
 | REQ-MODELS-GROUP | TC-MODELS-1, TC-MODELS-2 | L3 | `tests/test_refactor_p2_routes.py` |
 | REQ-COOLDOWN-WAIT | TC-CD-1, TC-CD-2 | L1 + L2/L3 | `tests/test_quota_account_router.py`, `tests/test_openai_contract.py` |
+| REQ-RESET-PERIOD | TC-PERIOD-1 | L1 | `tests/test_quota_account_router.py` |
+| REQ-STATE-PERSIST | TC-STATE-1 | L1 | `tests/test_quota_account_router.py` |
+| REQ-DISJOINT-GROUPS | TC-DISJOINT-1 | L1 | `tests/test_quota_account_router.py` |
+| REQ-QWEN-IDLE-REFRESH | TC-QWEN-REFRESH-1, TC-QWEN-REFRESH-2 | L1/L2 | `tests/test_openai_contract.py` |
 
 ## Scripts
 - Router unit: `tests/test_quota_account_router.py`

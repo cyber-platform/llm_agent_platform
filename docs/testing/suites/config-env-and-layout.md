@@ -42,7 +42,7 @@ When:
 
 Then:
 - скрипт не падает на проверках `client_id/client_secret`
-- создается `secrets/user_gemini_credentials.json`
+- создается `secrets/gemini_cli/user_credentials.json`
 
 ### TC-002 (L2): Local Qwen OAuth script loads `.env` + `.env.oauth`
 
