@@ -1,7 +1,8 @@
 import json
 import tempfile
 import unittest
-from datetime import datetime
+from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,6 +14,7 @@ from services.account_router import (
     QuotaAccountRouter,
     RotationEvent,
 )
+from services.account_state_store import AccountStatePaths, save_quota_exhausted_at
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -20,6 +22,23 @@ def _write_json(path: Path, payload: dict) -> None:
 
 
 class QuotaAccountRouterTests(unittest.TestCase):
+    @staticmethod
+    @contextmanager
+    def _patched_paths(base_dir: Path, gemini_path: Path, qwen_path: Path):
+        with (
+            patch("services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH", str(gemini_path)),
+            patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+            patch(
+                "services.account_router.AccountStatePaths",
+                new=lambda provider_id, account_name, root_dir=Path("."): AccountStatePaths(
+                    provider_id=provider_id,
+                    account_name=account_name,
+                    root_dir=base_dir,
+                ),
+            ),
+        ):
+            yield
+
     def _make_router(
         self,
         base_dir: Path,
@@ -46,8 +65,8 @@ class QuotaAccountRouterTests(unittest.TestCase):
                 "rate_limit_cooldown_seconds": 5,
             },
             "model_quota_resets": {
-                "default": "00:00",
-                "gemini-3-flash-preview": "10:00",
+                "default": "00:00:00",
+                "gemini-3-flash-preview": "00:10:00",
             },
         }
         qwen_cfg = qwen_cfg or {
@@ -64,8 +83,8 @@ class QuotaAccountRouterTests(unittest.TestCase):
                 "rate_limit_cooldown_seconds": 5,
             },
             "model_quota_resets": {
-                "default": "00:00",
-                "qwen-coder-model": "08:00",
+                "default": "00:00:00",
+                "qwen-coder-model": "00:08:00",
             },
         }
 
@@ -74,10 +93,7 @@ class QuotaAccountRouterTests(unittest.TestCase):
         _write_json(gemini_path, gemini_cfg)
         _write_json(qwen_path, qwen_cfg)
 
-        with (
-            patch("services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH", str(gemini_path)),
-            patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
-        ):
+        with self._patched_paths(base_dir, gemini_path, qwen_path):
             router = QuotaAccountRouter()
         return router
 
@@ -89,10 +105,7 @@ class QuotaAccountRouterTests(unittest.TestCase):
             gemini_path = tmp_dir / "gemini_accounts_config.json"
             qwen_path = tmp_dir / "qwen_accounts_config.json"
 
-            with (
-                patch("services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH", str(gemini_path)),
-                patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
-            ):
+            with self._patched_paths(tmp_dir, gemini_path, qwen_path):
                 gemini_selected = router.select_account("gemini_cli")
                 qwen_selected = router.select_account("qwen_code")
 
@@ -123,38 +136,38 @@ class QuotaAccountRouterTests(unittest.TestCase):
                     "rate_limit_cooldown_seconds": 5,
                 },
                 "model_quota_resets": {
-                    "default": "00:00",
-                    "qwen-coder-model": "08:00",
+                    "default": "00:00:00",
+                    "qwen-coder-model": "00:08:00",
                 },
             }
             _write_json(qwen_path, qwen_rounding_cfg)
 
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
+            with self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path):
                 selected = router.select_account("qwen_code", "qwen-coder-model")
             self.assertEqual(selected.account.name, "lisa")
 
-            first_event = router.register_event(
-                provider="qwen_code",
-                account_name="lisa",
-                mode=selected.mode,
-                pool=selected.pool,
-                event=RotationEvent.RATE_LIMIT,
-                model="qwen-coder-model",
-            )
-            self.assertFalse(first_event.switched)
+            with self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path):
+                first_event = router.register_event(
+                    provider="qwen_code",
+                    account_name="lisa",
+                    mode=selected.mode,
+                    pool=selected.pool,
+                    event=RotationEvent.RATE_LIMIT,
+                    model="qwen-coder-model",
+                )
+                self.assertFalse(first_event.switched)
 
-            second_event = router.register_event(
-                provider="qwen_code",
-                account_name="lisa",
-                mode=selected.mode,
-                pool=selected.pool,
-                event=RotationEvent.RATE_LIMIT,
-                model="qwen-coder-model",
-            )
-            self.assertTrue(second_event.switched)
-            self.assertFalse(second_event.all_exhausted)
+                second_event = router.register_event(
+                    provider="qwen_code",
+                    account_name="lisa",
+                    mode=selected.mode,
+                    pool=selected.pool,
+                    event=RotationEvent.RATE_LIMIT,
+                    model="qwen-coder-model",
+                )
+                self.assertTrue(second_event.switched)
+                self.assertFalse(second_event.all_exhausted)
 
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
                 next_selected = router.select_account("qwen_code", "qwen-coder-model")
             self.assertEqual(next_selected.account.name, "petr")
 
@@ -178,35 +191,34 @@ class QuotaAccountRouterTests(unittest.TestCase):
                     "rate_limit_cooldown_seconds": 5,
                 },
                 "model_quota_resets": {
-                    "default": "00:00",
-                    "qwen-coder-model": "08:00",
+                    "default": "00:00:00",
+                    "qwen-coder-model": "00:08:00",
                 },
             }
             _write_json(qwen_path, qwen_rounding_cfg)
 
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
+            with self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path):
                 selected = router.select_account("qwen_code", "qwen-coder-model")
 
-            router.register_event(
-                provider="qwen_code",
-                account_name="lisa",
-                mode=selected.mode,
-                pool=selected.pool,
-                event=RotationEvent.QUOTA_EXHAUSTED,
-                model="qwen-coder-model",
-            )
-            second = router.register_event(
-                provider="qwen_code",
-                account_name="lisa",
-                mode=selected.mode,
-                pool=selected.pool,
-                event=RotationEvent.QUOTA_EXHAUSTED,
-                model="qwen-coder-model",
-            )
-            self.assertTrue(second.switched)
-            self.assertFalse(second.all_exhausted)
+                router.register_event(
+                    provider="qwen_code",
+                    account_name="lisa",
+                    mode=selected.mode,
+                    pool=selected.pool,
+                    event=RotationEvent.QUOTA_EXHAUSTED,
+                    model="qwen-coder-model",
+                )
+                second = router.register_event(
+                    provider="qwen_code",
+                    account_name="lisa",
+                    mode=selected.mode,
+                    pool=selected.pool,
+                    event=RotationEvent.QUOTA_EXHAUSTED,
+                    model="qwen-coder-model",
+                )
+                self.assertTrue(second.switched)
+                self.assertFalse(second.all_exhausted)
 
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
                 next_selected = router.select_account("qwen_code", "qwen-coder-model")
             self.assertEqual(next_selected.account.name, "petr")
 
@@ -230,53 +242,52 @@ class QuotaAccountRouterTests(unittest.TestCase):
                     "rate_limit_cooldown_seconds": 5,
                 },
                 "model_quota_resets": {
-                    "default": "00:00",
-                    "qwen-coder-model": "08:00",
+                    "default": "00:00:00",
+                    "qwen-coder-model": "00:08:00",
                 },
             }
             _write_json(qwen_path, qwen_rounding_cfg)
 
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
+            with self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path):
                 selected = router.select_account("qwen_code", "qwen-coder-model")
 
-            router.register_event(
-                provider="qwen_code",
-                account_name="lisa",
-                mode=selected.mode,
-                pool=selected.pool,
-                event=RotationEvent.QUOTA_EXHAUSTED,
-                model="qwen-coder-model",
-            )
-            router.register_event(
-                provider="qwen_code",
-                account_name="lisa",
-                mode=selected.mode,
-                pool=selected.pool,
-                event=RotationEvent.QUOTA_EXHAUSTED,
-                model="qwen-coder-model",
-            )
-            router.register_event(
-                provider="qwen_code",
-                account_name="petr",
-                mode=selected.mode,
-                pool=selected.pool,
-                event=RotationEvent.QUOTA_EXHAUSTED,
-                model="qwen-coder-model",
-            )
-            router.register_event(
-                provider="qwen_code",
-                account_name="petr",
-                mode=selected.mode,
-                pool=selected.pool,
-                event=RotationEvent.QUOTA_EXHAUSTED,
-                model="qwen-coder-model",
-            )
+                router.register_event(
+                    provider="qwen_code",
+                    account_name="lisa",
+                    mode=selected.mode,
+                    pool=selected.pool,
+                    event=RotationEvent.QUOTA_EXHAUSTED,
+                    model="qwen-coder-model",
+                )
+                router.register_event(
+                    provider="qwen_code",
+                    account_name="lisa",
+                    mode=selected.mode,
+                    pool=selected.pool,
+                    event=RotationEvent.QUOTA_EXHAUSTED,
+                    model="qwen-coder-model",
+                )
+                router.register_event(
+                    provider="qwen_code",
+                    account_name="petr",
+                    mode=selected.mode,
+                    pool=selected.pool,
+                    event=RotationEvent.QUOTA_EXHAUSTED,
+                    model="qwen-coder-model",
+                )
+                router.register_event(
+                    provider="qwen_code",
+                    account_name="petr",
+                    mode=selected.mode,
+                    pool=selected.pool,
+                    event=RotationEvent.QUOTA_EXHAUSTED,
+                    model="qwen-coder-model",
+                )
 
-            self.assertTrue(
-                router.all_accounts_exhausted("qwen_code", selected.pool, "qwen-coder-model")
-            )
+                self.assertTrue(
+                    router.all_accounts_exhausted("qwen_code", selected.pool, "qwen-coder-model")
+                )
 
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
                 with self.assertRaises(AllAccountsExhaustedError):
                     router.select_account("qwen_code", "qwen-coder-model")
 
@@ -300,38 +311,115 @@ class QuotaAccountRouterTests(unittest.TestCase):
                     "rate_limit_cooldown_seconds": 5,
                 },
                 "model_quota_resets": {
-                    "qwen-coder-model": "08:00",
-                    "default": "00:00",
+                    "qwen-coder-model": "00:08:00",
+                    "default": "00:00:00",
                 },
             }
             _write_json(qwen_path, cfg)
 
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
+            with self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path):
                 selected = router.select_account("qwen_code", "qwen-coder-model")
 
-            router.register_event(
-                provider="qwen_code",
-                account_name=selected.account.name,
-                mode=selected.mode,
-                pool=selected.pool,
-                event=RotationEvent.QUOTA_EXHAUSTED,
-                model="qwen-coder-model",
-            )
-            router.register_event(
-                provider="qwen_code",
-                account_name=selected.account.name,
-                mode=selected.mode,
-                pool=selected.pool,
-                event=RotationEvent.QUOTA_EXHAUSTED,
-                model="qwen-coder-model",
-            )
+                router.register_event(
+                    provider="qwen_code",
+                    account_name=selected.account.name,
+                    mode=selected.mode,
+                    pool=selected.pool,
+                    event=RotationEvent.QUOTA_EXHAUSTED,
+                    model="qwen-coder-model",
+                )
+                router.register_event(
+                    provider="qwen_code",
+                    account_name=selected.account.name,
+                    mode=selected.mode,
+                    pool=selected.pool,
+                    event=RotationEvent.QUOTA_EXHAUSTED,
+                    model="qwen-coder-model",
+                )
 
-            self.assertTrue(
-                router.all_accounts_exhausted("qwen_code", [selected.account.name], "qwen-coder-model")
-            )
+                self.assertTrue(
+                    router.all_accounts_exhausted("qwen_code", [selected.account.name], "qwen-coder-model")
+                )
 
-            now_local = datetime.now(ZoneInfo("Asia/Vladivostok"))
-            self.assertIsNotNone(now_local)
+                now_local = datetime.now(ZoneInfo("Asia/Vladivostok"))
+                self.assertIsNotNone(now_local)
+
+    def test_period_based_reset_uses_days_hours_minutes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            router = self._make_router(tmp_dir)
+            qwen_path = tmp_dir / "qwen_accounts_config.json"
+
+            cfg = {
+                "mode": "rounding",
+                "active_account": "lisa",
+                "all_accounts": ["lisa", "petr"],
+                "accounts": {
+                    "lisa": {"credentials_path": "secrets/qwen_lisa.json"},
+                    "petr": {"credentials_path": "secrets/qwen_petr.json"},
+                },
+                "rotation_policy": {
+                    "rate_limit_threshold": 2,
+                    "quota_exhausted_threshold": 2,
+                    "rate_limit_cooldown_seconds": 5,
+                },
+                "model_quota_resets": {
+                    "default": "01:02:30",
+                },
+            }
+            _write_json(qwen_path, cfg)
+
+            exhausted_at = datetime(2026, 1, 1, 0, 0, tzinfo=timezone.utc)
+            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
+                provider_cfg = router._load_provider_config("qwen_code")
+
+            until_ts = router._quota_reset_timestamp(
+                provider_cfg,
+                "qwen-coder-model",
+                exhausted_at=exhausted_at,
+            )
+            expected = exhausted_at + timedelta(days=1, hours=2, minutes=30)
+            self.assertEqual(until_ts, expected.timestamp())
+
+    def test_persisted_exhausted_state_survives_restart(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            qwen_path = tmp_dir / "qwen_accounts_config.json"
+
+            cfg = {
+                "mode": "rounding",
+                "active_account": "lisa",
+                "all_accounts": ["lisa"],
+                "accounts": {
+                    "lisa": {"credentials_path": "secrets/qwen_lisa.json"},
+                },
+                "rotation_policy": {
+                    "rate_limit_threshold": 2,
+                    "quota_exhausted_threshold": 2,
+                    "rate_limit_cooldown_seconds": 5,
+                },
+                "model_quota_resets": {
+                    "default": "00:01:00",
+                },
+            }
+            _write_json(qwen_path, cfg)
+
+            exhausted_at = datetime(2026, 1, 1, 0, 0, tzinfo=timezone.utc)
+            state_paths = AccountStatePaths(
+                provider_id="qwen_code",
+                account_name="lisa",
+                root_dir=tmp_dir,
+            )
+            save_quota_exhausted_at(state_paths, "qwen-coder-model", exhausted_at)
+
+            now_ts = exhausted_at.timestamp() + 30
+            with (
+                self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path),
+                patch("services.account_router.time.time", return_value=now_ts),
+            ):
+                router = QuotaAccountRouter()
+                with self.assertRaises(AllAccountsExhaustedError):
+                    router.select_account("qwen_code", "qwen-coder-model")
 
     def test_rounding_random_order_switches_using_rng(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -357,22 +445,23 @@ class QuotaAccountRouterTests(unittest.TestCase):
                     "rotate_after_n_successes": 0,
                 },
                 "model_quota_resets": {
-                    "default": "00:00",
-                    "qwen-coder-model": "08:00",
+                    "default": "00:00:00",
+                    "qwen-coder-model": "00:08:00",
                 },
             }
             _write_json(qwen_path, qwen_rounding_cfg)
 
             with (
-                patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+                self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path),
                 patch("services.account_router.random.choice", return_value="ivan") as mock_choice,
             ):
                 selected = router.select_account("qwen_code", "qwen-coder-model")
             self.assertEqual(selected.account.name, "ivan")
             self.assertTrue(mock_choice.called)
 
+            router._state[("qwen_code", "g0")].has_selected = False
             with (
-                patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+                self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path),
                 patch("services.account_router.random.choice", return_value="kate") as mock_choice,
             ):
                 event = router.register_event(
@@ -413,21 +502,21 @@ class QuotaAccountRouterTests(unittest.TestCase):
                     "rotate_after_n_successes": 0,
                 },
                 "model_quota_resets": {
-                    "default": "00:00",
-                    "qwen-coder-model": "08:00",
+                    "default": "00:00:00",
+                    "qwen-coder-model": "00:08:00",
                 },
             }
             _write_json(qwen_path, qwen_rounding_cfg)
 
             with (
-                patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+                self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path),
                 patch("services.account_router.random.choice", return_value="lisa") as mock_choice,
             ):
                 selected = router.select_account("qwen_code", "qwen-coder-model")
             self.assertEqual(selected.account.name, "lisa")
             self.assertTrue(mock_choice.called)
 
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
+            with self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path):
                 router.register_event(
                     provider="qwen_code",
                     account_name="ivan",
@@ -442,7 +531,7 @@ class QuotaAccountRouterTests(unittest.TestCase):
                 return "kate"
 
             with (
-                patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+                self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path),
                 patch("services.account_router.random.choice", side_effect=_assert_choice),
             ):
                 event = router.register_event(
@@ -480,17 +569,17 @@ class QuotaAccountRouterTests(unittest.TestCase):
                     "rotate_after_n_successes": 2,
                 },
                 "model_quota_resets": {
-                    "default": "00:00",
-                    "qwen-coder-model": "08:00",
+                    "default": "00:00:00",
+                    "qwen-coder-model": "00:08:00",
                 },
             }
             _write_json(qwen_path, qwen_rounding_cfg)
 
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
+            with self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path):
                 selected = router.select_account("qwen_code", "qwen-coder-model", group_id="g0")
 
             self.assertEqual(selected.account.name, "lisa")
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
+            with self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path):
                 router.register_success("qwen_code", "lisa", group_id="g0")
                 router.register_success("qwen_code", "lisa", group_id="g0")
                 next_selected = router.select_account("qwen_code", "qwen-coder-model", group_id="g0")
@@ -531,20 +620,22 @@ class QuotaAccountRouterTests(unittest.TestCase):
                     "rotate_after_n_successes": 0,
                 },
                 "model_quota_resets": {
-                    "default": "00:00",
-                    "qwen-coder-model": "08:00",
+                    "default": "00:00:00",
+                    "qwen-coder-model": "00:08:00",
                 },
             }
             _write_json(qwen_path, qwen_rounding_cfg)
 
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
+            with (
+                self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path),
+                patch("services.account_router.random.choice", return_value="ivan") as mock_choice,
+            ):
                 g1_selected = router.select_account("qwen_code", "qwen-coder-model", group_id="g1")
                 g2_selected = router.select_account("qwen_code", "qwen-coder-model", group_id="g2")
 
-            self.assertEqual(g1_selected.account.name, "lisa")
-            self.assertEqual(g2_selected.account.name, "ivan")
+                self.assertEqual(g1_selected.account.name, "lisa")
+                self.assertEqual(g2_selected.account.name, "ivan")
 
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
                 router.register_event(
                     provider="qwen_code",
                     account_name="lisa",
@@ -560,6 +651,50 @@ class QuotaAccountRouterTests(unittest.TestCase):
 
             self.assertEqual(g1_next.account.name, "petr")
             self.assertEqual(g2_still.account.name, "ivan")
+
+    def test_disjoint_group_validation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            router = self._make_router(tmp_dir)
+
+            qwen_path = tmp_dir / "qwen_accounts_config.json"
+            qwen_rounding_cfg = {
+                "mode": "rounding",
+                "active_account": "lisa",
+                "all_accounts": ["lisa", "petr"],
+                "groups": {
+                    "g1": {
+                        "accounts": ["lisa"],
+                        "models": ["qwen-g1-model-quota"],
+                    },
+                    "g2": {
+                        "accounts": ["lisa"],
+                        "models": ["qwen-g2-model-quota"],
+                    },
+                },
+                "accounts": {
+                    "lisa": {"credentials_path": "secrets/qwen_lisa.json"},
+                    "petr": {"credentials_path": "secrets/qwen_petr.json"},
+                },
+                "rotation_policy": {
+                    "rate_limit_threshold": 1,
+                    "quota_exhausted_threshold": 2,
+                    "rate_limit_cooldown_seconds": 5,
+                    "random_order": False,
+                    "rotate_after_n_successes": 0,
+                },
+                "model_quota_resets": {
+                    "default": "00:00:00",
+                    "qwen-coder-model": "00:08:00",
+                },
+            }
+            _write_json(qwen_path, qwen_rounding_cfg)
+
+            with self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path):
+                with self.assertRaises(AccountRouterError) as ctx:
+                    router.select_account("qwen_code", "qwen-coder-model", group_id="g1")
+
+            self.assertIn("appears in multiple groups", str(ctx.exception))
 
     def test_all_cooldown_error_includes_wait_seconds(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -583,20 +718,20 @@ class QuotaAccountRouterTests(unittest.TestCase):
                     "rotate_after_n_successes": 0,
                 },
                 "model_quota_resets": {
-                    "default": "00:00",
-                    "qwen-coder-model": "08:00",
+                    "default": "00:00:00",
+                    "qwen-coder-model": "00:08:00",
                 },
             }
             _write_json(qwen_path, qwen_rounding_cfg)
 
-            with patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)):
+            with self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path):
                 router.select_account("qwen_code", "qwen-coder-model", group_id="g0")
 
             state = router._state[("qwen_code", "g0")]
             state.cooldown_until = {"lisa": 1005.0, "petr": 1010.0}
 
             with (
-                patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+                self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path),
                 patch("services.account_router.time.time", return_value=1001.0),
             ):
                 with self.assertRaises(AccountRouterError) as ctx:

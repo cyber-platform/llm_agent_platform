@@ -1,11 +1,18 @@
 import json
+import tempfile
 import threading
 import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from unittest.mock import patch
+
+from contextlib import contextmanager
 
 from main import app
 from services.account_router import BaseAccount, GeminiAccount, SelectedAccount
 from services.account_router import AccountRouterError
+from services.account_state_store import AccountStatePaths
+from api.openai.providers.qwen_code import QwenCodeProvider
 
 
 class FakeResponse:
@@ -40,6 +47,86 @@ def _parse_sse_json_chunks(raw_stream: str) -> list[dict]:
 class OpenAIContractTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
+
+    @staticmethod
+    @contextmanager
+    def _patched_paths(tmp_dir: Path, gemini_path: Path | None = None, qwen_path: Path | None = None):
+        patches = []
+        if gemini_path is not None:
+            patches.append(
+                patch("services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH", str(gemini_path))
+            )
+        if qwen_path is not None:
+            patches.append(
+                patch("services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path))
+            )
+        patches.append(
+            patch(
+                "services.account_router.AccountStatePaths",
+                new=lambda provider_id, account_name, root_dir=Path("."): AccountStatePaths(
+                    provider_id=provider_id,
+                    account_name=account_name,
+                    root_dir=tmp_dir,
+                ),
+            )
+        )
+        if not patches:
+            yield
+            return
+
+        with patches[0]:
+            for ctx in patches[1:]:
+                ctx.__enter__()
+            try:
+                yield
+            finally:
+                for ctx in reversed(patches[1:]):
+                    ctx.__exit__(None, None, None)
+
+    @staticmethod
+    def _write_json(path, payload: dict) -> None:
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    @staticmethod
+    def _gemini_config() -> dict:
+        return {
+            "mode": "single",
+            "active_account": "acct-1",
+            "all_accounts": ["acct-1"],
+            "accounts": {
+                "acct-1": {
+                    "credentials_path": "secrets/acct-1.json",
+                    "project_id": "demo-project",
+                }
+            },
+            "rotation_policy": {
+                "rate_limit_threshold": 2,
+                "quota_exhausted_threshold": 2,
+                "rate_limit_cooldown_seconds": 5,
+            },
+            "model_quota_resets": {
+                "default": "00:00:00",
+            },
+        }
+
+    @staticmethod
+    def _qwen_config() -> dict:
+        return {
+            "mode": "single",
+            "active_account": "acct-1",
+            "all_accounts": ["acct-1"],
+            "accounts": {
+                "acct-1": {"credentials_path": "secrets/acct-1.json"},
+            },
+            "rotation_policy": {
+                "rate_limit_threshold": 2,
+                "quota_exhausted_threshold": 2,
+                "rate_limit_cooldown_seconds": 5,
+            },
+            "model_quota_resets": {
+                "default": "00:00:00",
+            },
+        }
 
     @staticmethod
     def _gemini_selected_account(mode: str = "single", name: str = "acct-1", project_id: str = "demo-project") -> SelectedAccount:
@@ -95,17 +182,22 @@ class OpenAIContractTests(unittest.TestCase):
             },
         )
 
-        response = self.client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "gemini-3-flash-preview-quota",
-                "messages": [{"role": "user", "content": "hello"}],
-                "stream": False,
-            },
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            gemini_path = tmp_dir / "gemini_accounts_config.json"
+            self._write_json(gemini_path, self._gemini_config())
+            with self._patched_paths(tmp_dir, gemini_path=gemini_path, qwen_path=gemini_path):
+                response = self.client.post(
+                    "/v1/chat/completions",
+                    json={
+                        "model": "gemini-3-flash-preview-quota",
+                        "messages": [{"role": "user", "content": "hello"}],
+                        "stream": False,
+                    },
+                )
 
-        self.assertEqual(response.status_code, 200)
-        body = json.loads(response.data.decode("utf-8"))
+                self.assertEqual(response.status_code, 200)
+                body = json.loads(response.data.decode("utf-8"))
         self.assertEqual(body["object"], "chat.completion")
         self.assertEqual(body["choices"][0]["message"]["content"], "hello from gemini")
         self.assertEqual(body["choices"][0]["finish_reason"], "stop")
@@ -127,19 +219,24 @@ class OpenAIContractTests(unittest.TestCase):
             ]
         )
 
-        response = self.client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "gemini-3-flash-preview-quota",
-                "messages": [{"role": "user", "content": "hello"}],
-                "stream": True,
-                "stream_options": {"include_usage": True},
-            },
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            gemini_path = tmp_dir / "gemini_accounts_config.json"
+            self._write_json(gemini_path, self._gemini_config())
+            with self._patched_paths(tmp_dir, gemini_path=gemini_path, qwen_path=gemini_path):
+                response = self.client.post(
+                    "/v1/chat/completions",
+                    json={
+                        "model": "gemini-3-flash-preview-quota",
+                        "messages": [{"role": "user", "content": "hello"}],
+                        "stream": True,
+                        "stream_options": {"include_usage": True},
+                    },
+                )
 
-        self.assertEqual(response.status_code, 200)
-        payload = response.data.decode("utf-8")
-        self.assertIn("data: [DONE]", payload)
+                self.assertEqual(response.status_code, 200)
+                payload = response.data.decode("utf-8")
+                self.assertIn("data: [DONE]", payload)
 
         chunks = _parse_sse_json_chunks(payload)
         content = ""
@@ -164,17 +261,22 @@ class OpenAIContractTests(unittest.TestCase):
         mock_select_account.return_value = self._gemini_selected_account()
         mock_send_generate.return_value = FakeResponse(503, payload=None, text="backend unavailable")
 
-        response = self.client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "gemini-3-flash-preview-quota",
-                "messages": [{"role": "user", "content": "ping"}],
-                "stream": False,
-            },
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            gemini_path = tmp_dir / "gemini_accounts_config.json"
+            self._write_json(gemini_path, self._gemini_config())
+            with self._patched_paths(tmp_dir, gemini_path=gemini_path, qwen_path=gemini_path):
+                response = self.client.post(
+                    "/v1/chat/completions",
+                    json={
+                        "model": "gemini-3-flash-preview-quota",
+                        "messages": [{"role": "user", "content": "ping"}],
+                        "stream": False,
+                    },
+                )
 
-        self.assertEqual(response.status_code, 503)
-        body = json.loads(response.data.decode("utf-8"))
+                self.assertEqual(response.status_code, 503)
+                body = json.loads(response.data.decode("utf-8"))
         self.assertIn("error", body)
         self.assertEqual(body["error"]["type"], "upstream_error")
         self.assertEqual(body["error"]["code"], 503)
@@ -225,17 +327,22 @@ class OpenAIContractTests(unittest.TestCase):
             ),
         ]
 
-        response = self.client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "gemini-3-flash-preview-quota",
-                "messages": [{"role": "user", "content": "hello"}],
-                "stream": False,
-            },
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            gemini_path = tmp_dir / "gemini_accounts_config.json"
+            self._write_json(gemini_path, self._gemini_config())
+            with self._patched_paths(tmp_dir, gemini_path=gemini_path, qwen_path=gemini_path):
+                response = self.client.post(
+                    "/v1/chat/completions",
+                    json={
+                        "model": "gemini-3-flash-preview-quota",
+                        "messages": [{"role": "user", "content": "hello"}],
+                        "stream": False,
+                    },
+                )
 
-        self.assertEqual(response.status_code, 200)
-        body = json.loads(response.data.decode("utf-8"))
+                self.assertEqual(response.status_code, 200)
+                body = json.loads(response.data.decode("utf-8"))
         self.assertEqual(body["object"], "chat.completion")
         self.assertEqual(body["choices"][0]["message"]["content"], "rotated hello")
         self.assertEqual(body["usage"]["total_tokens"], 14)
@@ -247,19 +354,49 @@ class OpenAIContractTests(unittest.TestCase):
         side_effect=AccountRouterError("all accounts on cooldown please wait 4"),
     )
     def test_all_cooldown_message_contract(self, _mock_select_account):
-        response = self.client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "gemini-3-flash-preview-quota",
-                "messages": [{"role": "user", "content": "ping"}],
-                "stream": False,
-            },
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            gemini_path = tmp_dir / "gemini_accounts_config.json"
+            self._write_json(gemini_path, self._gemini_config())
+            with self._patched_paths(tmp_dir, gemini_path=gemini_path, qwen_path=gemini_path):
+                response = self.client.post(
+                    "/v1/chat/completions",
+                    json={
+                        "model": "gemini-3-flash-preview-quota",
+                        "messages": [{"role": "user", "content": "ping"}],
+                        "stream": False,
+                    },
+                )
 
-        self.assertEqual(response.status_code, 429)
-        body = json.loads(response.data.decode("utf-8"))
+                self.assertEqual(response.status_code, 429)
+                body = json.loads(response.data.decode("utf-8"))
         self.assertIn("error", body)
         self.assertIn("all accounts on cooldown please wait 4", body["error"]["message"])
+
+    @patch("api.openai.providers.qwen_code.read_qwen_credentials")
+    @patch("api.openai.providers.qwen_code.refresh_qwen_credentials_file")
+    @patch("api.openai.providers.qwen_code.load_last_used_at")
+    def test_qwen_idle_refresh_triggers_refresh(
+        self,
+        mock_load_last_used,
+        mock_refresh,
+        mock_read,
+    ):
+        account = BaseAccount(name="acct-1", credentials_path="secrets/qwen.json")
+        last_used = datetime.now(tz=timezone.utc) - timedelta(seconds=1000)
+        mock_load_last_used.return_value = last_used
+        mock_refresh.return_value = {
+            "access_token": "qwen-token",
+            "resource_url": "https://dashscope.aliyuncs.com/compatible-mode",
+        }
+        mock_read.side_effect = AssertionError("read_qwen_credentials should not be called")
+
+        provider = QwenCodeProvider()
+        creds = provider.load_runtime_credentials(account)
+
+        self.assertEqual(creds.token, "qwen-token")
+        self.assertEqual(creds.resource_url, "https://dashscope.aliyuncs.com/compatible-mode")
+        self.assertEqual(mock_refresh.call_count, 1)
 
     @patch("api.openai.strategies.rotate_on_429_rounding.quota_account_router.select_account")
     @patch(
@@ -285,19 +422,24 @@ class OpenAIContractTests(unittest.TestCase):
             ]
         )
 
-        response = self.client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "qwen-coder-model-quota",
-                "messages": [{"role": "user", "content": "hello"}],
-                "stream": True,
-                "stream_options": {"include_usage": True},
-            },
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            qwen_path = tmp_dir / "qwen_accounts_config.json"
+            self._write_json(qwen_path, self._qwen_config())
+            with self._patched_paths(tmp_dir, qwen_path=qwen_path, gemini_path=qwen_path):
+                response = self.client.post(
+                    "/v1/chat/completions",
+                    json={
+                        "model": "qwen-coder-model-quota",
+                        "messages": [{"role": "user", "content": "hello"}],
+                        "stream": True,
+                        "stream_options": {"include_usage": True},
+                    },
+                )
 
-        self.assertEqual(response.status_code, 200)
-        payload = response.data.decode("utf-8")
-        self.assertIn("data: [DONE]", payload)
+                self.assertEqual(response.status_code, 200)
+                payload = response.data.decode("utf-8")
+                self.assertIn("data: [DONE]", payload)
 
         chunks = _parse_sse_json_chunks(payload)
         content = ""
@@ -313,3 +455,62 @@ class OpenAIContractTests(unittest.TestCase):
         self.assertEqual(content, "hello")
         self.assertIsNotNone(usage_chunk)
         self.assertEqual(usage_chunk["usage"]["total_tokens"], 5)
+
+    @patch("api.openai.strategies.rotate_on_429_rounding.quota_account_router.select_account")
+    @patch("api.openai.providers.qwen_code.save_last_used_at")
+    @patch("api.openai.providers.qwen_code.send_generate_to_url")
+    @patch("api.openai.providers.qwen_code.read_qwen_credentials")
+    @patch("api.openai.providers.qwen_code.refresh_qwen_credentials_file")
+    @patch("api.openai.providers.qwen_code.load_last_used_at")
+    def test_qwen_refresh_and_retry_on_401(
+        self,
+        mock_load_last_used,
+        mock_refresh,
+        mock_read,
+        mock_send_generate,
+        _mock_touch,
+        mock_select_account,
+    ):
+        mock_select_account.return_value = self._qwen_selected_account(mode="single")
+        mock_load_last_used.return_value = datetime.now(tz=timezone.utc)
+        mock_read.return_value = {
+            "access_token": "qwen-token",
+            "resource_url": "https://dashscope.aliyuncs.com/compatible-mode",
+        }
+        mock_refresh.return_value = {
+            "access_token": "qwen-token-2",
+            "resource_url": "https://dashscope.aliyuncs.com/compatible-mode",
+        }
+        mock_send_generate.side_effect = [
+            FakeResponse(401, payload={"error": "unauthorized"}),
+            FakeResponse(
+                200,
+                payload={
+                    "id": "chatcmpl-q1",
+                    "choices": [
+                        {"index": 0, "message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}
+                    ],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                },
+            ),
+        ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            qwen_path = tmp_dir / "qwen_accounts_config.json"
+            self._write_json(qwen_path, self._qwen_config())
+            with self._patched_paths(tmp_dir, qwen_path=qwen_path, gemini_path=qwen_path):
+                response = self.client.post(
+                    "/v1/chat/completions",
+                    json={
+                        "model": "qwen-coder-model-quota",
+                        "messages": [{"role": "user", "content": "hello"}],
+                        "stream": False,
+                    },
+                )
+
+                self.assertEqual(response.status_code, 200)
+                payload = json.loads(response.data.decode("utf-8"))
+        self.assertEqual(payload["model"], "qwen-coder-model-quota")
+        self.assertEqual(mock_send_generate.call_count, 2)
+        self.assertEqual(mock_refresh.call_count, 1)

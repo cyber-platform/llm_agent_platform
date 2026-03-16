@@ -141,7 +141,7 @@ class RefactorP2RoutesTests(unittest.TestCase):
                     "rate_limit_cooldown_seconds": 5,
                 },
                 "model_quota_resets": {
-                    "default": "00:00",
+                    "default": "00:00:00",
                 },
             }
             qwen_cfg = {
@@ -168,7 +168,7 @@ class RefactorP2RoutesTests(unittest.TestCase):
                     "rate_limit_cooldown_seconds": 5,
                 },
                 "model_quota_resets": {
-                    "default": "00:00",
+                    "default": "00:00:00",
                 },
             }
 
@@ -226,12 +226,38 @@ class RefactorP2RoutesTests(unittest.TestCase):
             },
         )
 
-        response = self.client.post(
-            "/v1/models/gemini-3-flash-preview-quota:generateContent",
-            json={
-                "contents": [{"role": "user", "parts": [{"text": "hello"}]}],
-            },
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            gemini_path = tmp_dir / "gemini_accounts_config.json"
+            self._write_json(
+                gemini_path,
+                {
+                    "mode": "single",
+                    "active_account": "acct-1",
+                    "all_accounts": ["acct-1"],
+                    "accounts": {
+                        "acct-1": {
+                            "credentials_path": "secrets/acct-1.json",
+                            "project_id": "demo-project",
+                        }
+                    },
+                    "rotation_policy": {
+                        "rate_limit_threshold": 2,
+                        "quota_exhausted_threshold": 2,
+                        "rate_limit_cooldown_seconds": 5,
+                    },
+                    "model_quota_resets": {
+                        "default": "00:00:00",
+                    },
+                },
+            )
+            with patch("services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH", str(gemini_path)):
+                response = self.client.post(
+                    "/v1/models/gemini-3-flash-preview-quota:generateContent",
+                    json={
+                        "contents": [{"role": "user", "parts": [{"text": "hello"}]}],
+                    },
+                )
 
         self.assertEqual(response.status_code, 200)
         body = json.loads(response.data.decode("utf-8"))
