@@ -41,7 +41,8 @@
 - RISK-1 (RNG nondeterminism): random-order требует детерминирования через patch RNG (например patch `random.choice`).
 - RISK-2 (time dependency): cooldown/exhausted зависят от `time.time()`; тесты должны фиксировать время (patch time) и проверять вычисление `wait_seconds`.
 - RISK-3 (file state): появится файловое состояние `secrets/<provider>/state/*`; тесты должны быть изолированы через temp dir.
-- RISK-4 (breaking change): `model_quota_resets` больше не `HH:MM`.
+- RISK-4 (breaking change): `model_quota_resets` больше не `HH:MM` (формат `DD:HH:MM`).
+- RISK-5 (state persistence): state-файлы должны писаться в temp-dir в тестах через patch путей.
 
 ## Test Levels (L1–L4)
 - L1 Unit: чистая логика роутера (изменения в [`services/account_router.py`](services/account_router.py)), без Flask.
