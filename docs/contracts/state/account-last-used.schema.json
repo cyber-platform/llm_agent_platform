@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/model-proxy/contracts/state/account-last-used.schema.json",
+  "title": "Account last used state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "last_used_at"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "last_used_at": { "type": "string", "format": "date-time" }
+  }
+}
+

@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/model-proxy/contracts/config/provider-accounts-config.schema.json",
+  "title": "Provider accounts config (quota rotation)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "active_account",
+    "mode",
+    "rotation_policy",
+    "model_quota_resets",
+    "all_accounts",
+    "accounts"
+  ],
+  "properties": {
+    "active_account": { "type": "string", "minLength": 1 },
+    "mode": { "type": "string", "enum": ["single", "rounding"] },
+    "rotation_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rate_limit_threshold",
+        "quota_exhausted_threshold",
+        "rate_limit_cooldown_seconds",
+        "random_order",
+        "rotate_after_n_successes"
+      ],
+      "properties": {
+        "rate_limit_threshold": { "type": "integer", "minimum": 1 },
+        "quota_exhausted_threshold": { "type": "integer", "minimum": 1 },
+        "rate_limit_cooldown_seconds": { "type": "integer", "minimum": 0 },
+        "random_order": { "type": "boolean" },
+        "rotate_after_n_successes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "model_quota_resets": {
+      "type": "object",
+      "description": "Period-based quota reset windows. Values MUST be DD:HH:MM (days:hours:minutes). Legacy HH:MM is not supported.",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9]+:[0-9]{2}:[0-9]{2}$"
+      }
+    },
+    "all_accounts": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "groups": {
+      "type": "object",
+      "description": "Optional quota groups. Invariant: account lists must be disjoint across groups (validated at runtime).",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["accounts", "models"],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "models": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    "accounts": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["credentials_path"],
+        "properties": {
+          "credentials_path": { "type": "string", "minLength": 1 },
+          "project_id": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
+

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/model-proxy/contracts/state/account-quota-exhausted.schema.json",
+  "title": "Account quota exhausted state (per model)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "quota_exhausted_at"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "quota_exhausted_at": { "type": "string", "format": "date-time" }
+  }
+}
+
