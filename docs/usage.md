@@ -62,8 +62,12 @@ Quota groups (URL-prefix):
 - `GET /v1/models` и `GET /<group_id>/v1/models` становятся group-aware: при наличии `groups` в provider-config модели берутся из `groups.<group_id>.models`.
 
 Конфиги и примеры структуры:
-- рабочие файлы: `secrets/gemini_accounts_config.json`, `secrets/qwen_accounts_config.json`
-- примеры: `docs/examples/gemini_accounts_config.example.json`, `docs/examples/qwen_accounts_config.example.json`
+- рабочие файлы (рекомендованный layout provider-scoped):
+  - `secrets/gemini_cli/accounts_config.json`
+  - `secrets/qwen_code/accounts_config.json`
+- примеры: [`docs/examples/gemini_accounts_config.example.json`](docs/examples/gemini_accounts_config.example.json:1), [`docs/examples/qwen_accounts_config.example.json`](docs/examples/qwen_accounts_config.example.json:1)
+
+Важно: `model_quota_resets` теперь задаёт **период восстановления квоты** (формат `DD:HH:MM`), см. [`docs/architecture/quota-reset-periods-and-account-state.md`](docs/architecture/quota-reset-periods-and-account-state.md:1).
 
 ### Группа Vertex (Облачные кредиты)
 Использует баланс вашего Google Cloud проекта ($10/мес кредитов для Pro-пользователей).

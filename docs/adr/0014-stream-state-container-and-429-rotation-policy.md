@@ -91,3 +91,7 @@ Decision rule:
 - present
 - Расширение provider-config полями `rotation_policy` и `model_quota_resets`.
 - Новые semantics ответа при all-cooldown vs all-exhausted.
+
+## Update (2026-03-16)
+`model_quota_resets` меняет семантику (time-of-day → period `DD:HH:MM`) и вводится persisted account state. Это зафиксировано отдельным ADR:
+- [`docs/adr/0018-quota-reset-periods-and-account-state.md`](docs/adr/0018-quota-reset-periods-and-account-state.md:1)
