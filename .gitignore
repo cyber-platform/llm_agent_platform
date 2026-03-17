@@ -1,6 +1,7 @@
 # ignore environment variable files
 .env
 secrets
+secrets_test
 
 # Python-generated files
 __pycache__/

@@ -21,3 +21,6 @@ from google import genai
 
 Реализуем только работу с самими моделями без использования особых инструментов от Google.
 
+Requests per day (RPD) quotas reset at midnight Pacific time.
+
+Можно рассмотреть добавление опции сброса квот по времени.

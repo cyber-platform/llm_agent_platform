@@ -16,3 +16,4 @@
 ## Runbook
 - Запуск: `uv run python -m unittest discover -s tests -p "test_*.py"`
 - Быстрая проверка синтаксиса: `uv run python -m compileall api auth core services main.py tests`
+- Тестовые артефакты: используются фиктивные файлы в `secrets_test/`

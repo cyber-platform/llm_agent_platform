@@ -3,6 +3,7 @@
 ## Scope
 - Проверка ответа `/v1/chat/completions` в non-stream формате.
 - Проверка SSE потока с `stream_options.include_usage=true`.
+- Проверка записи `last_used_at` для Qwen streaming.
 - Проверка маппинга upstream-ошибки в OpenAI error shape.
 
 ## Test Level (L1–L4)
