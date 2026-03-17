@@ -22,6 +22,7 @@ from llm_agent_platform.__main__ import app
 from llm_agent_platform.services.account_router import BaseAccount, GeminiAccount, SelectedAccount
 from llm_agent_platform.services.account_router import AccountRouterError
 from llm_agent_platform.services.account_state_store import AccountStatePaths
+from llm_agent_platform.api.openai.providers.base import ProviderRuntimeCreds
 from llm_agent_platform.api.openai.providers.qwen_code import QwenCodeProvider
 
 
@@ -436,17 +437,17 @@ class OpenAIContractTests(unittest.TestCase):
 
     @patch("llm_agent_platform.api.openai.strategies.rotate_on_429_rounding.quota_account_router.select_account")
     @patch(
-        "llm_agent_platform.api.openai.providers.qwen_code.refresh_qwen_credentials_file",
-        return_value={
-            "access_token": "qwen-token",
-            "resource_url": "https://dashscope.aliyuncs.com/compatible-mode",
-        },
+        "llm_agent_platform.api.openai.providers.qwen_code.QwenCodeProvider.load_runtime_credentials",
+        return_value=ProviderRuntimeCreds(
+            token="qwen-token",
+            resource_url="https://dashscope.aliyuncs.com/compatible-mode",
+        ),
     )
     @patch("llm_agent_platform.api.openai.providers.qwen_code.stream_generate_lines_from_url")
     def test_stream_quota_rotation_usage_contract(
         self,
         mock_stream_generate_lines,
-        _mock_refresh,
+        _mock_load_credentials,
         mock_select_account,
     ):
         mock_select_account.return_value = self._qwen_selected_account(mode="rounding")
@@ -494,18 +495,20 @@ class OpenAIContractTests(unittest.TestCase):
         self.assertEqual(usage_chunk["usage"]["total_tokens"], 5)
 
     @patch("llm_agent_platform.api.openai.strategies.rotate_on_429_rounding.quota_account_router.select_account")
+    @patch("llm_agent_platform.api.openai.providers.qwen_code.save_last_used_at")
     @patch(
-        "llm_agent_platform.api.openai.providers.qwen_code.refresh_qwen_credentials_file",
-        return_value={
-            "access_token": "qwen-token",
-            "resource_url": "https://dashscope.aliyuncs.com/compatible-mode",
-        },
+        "llm_agent_platform.api.openai.providers.qwen_code.QwenCodeProvider.load_runtime_credentials",
+        return_value=ProviderRuntimeCreds(
+            token="qwen-token",
+            resource_url="https://dashscope.aliyuncs.com/compatible-mode",
+        ),
     )
     @patch("llm_agent_platform.api.openai.providers.qwen_code.stream_generate_lines_from_url")
     def test_qwen_stream_persists_last_used(
         self,
         mock_stream_generate_lines,
-        _mock_refresh,
+        _mock_load_credentials,
+        mock_save_last_used,
         mock_select_account,
     ):
         mock_select_account.return_value = self._qwen_selected_account(mode="single")
@@ -522,37 +525,23 @@ class OpenAIContractTests(unittest.TestCase):
             _seed_credentials_from_config(qwen_cfg)
             self._write_json(qwen_path, qwen_cfg)
             with self._patched_paths(tmp_dir, qwen_path=qwen_path, gemini_path=qwen_path):
-                with patch(
-                    "llm_agent_platform.api.openai.providers.qwen_code.AccountStatePaths",
-                    new=lambda provider_id, account_name, root_dir=Path("."): AccountStatePaths(
-                        provider_id=provider_id,
-                        account_name=account_name,
-                        root_dir=tmp_dir,
-                    ),
-                ):
-                    response = self.client.post(
-                        "/v1/chat/completions",
-                        json={
-                            "model": "qwen-coder-model-quota",
-                            "messages": [{"role": "user", "content": "hello"}],
-                            "stream": True,
-                        },
-                    )
+                response = self.client.post(
+                    "/v1/chat/completions",
+                    json={
+                        "model": "qwen-coder-model-quota",
+                        "messages": [{"role": "user", "content": "hello"}],
+                        "stream": True,
+                    },
+                )
 
                 payload_stream = response.data.decode("utf-8")
                 self.assertTrue(payload_stream)
                 self.assertEqual(response.status_code, 200)
-                last_used_path = (
-                    tmp_dir
-                    / "secrets"
-                    / "qwen_code"
-                    / "state"
-                    / "acct-1"
-                    / "last_used_at.json"
-                )
-                self.assertTrue(last_used_path.exists())
-                payload = json.loads(last_used_path.read_text(encoding="utf-8"))
-                self.assertIn("last_used_at", payload)
+
+        mock_save_last_used.assert_called_once()
+        saved_paths = mock_save_last_used.call_args[0][0]
+        self.assertEqual(saved_paths.provider_id, "qwen_code")
+        self.assertEqual(saved_paths.account_name, "acct-1")
 
     @patch("llm_agent_platform.api.openai.strategies.rotate_on_429_rounding.quota_account_router.select_account")
     @patch("llm_agent_platform.api.openai.providers.qwen_code.save_last_used_at")
