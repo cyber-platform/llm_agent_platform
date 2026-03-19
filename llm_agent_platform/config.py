@@ -13,9 +13,28 @@ def _env_flag(name: str, default: str = "false") -> bool:
         "on",
     }
 
+
+def _env_int(name: str, default: str) -> int:
+    return int(_env_str(name, default))
+
+
+def _env_float(name: str, default: str) -> float:
+    return float(_env_str(name, default))
+
+
 # --- Logging Configuration ---
 LOG_LEVEL = _env_str("LOG_LEVEL", "INFO")
 LOG_DIR = _env_str("LOG_DIR", "./logs")
+
+# --- Runtime state configuration ---
+STATE_DIR = _env_str("STATE_DIR", "/app/state")
+STATE_FLUSH_INTERVAL_SECONDS = _env_float("STATE_FLUSH_INTERVAL_SECONDS", "3")
+STATE_WRITER_MAX_PENDING_FILES = _env_int("STATE_WRITER_MAX_PENDING_FILES", "1024")
+
+if STATE_FLUSH_INTERVAL_SECONDS <= 0:
+    raise ValueError("STATE_FLUSH_INTERVAL_SECONDS must be > 0")
+if STATE_WRITER_MAX_PENDING_FILES < 1:
+    raise ValueError("STATE_WRITER_MAX_PENDING_FILES must be >= 1")
 
 # --- Configuration ---
 USER_GEMINI_CREDS_PATH = _env_str(
@@ -61,9 +80,7 @@ QWEN_DEFAULT_RESOURCE_URL = _env_str(
     "QWEN_DEFAULT_RESOURCE_URL",
     "https://dashscope.aliyuncs.com/compatible-mode",
 )
-QWEN_REFRESH_IDLE_THRESHOLD_SECONDS = int(
-    _env_str("QWEN_REFRESH_IDLE_THRESHOLD_SECONDS", "180")
-)
+QWEN_REFRESH_IDLE_THRESHOLD_SECONDS = _env_int("QWEN_REFRESH_IDLE_THRESHOLD_SECONDS", "180")
 QWEN_QUOTA_MODELS = [
     model.strip()
     for model in _env_str("QWEN_QUOTA_MODELS", "qwen-coder-model-quota").split(",")

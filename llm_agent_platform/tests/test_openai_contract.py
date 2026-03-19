@@ -21,7 +21,7 @@ def _secrets_test_dir():
 from llm_agent_platform.__main__ import app
 from llm_agent_platform.services.account_router import BaseAccount, GeminiAccount, SelectedAccount
 from llm_agent_platform.services.account_router import AccountRouterError
-from llm_agent_platform.services.account_state_store import AccountStatePaths
+from llm_agent_platform.services.account_state_store import AccountStatePaths, state_writer
 from llm_agent_platform.api.openai.providers.base import ProviderRuntimeCreds
 from llm_agent_platform.api.openai.providers.qwen_code import QwenCodeProvider
 
@@ -90,6 +90,8 @@ class OpenAIContractTests(unittest.TestCase):
             patches.append(
                 patch("llm_agent_platform.services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path))
             )
+        patches.append(patch("llm_agent_platform.services.account_router.STATE_DIR", str(tmp_dir)))
+        patches.append(patch("llm_agent_platform.services.account_state_store.STATE_DIR", str(tmp_dir)))
         patches.append(
             patch(
                 "llm_agent_platform.services.account_router.AccountStatePaths",
@@ -110,6 +112,7 @@ class OpenAIContractTests(unittest.TestCase):
             try:
                 yield
             finally:
+                state_writer.flush_once()
                 for ctx in reversed(patches[1:]):
                     ctx.__exit__(None, None, None)
 

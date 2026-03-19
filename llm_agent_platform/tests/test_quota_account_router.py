@@ -14,7 +14,13 @@ from llm_agent_platform.services.account_router import (
     QuotaAccountRouter,
     RotationEvent,
 )
-from llm_agent_platform.services.account_state_store import AccountStatePaths, save_quota_exhausted_at
+from llm_agent_platform.services.account_state_store import (
+    AsyncStateWriter,
+    AccountStatePaths,
+    save_quota_exhausted_at,
+    save_last_used_at,
+    state_writer,
+)
 
 SECRETS_TEST_ROOT = Path("secrets_test")
 
@@ -57,6 +63,8 @@ class QuotaAccountRouterTests(unittest.TestCase):
         with (
             patch("llm_agent_platform.services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH", str(gemini_path)),
             patch("llm_agent_platform.services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+            patch("llm_agent_platform.services.account_router.STATE_DIR", str(base_dir)),
+            patch("llm_agent_platform.services.account_state_store.STATE_DIR", str(base_dir)),
             patch(
                 "llm_agent_platform.services.account_router.AccountStatePaths",
                 new=lambda provider_id, account_name, root_dir=Path("."): AccountStatePaths(
@@ -435,6 +443,7 @@ class QuotaAccountRouterTests(unittest.TestCase):
                 root_dir=tmp_dir,
             )
             save_quota_exhausted_at(state_paths, "qwen-coder-model", exhausted_at)
+            state_writer.flush_once()
 
             now_ts = exhausted_at.timestamp() + 30
             with (
@@ -444,6 +453,124 @@ class QuotaAccountRouterTests(unittest.TestCase):
                 router = QuotaAccountRouter()
                 with self.assertRaises(AllAccountsExhaustedError):
                     router.select_account("qwen_code", "qwen-coder-model")
+
+    def test_per_provider_scope_uses_provider_sentinel(self):
+        with _secrets_test_dir() as tmp_dir:
+            qwen_path = tmp_dir / "qwen_accounts_config.json"
+
+            cfg = {
+                "mode": "rounding",
+                "active_account": "lisa",
+                "all_accounts": ["lisa"],
+                "quota_scope": "per_provider",
+                "accounts": {
+                    "lisa": {"credentials_path": "secrets_test/accounts/qwen_lisa.json"},
+                },
+                "rotation_policy": {
+                    "rate_limit_threshold": 2,
+                    "quota_exhausted_threshold": 1,
+                    "rate_limit_cooldown_seconds": 5,
+                },
+                "model_quota_resets": {
+                    "default": "00:10:00",
+                },
+            }
+            _write_json(qwen_path, cfg)
+
+            with self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path):
+                router = QuotaAccountRouter()
+                selected = router.select_account("qwen_code", "qwen-coder-model")
+                result = router.register_event(
+                    provider="qwen_code",
+                    account_name=selected.account.name,
+                    mode=selected.mode,
+                    pool=selected.pool,
+                    event=RotationEvent.QUOTA_EXHAUSTED,
+                    model="qwen-coder-model",
+                )
+                state_writer.flush_once()
+
+            self.assertTrue(result.all_exhausted)
+            state_payload = json.loads(
+                (tmp_dir / "qwen_code" / "accounts" / "lisa" / "account_state.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                sorted(state_payload["quota_exhausted"]["keys"].keys()),
+                ["__provider__"],
+            )
+
+    def test_group_snapshot_is_written_to_state_dir(self):
+        with _secrets_test_dir() as tmp_dir:
+            qwen_path = tmp_dir / "qwen_accounts_config.json"
+
+            cfg = {
+                "mode": "rounding",
+                "active_account": "lisa",
+                "all_accounts": ["lisa", "petr"],
+                "groups": {
+                    "g1": {
+                        "accounts": ["lisa", "petr"],
+                        "models": ["qwen-coder-model"],
+                    },
+                },
+                "accounts": {
+                    "lisa": {"credentials_path": "secrets_test/accounts/qwen_lisa.json"},
+                    "petr": {"credentials_path": "secrets_test/accounts/qwen_petr.json"},
+                },
+                "rotation_policy": {
+                    "rate_limit_threshold": 1,
+                    "quota_exhausted_threshold": 2,
+                    "rate_limit_cooldown_seconds": 5,
+                },
+                "model_quota_resets": {
+                    "default": "00:10:00",
+                    "qwen-coder-model": "00:10:00",
+                },
+            }
+            _write_json(qwen_path, cfg)
+
+            with self._patched_paths(tmp_dir, tmp_dir / "gemini_accounts_config.json", qwen_path):
+                router = QuotaAccountRouter()
+                selected = router.select_account("qwen_code", "qwen-coder-model", group_id="g1")
+                router.register_event(
+                    provider="qwen_code",
+                    account_name=selected.account.name,
+                    mode=selected.mode,
+                    pool=selected.pool,
+                    event=RotationEvent.RATE_LIMIT,
+                    model="qwen-coder-model",
+                    group_id="g1",
+                )
+                state_writer.flush_once()
+
+            snapshot_path = tmp_dir / "qwen_code" / "groups" / "g1" / "quota_state.json"
+            self.assertTrue(snapshot_path.exists())
+            snapshot_payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            self.assertEqual(snapshot_payload["group_id"], "g1")
+            self.assertEqual(snapshot_payload["total_accounts"], 2)
+            self.assertEqual(snapshot_payload["cooldown_accounts"], 1)
+            self.assertIn("models", snapshot_payload)
+
+    def test_async_state_writer_close_flushes_pending_payload(self):
+        with _secrets_test_dir() as tmp_dir:
+            writer = AsyncStateWriter(flush_interval_seconds=3600, max_pending_files=16)
+            paths = AccountStatePaths(
+                provider_id="qwen_code",
+                account_name="lisa",
+                root_dir=tmp_dir,
+            )
+
+            save_last_used_at(
+                paths,
+                datetime(2026, 1, 1, 0, 0, tzinfo=timezone.utc),
+                writer=writer,
+            )
+            writer.close()
+
+            payload = json.loads(paths.account_state_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["last_used_at"], "2026-01-01T00:00:00Z")
 
     def test_rounding_random_order_switches_using_rng(self):
         with _secrets_test_dir() as tmp_dir:

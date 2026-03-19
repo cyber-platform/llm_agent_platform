@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Iterable, Any
 
 from llm_agent_platform.api.openai.providers.base import Provider, ProviderRuntimeCreds
 from llm_agent_platform.api.openai.types import ChatRequestContext, UpstreamRequestContext, UpstreamPreparationError
 from llm_agent_platform.auth.qwen_oauth import refresh_qwen_credentials_file, read_qwen_credentials
 from llm_agent_platform.config import QWEN_REFRESH_IDLE_THRESHOLD_SECONDS
-from llm_agent_platform.services.account_state_store import AccountStatePaths, load_last_used_at, save_last_used_at
+from llm_agent_platform.services.account_state_store import (
+    AccountStatePaths,
+    default_state_root,
+    load_last_used_at,
+    save_last_used_at,
+)
 from llm_agent_platform.services.account_router import BaseAccount
 from llm_agent_platform.services.quota_transport import send_generate_to_url, stream_generate_lines_from_url
 
@@ -57,7 +61,11 @@ class QwenCodeProvider(Provider):
         if not isinstance(account, BaseAccount):
             raise UpstreamPreparationError("Invalid Qwen account configuration", "config_error", 500)
 
-        paths = AccountStatePaths(provider_id=self.id, account_name=account.name, root_dir=Path("."))
+        paths = AccountStatePaths(
+            provider_id=self.id,
+            account_name=account.name,
+            root_dir=default_state_root(),
+        )
         should_refresh = _should_refresh_credentials(paths)
 
         try:
@@ -161,7 +169,11 @@ class QwenCodeProvider(Provider):
 def _state_paths(upstream: UpstreamRequestContext) -> AccountStatePaths | None:
     if not upstream.account_name:
         return None
-    return AccountStatePaths(provider_id="qwen_code", account_name=upstream.account_name, root_dir=Path("."))
+    return AccountStatePaths(
+        provider_id="qwen_code",
+        account_name=upstream.account_name,
+        root_dir=default_state_root(),
+    )
 
 
 def _should_refresh_credentials(paths: AccountStatePaths) -> bool:

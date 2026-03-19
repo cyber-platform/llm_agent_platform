@@ -15,5 +15,5 @@ COPY . .
 # Открываем порт
 EXPOSE 4000
 
-# Запускаем сервер через uv run
-CMD ["uv", "run", "main.py"]
+# Запускаем сервер через package entrypoint
+CMD ["uv", "run", "-m", "llm_agent_platform"]

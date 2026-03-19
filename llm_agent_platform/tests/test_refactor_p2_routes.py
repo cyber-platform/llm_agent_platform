@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from llm_agent_platform.__main__ import app
 from llm_agent_platform.auth.credentials import AuthAvailability
 from llm_agent_platform.services.account_router import AllAccountsExhaustedError, GeminiAccount, SelectedAccount
+from llm_agent_platform.services.account_state_store import state_writer
 
 SECRETS_TEST_ROOT = Path("secrets_test")
 
@@ -18,6 +19,18 @@ def _secrets_test_dir():
     SECRETS_TEST_ROOT.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=SECRETS_TEST_ROOT) as tmp:
         yield Path(tmp)
+
+
+@contextmanager
+def _patched_state_dir(tmp_dir: Path):
+    with (
+        patch("llm_agent_platform.services.account_router.STATE_DIR", str(tmp_dir)),
+        patch("llm_agent_platform.services.account_state_store.STATE_DIR", str(tmp_dir)),
+    ):
+        try:
+            yield
+        finally:
+            state_writer.flush_once()
 
 
 def _ensure_dummy_credentials(path: str | Path) -> None:
@@ -186,6 +199,7 @@ class RefactorP2RoutesTests(unittest.TestCase):
             with (
                 patch("llm_agent_platform.services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH", str(gemini_path)),
                 patch("llm_agent_platform.services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+                _patched_state_dir(tmp_dir),
             ):
                 response = self.client.get("/v1/models")
                 self.assertEqual(response.status_code, 200)
@@ -257,6 +271,7 @@ class RefactorP2RoutesTests(unittest.TestCase):
             with (
                 patch("llm_agent_platform.services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH", str(gemini_path)),
                 patch("llm_agent_platform.services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+                _patched_state_dir(tmp_dir),
             ):
                 g1_response = self.client.get("/g1/v1/models")
                 self.assertEqual(g1_response.status_code, 200)
@@ -338,7 +353,10 @@ class RefactorP2RoutesTests(unittest.TestCase):
                     }
                 }
             )
-            with patch("llm_agent_platform.services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH", str(gemini_path)):
+            with (
+                patch("llm_agent_platform.services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH", str(gemini_path)),
+                _patched_state_dir(tmp_dir),
+            ):
                 response = self.client.post(
                     "/v1/models/gemini-3-flash-preview-quota:generateContent",
                     json={

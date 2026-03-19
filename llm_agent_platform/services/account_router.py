@@ -9,12 +9,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from llm_agent_platform.config import GEMINI_ACCOUNTS_CONFIG_PATH, QWEN_ACCOUNTS_CONFIG_PATH
+from llm_agent_platform.config import GEMINI_ACCOUNTS_CONFIG_PATH, QWEN_ACCOUNTS_CONFIG_PATH, STATE_DIR
 from llm_agent_platform.core.logging import get_logger
 from llm_agent_platform.services.account_state_store import (
+    PROVIDER_QUOTA_SENTINEL,
     AccountStatePaths,
-    load_quota_exhausted_at,
-    save_quota_exhausted_at,
+    load_account_state,
+    save_account_state,
+    write_group_quota_state,
 )
 
 logger = get_logger(__name__)
@@ -58,6 +60,7 @@ class ProviderConfig:
     random_order: bool
     rotate_after_n_successes: int
     model_quota_resets: dict[str, str]
+    quota_scope: str
     groups: dict[str, ProviderGroup]
 
 
@@ -77,8 +80,9 @@ class _ProviderState:
     consecutive_rate_limit_errors: dict[str, int] = field(default_factory=dict)
     consecutive_quota_exhausted_errors: dict[str, int] = field(default_factory=dict)
     cooldown_until: dict[str, float] = field(default_factory=dict)
-    quota_exhausted_until: dict[str, dict[str, float]] = field(default_factory=dict)
+    quota_exhausted_at: dict[str, dict[str, datetime]] = field(default_factory=dict)
     successes_on_account: dict[str, int] = field(default_factory=dict)
+    hydrated_accounts: set[str] = field(default_factory=set)
 
 
 class RotationEvent:
@@ -103,13 +107,7 @@ class EventResult:
 
 
 class QuotaAccountRouter:
-    """Provider-aware account router for quota flows.
-
-    Supports:
-    - `single`: only active_account.
-    - `rounding`: round-robin over all_accounts and switch after 2
-      consecutive quota-limit errors.
-    """
+    """Provider-aware account router for quota flows."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -141,16 +139,13 @@ class QuotaAccountRouter:
 
         with self._lock:
             state = self._state.setdefault((provider, group_id), _ProviderState())
-            for account_name in pool:
-                self._hydrate_exhausted_state(cfg, state, account_name, model)
-            self._cleanup_state_for_model_unlocked(state, cfg, model)
+            self._ensure_pool_hydrated_unlocked(cfg, state, pool)
+            self._cleanup_state_unlocked(state, cfg)
 
-            if self._all_exhausted(state, pool, model):
-                # Fail fast and allow future recovery attempts on next requests.
+            if self._all_exhausted(state, pool, cfg, model):
                 logger.warning(
                     f"[{provider}] rounding: all accounts exhausted (model={model}|group={group_id})"
                 )
-                self._reset_exhausted_unlocked(provider, group_id)
                 raise AllAccountsExhaustedError("all_accounts_exceed_quota")
 
             if self._all_cooldown(state, pool):
@@ -159,22 +154,20 @@ class QuotaAccountRouter:
                     f"[{provider}] rounding: all accounts on cooldown "
                     f"(model={model}|group={group_id}|wait={wait_seconds}s)"
                 )
-                raise AccountRouterError(
-                    f"all accounts on cooldown please wait {wait_seconds}"
-                )
+                raise AccountRouterError(f"all accounts on cooldown please wait {wait_seconds}")
 
             if cfg.random_order:
                 if not state.has_selected:
-                    chosen = self._choose_random_available(state, pool, model)
+                    chosen = self._choose_random_available(state, pool, cfg, model)
                     if chosen is not None:
                         state.next_index = pool.index(chosen)
                     state.has_selected = True
                 else:
                     current_name = pool[state.next_index % len(pool)]
-                    if self._is_exhausted(state, current_name, model) or self._is_on_cooldown(
+                    if self._is_exhausted(state, current_name, cfg, model) or self._is_on_cooldown(
                         state, current_name
                     ):
-                        chosen = self._choose_random_available(state, pool, model)
+                        chosen = self._choose_random_available(state, pool, cfg, model)
                         if chosen is not None:
                             state.next_index = pool.index(chosen)
 
@@ -182,7 +175,7 @@ class QuotaAccountRouter:
             for offset in range(len(pool)):
                 idx = (start + offset) % len(pool)
                 candidate = pool[idx]
-                if self._is_exhausted(state, candidate, model):
+                if self._is_exhausted(state, candidate, cfg, model):
                     continue
                 if self._is_on_cooldown(state, candidate):
                     continue
@@ -193,6 +186,7 @@ class QuotaAccountRouter:
                     f"[{provider}] rounding: selected account={candidate} "
                     f"(reason={reason}|attempt={offset + 1}|model={model}|group={group_id})"
                 )
+                self._enqueue_group_snapshot_unlocked(cfg, state, pool, group_id, model)
                 return SelectedAccount(
                     provider=provider,
                     mode=cfg.mode,
@@ -201,34 +195,36 @@ class QuotaAccountRouter:
                     model=model,
                 )
 
-        if self._all_exhausted(state, pool, model):
-            raise AllAccountsExhaustedError("all_accounts_exceed_quota")
-
         wait_seconds = self._cooldown_wait_seconds(state, pool)
-        raise AccountRouterError(
-            f"all accounts on cooldown please wait {wait_seconds}"
-        )
+        raise AccountRouterError(f"all accounts on cooldown please wait {wait_seconds}")
 
     def register_success(
         self,
         provider: str,
         account_name: str,
         group_id: str = "g0",
+        model: str | None = None,
     ) -> None:
         provider = self._normalize_provider_id(provider)
         cfg = self._load_provider_config(provider)
         pool = self._resolve_pool(cfg, group_id)
         with self._lock:
             state = self._state.setdefault((provider, group_id), _ProviderState())
-            if account_name in pool:
-                self._hydrate_exhausted_state(cfg, state, account_name, None)
+            self._ensure_pool_hydrated_unlocked(cfg, state, pool)
+            self._cleanup_state_unlocked(state, cfg)
             state.consecutive_rate_limit_errors[account_name] = 0
             state.consecutive_quota_exhausted_errors[account_name] = 0
             state.cooldown_until.pop(account_name, None)
+            self._persist_account_state_unlocked(
+                cfg,
+                state,
+                account_name,
+                last_used_at=datetime.now(tz=timezone.utc),
+                clear_cooldown=True,
+            )
+            self._enqueue_group_snapshot_unlocked(cfg, state, pool, group_id, model)
 
-            if cfg.mode != "rounding":
-                return
-            if cfg.rotate_after_n_successes <= 0:
+            if cfg.mode != "rounding" or cfg.rotate_after_n_successes <= 0:
                 return
 
             current = state.successes_on_account.get(account_name, 0) + 1
@@ -241,6 +237,7 @@ class QuotaAccountRouter:
                 state,
                 pool,
                 account_name,
+                cfg,
                 model=None,
                 random_order=cfg.random_order,
             ):
@@ -258,11 +255,6 @@ class QuotaAccountRouter:
         pool: list[str],
         group_id: str = "g0",
     ) -> bool:
-        """Register quota-limit error.
-
-        Returns:
-            bool: True when account was switched due to threshold.
-        """
         result = self.register_event(
             provider=provider,
             account_name=account_name,
@@ -298,9 +290,8 @@ class QuotaAccountRouter:
 
         with self._lock:
             state = self._state.setdefault((provider, group_id), _ProviderState())
-            if model is not None:
-                self._hydrate_exhausted_state(cfg, state, account_name, model)
-            self._cleanup_state_for_model_unlocked(state, cfg, model)
+            self._ensure_pool_hydrated_unlocked(cfg, state, pool)
+            self._cleanup_state_unlocked(state, cfg)
 
             if event == RotationEvent.RATE_LIMIT:
                 current = state.consecutive_rate_limit_errors.get(account_name, 0) + 1
@@ -322,7 +313,18 @@ class QuotaAccountRouter:
                     )
 
                 state.consecutive_rate_limit_errors[account_name] = 0
-                state.cooldown_until[account_name] = time.time() + cfg.rate_limit_cooldown_seconds
+                cooldown_started_at = datetime.now(tz=timezone.utc)
+                state.cooldown_until[account_name] = (
+                    cooldown_started_at.timestamp() + cfg.rate_limit_cooldown_seconds
+                )
+                self._persist_account_state_unlocked(
+                    cfg,
+                    state,
+                    account_name,
+                    last_cooldown_at=cooldown_started_at,
+                )
+                self._enqueue_group_snapshot_unlocked(cfg, state, pool, group_id, model)
+
                 logger.warning(
                     f"[{provider}] rounding: account {account_name} on cooldown "
                     f"(trigger=RATE_LIMIT|duration={cfg.rate_limit_cooldown_seconds}s|group={group_id})"
@@ -332,6 +334,7 @@ class QuotaAccountRouter:
                     state,
                     pool,
                     account_name,
+                    cfg,
                     model,
                     random_order=cfg.random_order,
                 ):
@@ -378,18 +381,26 @@ class QuotaAccountRouter:
 
             state.consecutive_quota_exhausted_errors[account_name] = 0
             exhausted_at = datetime.now(tz=timezone.utc)
-            until = self._quota_reset_timestamp(cfg, model, exhausted_at=exhausted_at)
-            exhausted_for_model = state.quota_exhausted_until.setdefault(account_name, {})
-            exhausted_for_model[self._model_key(model)] = until
-            self._persist_quota_exhausted_at(cfg, account_name, model, exhausted_at)
+            exhausted_key = self._quota_key(cfg, model)
+            exhausted_for_account = state.quota_exhausted_at.setdefault(account_name, {})
+            exhausted_for_account[exhausted_key] = exhausted_at
+            self._persist_account_state_unlocked(
+                cfg,
+                state,
+                account_name,
+                exhausted_key=exhausted_key,
+                exhausted_at=exhausted_at,
+            )
+            self._enqueue_group_snapshot_unlocked(cfg, state, pool, group_id, model)
 
-            reset_time = datetime.fromtimestamp(until).strftime("%Y-%m-%d %H:%M:%S")
+            until = self._quota_reset_timestamp(cfg, model, exhausted_at=exhausted_at)
+            reset_time = datetime.fromtimestamp(until, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             logger.warning(
                 f"[{provider}] rounding: account {account_name} exhausted for model {model} "
                 f"(trigger=QUOTA_EXHAUSTED|reset_at={reset_time}|group={group_id})"
             )
 
-            if self._all_exhausted(state, pool, model):
+            if self._all_exhausted(state, pool, cfg, model):
                 logger.error(
                     f"[{provider}] rounding: all accounts exhausted "
                     f"(trigger=QUOTA_EXHAUSTED|model={model}|group={group_id})"
@@ -405,6 +416,7 @@ class QuotaAccountRouter:
                 state,
                 pool,
                 account_name,
+                cfg,
                 model,
                 random_order=cfg.random_order,
             ):
@@ -442,10 +454,9 @@ class QuotaAccountRouter:
         cfg = self._load_provider_config(provider)
         with self._lock:
             state = self._state.setdefault((provider, group_id), _ProviderState())
-            for account_name in pool:
-                self._hydrate_exhausted_state(cfg, state, account_name, model)
-            self._cleanup_state_for_model_unlocked(state, cfg, model)
-            return self._all_exhausted(state, pool, model)
+            self._ensure_pool_hydrated_unlocked(cfg, state, pool)
+            self._cleanup_state_unlocked(state, cfg)
+            return self._all_exhausted(state, pool, cfg, model)
 
     def all_accounts_on_cooldown(
         self,
@@ -454,8 +465,11 @@ class QuotaAccountRouter:
         group_id: str = "g0",
     ) -> bool:
         provider = self._normalize_provider_id(provider)
+        cfg = self._load_provider_config(provider)
         with self._lock:
             state = self._state.setdefault((provider, group_id), _ProviderState())
+            self._ensure_pool_hydrated_unlocked(cfg, state, pool)
+            self._cleanup_state_unlocked(state, cfg)
             return self._all_cooldown(state, pool)
 
     def cooldown_wait_seconds(
@@ -465,14 +479,23 @@ class QuotaAccountRouter:
         group_id: str = "g0",
     ) -> int:
         provider = self._normalize_provider_id(provider)
+        cfg = self._load_provider_config(provider)
         with self._lock:
             state = self._state.setdefault((provider, group_id), _ProviderState())
+            self._ensure_pool_hydrated_unlocked(cfg, state, pool)
+            self._cleanup_state_unlocked(state, cfg)
             return self._cooldown_wait_seconds(state, pool)
 
-    def _all_exhausted(self, state: _ProviderState, pool: list[str], model: str | None) -> bool:
+    def _all_exhausted(
+        self,
+        state: _ProviderState,
+        pool: list[str],
+        cfg: ProviderConfig,
+        model: str | None,
+    ) -> bool:
         if not pool:
             return False
-        return all(self._is_exhausted(state, account, model) for account in pool)
+        return all(self._is_exhausted(state, account, cfg, model) for account in pool)
 
     def _all_cooldown(self, state: _ProviderState, pool: list[str]) -> bool:
         if not pool:
@@ -485,18 +508,26 @@ class QuotaAccountRouter:
             return False
         return until > time.time()
 
-    def _is_exhausted(self, state: _ProviderState, account_name: str, model: str | None) -> bool:
-        by_model = state.quota_exhausted_until.get(account_name, {})
-        until = by_model.get(self._model_key(model))
-        if until is None:
+    def _is_exhausted(
+        self,
+        state: _ProviderState,
+        account_name: str,
+        cfg: ProviderConfig,
+        model: str | None,
+    ) -> bool:
+        exhausted_for_account = state.quota_exhausted_at.get(account_name, {})
+        key = self._quota_key(cfg, model)
+        exhausted_at = exhausted_for_account.get(key)
+        if exhausted_at is None:
             return False
-        return until > time.time()
+        return self._is_exhausted_key(cfg, key, exhausted_at, model)
 
     def _set_next_available_unlocked(
         self,
         state: _ProviderState,
         pool: list[str],
         current_account: str,
+        cfg: ProviderConfig,
         model: str | None,
         random_order: bool = False,
     ) -> bool:
@@ -508,7 +539,7 @@ class QuotaAccountRouter:
                 account
                 for account in pool
                 if account != current_account
-                and not self._is_exhausted(state, account, model)
+                and not self._is_exhausted(state, account, cfg, model)
                 and not self._is_on_cooldown(state, account)
             ]
             if not candidates:
@@ -521,7 +552,7 @@ class QuotaAccountRouter:
         for offset in range(1, len(pool) + 1):
             candidate_idx = (idx + offset) % len(pool)
             candidate = pool[candidate_idx]
-            if self._is_exhausted(state, candidate, model):
+            if self._is_exhausted(state, candidate, cfg, model):
                 continue
             if self._is_on_cooldown(state, candidate):
                 continue
@@ -529,30 +560,19 @@ class QuotaAccountRouter:
             return True
         return False
 
-    def _cleanup_state_for_model_unlocked(
-        self,
-        state: _ProviderState,
-        cfg: ProviderConfig,
-        model: str | None,
-    ) -> None:
+    def _cleanup_state_unlocked(self, state: _ProviderState, cfg: ProviderConfig) -> None:
         now = time.time()
         for account_name, until in list(state.cooldown_until.items()):
             if until <= now:
                 state.cooldown_until.pop(account_name, None)
 
-        model_key = self._model_key(model)
-        for account_name, models in list(state.quota_exhausted_until.items()):
-            account_models = dict(models)
-            for model_name, until in account_models.items():
-                if until <= now:
-                    models.pop(model_name, None)
-            if not models:
-                state.quota_exhausted_until.pop(account_name, None)
-
-    def _reset_exhausted_unlocked(self, provider: str, group_id: str) -> None:
-        state = self._state.setdefault((provider, group_id), _ProviderState())
-        state.quota_exhausted_until.clear()
-        state.consecutive_quota_exhausted_errors.clear()
+        for account_name, exhausted_for_account in list(state.quota_exhausted_at.items()):
+            for exhausted_key, exhausted_at in list(exhausted_for_account.items()):
+                reference_model = None if exhausted_key == PROVIDER_QUOTA_SENTINEL else exhausted_key
+                if not self._is_exhausted_key(cfg, exhausted_key, exhausted_at, reference_model):
+                    exhausted_for_account.pop(exhausted_key, None)
+            if not exhausted_for_account:
+                state.quota_exhausted_at.pop(account_name, None)
 
     def _quota_reset_timestamp(
         self,
@@ -562,13 +582,29 @@ class QuotaAccountRouter:
     ) -> float:
         reset_time = cfg.model_quota_resets.get(model or "") or cfg.model_quota_resets.get("default", "00:00:00")
         days, hours, minutes = _parse_period(reset_time)
-
         base = exhausted_at or datetime.now(tz=timezone.utc)
         reset_dt = base + timedelta(days=days, hours=hours, minutes=minutes)
         return reset_dt.timestamp()
 
     def _model_key(self, model: str | None) -> str:
         return model or "<unknown-model>"
+
+    def _quota_key(self, cfg: ProviderConfig, model: str | None) -> str:
+        if cfg.quota_scope == "per_provider":
+            return PROVIDER_QUOTA_SENTINEL
+        return self._model_key(model)
+
+    def _is_exhausted_key(
+        self,
+        cfg: ProviderConfig,
+        exhausted_key: str,
+        exhausted_at: datetime,
+        requested_model: str | None,
+    ) -> bool:
+        model_for_reset = requested_model
+        if exhausted_key != PROVIDER_QUOTA_SENTINEL:
+            model_for_reset = exhausted_key
+        return self._quota_reset_timestamp(cfg, model_for_reset, exhausted_at=exhausted_at) > time.time()
 
     def _normalize_provider_id(self, provider: str) -> str:
         if provider == "gemini":
@@ -598,17 +634,190 @@ class QuotaAccountRouter:
         self,
         state: _ProviderState,
         pool: list[str],
+        cfg: ProviderConfig,
         model: str | None,
     ) -> str | None:
         candidates = [
             account
             for account in pool
-            if not self._is_exhausted(state, account, model)
+            if not self._is_exhausted(state, account, cfg, model)
             and not self._is_on_cooldown(state, account)
         ]
         if not candidates:
             return None
         return random.choice(candidates)
+
+    def _ensure_pool_hydrated_unlocked(
+        self,
+        cfg: ProviderConfig,
+        state: _ProviderState,
+        pool: list[str],
+    ) -> None:
+        for account_name in pool:
+            self._hydrate_account_state_unlocked(cfg, state, account_name)
+
+    def _hydrate_account_state_unlocked(
+        self,
+        cfg: ProviderConfig,
+        state: _ProviderState,
+        account_name: str,
+    ) -> None:
+        if account_name in state.hydrated_accounts:
+            return
+
+        paths = self._state_paths(cfg.provider, account_name)
+        persisted = load_account_state(paths)
+        now = time.time()
+
+        if persisted.last_cooldown_at is not None:
+            cooldown_until = persisted.last_cooldown_at.timestamp() + cfg.rate_limit_cooldown_seconds
+            if cooldown_until > now:
+                state.cooldown_until[account_name] = cooldown_until
+
+        if persisted.quota_exhausted_at:
+            account_exhausted = state.quota_exhausted_at.setdefault(account_name, {})
+            for exhausted_key, exhausted_at in persisted.quota_exhausted_at.items():
+                if cfg.quota_scope == "per_provider" and exhausted_key != PROVIDER_QUOTA_SENTINEL:
+                    continue
+                if cfg.quota_scope == "per_model" and exhausted_key == PROVIDER_QUOTA_SENTINEL:
+                    continue
+                account_exhausted[exhausted_key] = exhausted_at
+
+        state.hydrated_accounts.add(account_name)
+
+    def _persist_account_state_unlocked(
+        self,
+        cfg: ProviderConfig,
+        state: _ProviderState,
+        account_name: str,
+        *,
+        last_used_at: datetime | None = None,
+        last_cooldown_at: datetime | None = None,
+        clear_cooldown: bool = False,
+        exhausted_key: str | None = None,
+        exhausted_at: datetime | None = None,
+    ) -> None:
+        paths = self._state_paths(cfg.provider, account_name)
+        persisted = load_account_state(paths)
+
+        if last_used_at is not None:
+            persisted.last_used_at = last_used_at
+
+        if clear_cooldown:
+            persisted.last_cooldown_at = None
+        elif last_cooldown_at is not None:
+            persisted.last_cooldown_at = last_cooldown_at
+        elif not self._is_on_cooldown(state, account_name):
+            persisted.last_cooldown_at = None
+
+        active_exhausted: dict[str, datetime] = {}
+        for key, value in state.quota_exhausted_at.get(account_name, {}).items():
+            reference_model = None if key == PROVIDER_QUOTA_SENTINEL else key
+            if self._is_exhausted_key(cfg, key, value, reference_model):
+                active_exhausted[key] = value
+        if exhausted_key is not None and exhausted_at is not None:
+            active_exhausted[exhausted_key] = exhausted_at
+        persisted.quota_exhausted_at = active_exhausted
+
+        save_account_state(paths, persisted)
+
+    def _enqueue_group_snapshot_unlocked(
+        self,
+        cfg: ProviderConfig,
+        state: _ProviderState,
+        pool: list[str],
+        group_id: str,
+        model: str | None,
+    ) -> None:
+        payload = self._build_group_snapshot_unlocked(cfg, state, pool, group_id, model)
+        write_group_quota_state(cfg.provider, group_id, payload)
+
+    def _build_group_snapshot_unlocked(
+        self,
+        cfg: ProviderConfig,
+        state: _ProviderState,
+        pool: list[str],
+        group_id: str,
+        model: str | None,
+    ) -> dict[str, object]:
+        total_accounts = len(pool)
+        cooldown_accounts = sum(1 for account in pool if self._is_on_cooldown(state, account))
+        payload: dict[str, object] = {
+            "version": 1,
+            "provider_id": cfg.provider,
+            "group_id": group_id,
+            "quota_scope": cfg.quota_scope,
+            "as_of": datetime.now(tz=timezone.utc).isoformat().replace("+00:00", "Z"),
+            "total_accounts": total_accounts,
+            "cooldown_accounts": cooldown_accounts,
+            "cooldown_ratio": 0.0 if total_accounts == 0 else cooldown_accounts / total_accounts,
+        }
+
+        if cfg.quota_scope == "per_provider":
+            exhausted_accounts = sum(
+                1 for account in pool if self._is_exhausted(state, account, cfg, model)
+            )
+            payload["provider"] = {
+                "exhausted_accounts": exhausted_accounts,
+                "not_exhausted_ratio": 0.0
+                if total_accounts == 0
+                else (total_accounts - exhausted_accounts) / total_accounts,
+            }
+            return payload
+
+        models = self._snapshot_models(cfg, state, group_id, model)
+        payload["models"] = {
+            model_name: {
+                "exhausted_accounts": sum(
+                    1
+                    for account in pool
+                    if self._is_exhausted(state, account, cfg, model_name)
+                ),
+                "not_exhausted_ratio": 0.0
+                if total_accounts == 0
+                else (
+                    total_accounts
+                    - sum(
+                        1
+                        for account in pool
+                        if self._is_exhausted(state, account, cfg, model_name)
+                    )
+                )
+                / total_accounts,
+            }
+            for model_name in models
+        }
+        return payload
+
+    def _snapshot_models(
+        self,
+        cfg: ProviderConfig,
+        state: _ProviderState,
+        group_id: str,
+        model: str | None,
+    ) -> list[str]:
+        ordered: list[str] = []
+
+        def add(candidate: str | None) -> None:
+            if not candidate or candidate == PROVIDER_QUOTA_SENTINEL:
+                return
+            if candidate not in ordered:
+                ordered.append(candidate)
+
+        group = cfg.groups.get(group_id)
+        if group is not None:
+            for group_model in group.models:
+                add(group_model)
+        add(model)
+        for configured_model in cfg.model_quota_resets:
+            if configured_model != "default":
+                add(configured_model)
+        for exhausted_for_account in state.quota_exhausted_at.values():
+            for exhausted_key in exhausted_for_account:
+                add(exhausted_key)
+        if not ordered:
+            add(self._model_key(model))
+        return ordered
 
     def _load_provider_config(self, provider: str) -> ProviderConfig:
         provider = self._normalize_provider_id(provider)
@@ -650,6 +859,12 @@ class QuotaAccountRouter:
         model_quota_resets = self._validate_model_quota_resets(model_quota_resets, file_path)
         if "default" not in model_quota_resets:
             raise AccountRouterError(f"model_quota_resets must include 'default' in {file_path}")
+
+        quota_scope = str(payload.get("quota_scope", "per_model"))
+        if quota_scope not in {"per_model", "per_provider"}:
+            raise AccountRouterError(
+                f"Invalid quota_scope '{quota_scope}' in {file_path}. Allowed: per_model|per_provider"
+            )
 
         accounts_payload = payload.get("accounts") or {}
         if not isinstance(accounts_payload, dict):
@@ -720,6 +935,7 @@ class QuotaAccountRouter:
             random_order=random_order,
             rotate_after_n_successes=rotate_after_n_successes,
             model_quota_resets={str(k): str(v) for k, v in model_quota_resets.items()},
+            quota_scope=quota_scope,
             groups=groups,
         )
 
@@ -747,9 +963,7 @@ class QuotaAccountRouter:
     def _require_account(self, cfg: ProviderConfig, account_name: str) -> BaseAccount:
         account = cfg.accounts.get(account_name)
         if account is None:
-            raise AccountRouterError(
-                f"Account '{account_name}' is not declared in accounts section"
-            )
+            raise AccountRouterError(f"Account '{account_name}' is not declared in accounts section")
         return account
 
     def _config_path_for_provider(self, provider: str) -> Path:
@@ -759,34 +973,12 @@ class QuotaAccountRouter:
             return Path(QWEN_ACCOUNTS_CONFIG_PATH)
         raise AccountRouterError(f"Unsupported provider: {provider}")
 
-    def _persist_quota_exhausted_at(
-        self,
-        cfg: ProviderConfig,
-        account_name: str,
-        model: str | None,
-        exhausted_at: datetime,
-    ) -> None:
-        if model is None:
-            return
-        paths = AccountStatePaths(provider_id=cfg.provider, account_name=account_name, root_dir=Path("."))
-        save_quota_exhausted_at(paths, model, exhausted_at)
-
-    def _hydrate_exhausted_state(
-        self,
-        cfg: ProviderConfig,
-        state: _ProviderState,
-        account_name: str,
-        model: str | None,
-    ) -> None:
-        if model is None:
-            return
-        paths = AccountStatePaths(provider_id=cfg.provider, account_name=account_name, root_dir=Path("."))
-        exhausted_at = load_quota_exhausted_at(paths, model)
-        if exhausted_at is None:
-            return
-        until = self._quota_reset_timestamp(cfg, model, exhausted_at=exhausted_at)
-        exhausted_for_model = state.quota_exhausted_until.setdefault(account_name, {})
-        exhausted_for_model[self._model_key(model)] = until
+    def _state_paths(self, provider_id: str, account_name: str) -> AccountStatePaths:
+        return AccountStatePaths(
+            provider_id=provider_id,
+            account_name=account_name,
+            root_dir=Path(STATE_DIR),
+        )
 
 
 def _parse_period(value: str, file_path: Path | None = None) -> tuple[int, int, int]:
