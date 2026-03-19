@@ -93,18 +93,62 @@ Quota groups (URL-prefix вариант B):
 - при фиксации quota-exhausted запоминаем момент `quota_exhausted_at`;
 - до истечения `quota_exhausted_at + model_quota_resets[model|default]` аккаунт считается exhausted для модели.
 
+Дополнительно provider-config поддерживает `quota_scope`:
+- `per_model` — exhausted считается отдельно по каждой модели;
+- `per_provider` — exhausted считается общим для провайдера, persisted ключ = `__provider__`.
+
+На время rollout отсутствие `quota_scope` интерпретируется как `per_model`, но в канонических config-файлах поле следует указывать явно.
+
 Канон: [`docs/architecture/quota-reset-periods-and-account-state.md`](docs/architecture/quota-reset-periods-and-account-state.md:1).
 
 ### Persisted runtime state (last_used + quota_exhausted)
 Runtime state не хранится в provider-config.
 
-Файлы состояния:
-- `secrets/<provider_id>/state/<account>/last_used_at.json`
-- `secrets/<provider_id>/state/<account>/quota_exhausted/<model>.json`
+С 2026-03-18 вводится отдельный runtime state контур, чтобы:
+
+- persisted state переживал рестарт;
+- state-файлы можно было хранить на HDD (много перезаписей), а `secrets/` оставались на SSD.
+
+Канон (архитектура):
+
+- [`docs/architecture/quota-group-state-snapshot-and-state-dir.md`](docs/architecture/quota-group-state-snapshot-and-state-dir.md:1)
+
+Ключевая env-переменная:
+
+- `STATE_DIR` — директория, где храним все state-файлы; optional, default `/app/state`.
+- `STATE_FLUSH_INTERVAL_SECONDS` — интервал periodic flush async writer; default `3`.
+- `STATE_WRITER_MAX_PENDING_FILES` — лимит уникальных dirty paths в coalesce map; default `1024`.
+
+Layout:
+
+```
+<STATE_DIR>/
+  <provider_id>/
+    accounts/
+      <account_name>/
+        account_state.json
+    groups/
+      <group_id>/
+        quota_state.json
+```
+
+`account_state.json` (per-account) содержит:
+
+- `last_used_at`
+- `cooldown.last_cooldown_at`
+- `quota_exhausted.keys` (по моделям или по ключу `__provider__`)
+
+Важно:
+
+- чистый `select_account()` не должен обновлять `last_used_at`; это поле меняется на успешном request-path;
+- если provider не объявляет `groups`, runtime использует дефолтную логическую группу `g0`.
+
+`quota_state.json` (per provider-group snapshot) — файл мониторинга для администратора (только числа/доли).
 
 Контракты:
-- [`docs/contracts/state/account-last-used.schema.json`](docs/contracts/state/account-last-used.schema.json:1)
-- [`docs/contracts/state/account-quota-exhausted.schema.json`](docs/contracts/state/account-quota-exhausted.schema.json:1)
+
+- [`docs/contracts/state/account-state.schema.json`](docs/contracts/state/account-state.schema.json:1)
+- [`docs/contracts/state/group-quota-state.schema.json`](docs/contracts/state/group-quota-state.schema.json:1)
 
 ### Qwen token refresh policy
 Qwen refresh выполняется:
@@ -118,6 +162,10 @@ Qwen refresh выполняется:
 - если все аккаунты исчерпали quota для модели, прокси возвращает `all_accounts_exceed_quota`.
 
 Нормативный формат `429` ошибок закреплен в [`docs/contracts/api/openai/errors/429-error.schema.json`](contracts/api/openai/errors/429-error.schema.json).
+
+Дополнение: теория паттерна async writer (coalesce map) вынесена в:
+
+- [`docs/theory/coalesce-map.md`](docs/theory/coalesce-map.md:1)
 
 ---
 
