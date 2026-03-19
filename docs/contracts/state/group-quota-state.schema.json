@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/model-proxy/contracts/state/group-quota-state.schema.json",
+  "title": "Group quota snapshot v1",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "provider_id",
+        "group_id",
+        "quota_scope",
+        "as_of",
+        "total_accounts",
+        "cooldown_accounts",
+        "cooldown_ratio",
+        "models"
+      ],
+      "properties": {
+        "version": {
+          "type": "integer",
+          "const": 1
+        },
+        "provider_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "group_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "quota_scope": {
+          "type": "string",
+          "const": "per_model"
+        },
+        "as_of": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "total_accounts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cooldown_accounts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cooldown_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "models": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["exhausted_accounts", "not_exhausted_ratio"],
+            "properties": {
+              "exhausted_accounts": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "not_exhausted_ratio": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "provider_id",
+        "group_id",
+        "quota_scope",
+        "as_of",
+        "total_accounts",
+        "cooldown_accounts",
+        "cooldown_ratio",
+        "provider"
+      ],
+      "properties": {
+        "version": {
+          "type": "integer",
+          "const": 1
+        },
+        "provider_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "group_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "quota_scope": {
+          "type": "string",
+          "const": "per_provider"
+        },
+        "as_of": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "total_accounts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cooldown_accounts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cooldown_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "provider": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["exhausted_accounts", "not_exhausted_ratio"],
+          "properties": {
+            "exhausted_accounts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "not_exhausted_ratio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/model-proxy/contracts/state/account-state.schema.json",
+  "title": "Account state v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "last_used_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cooldown": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "last_cooldown_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "quota_exhausted": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "keys": {
+          "type": "object",
+          "description": "Mapping model key -> quota_exhausted_at. For per_provider scope the only key is '__provider__'.",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}
