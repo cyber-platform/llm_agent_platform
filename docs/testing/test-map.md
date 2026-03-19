@@ -11,6 +11,7 @@
 | [`proxy-routes.md`](docs/testing/suites/proxy-routes.md) | Smoke/endpoint покрытие для импорта приложения, `/v1/models`, native Gemini proxy и parity relay | [`test_refactor_p2_routes.py`](tests/test_refactor_p2_routes.py) | active |
 | [`quota-parity.md`](docs/testing/suites/quota-parity.md) | Quota payload parity с `gemini-cli` shape | [`test_quota_transport_parity.py`](tests/test_quota_transport_parity.py) | active |
 | [`quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md) | Unified quota account rotation для `gemini` и `qwen`: `single/rounding`, switch policies (random, by-N), groups isolation, group-aware `/v1/models`, all-cooldown `please wait <seconds>` | [`test_quota_account_router.py`](tests/test_quota_account_router.py), [`test_refactor_p2_routes.py`](tests/test_refactor_p2_routes.py), [`test_openai_contract.py`](tests/test_openai_contract.py) | active |
+| [`quota-state-persistence.md`](docs/testing/suites/quota-state-persistence.md) | Persisted quota state: `STATE_DIR`, `account_state.json`, group snapshot, `quota_scope` (per_model/per_provider), async writer | [`test_quota_account_router.py`](llm_agent_platform/tests/test_quota_account_router.py) | active |
 | [`config-env-and-layout.md`](docs/testing/suites/config-env-and-layout.md) | Env split `.env`/`.env.oauth` + repo layout `src/` | manual + smoke scripts | planned |
 
 ## Runbook
