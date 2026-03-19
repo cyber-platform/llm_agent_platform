@@ -3,6 +3,10 @@
 - Status: Proposed
 - Date: 2026-03-16
 
+Update:
+- 2026-03-18: унификация persisted account state в `account_state.json` + вынесение state в `STATE_DIR`.
+- 2026-03-18: `quota_scope`, group snapshot и async writer вынесены в отдельный ADR [`docs/adr/0019-state-dir-unified-account-state-and-async-writer.md`](docs/adr/0019-state-dir-unified-account-state-and-async-writer.md:1).
+
 ## Цель
 Добавить в quota-роутинг два свойства, которые переживают рестарт процесса и не требуют записи в provider accounts-config:
 
@@ -11,13 +15,19 @@
 
 ## Source of Truth (самодостаточно)
 - ADR: [`docs/adr/0018-quota-reset-periods-and-account-state.md`](docs/adr/0018-quota-reset-periods-and-account-state.md:1)
+- Extension ADR: [`docs/adr/0019-state-dir-unified-account-state-and-async-writer.md`](docs/adr/0019-state-dir-unified-account-state-and-async-writer.md:1)
 - Contracts:
   - Provider accounts-config: [`docs/contracts/config/provider-accounts-config.schema.json`](docs/contracts/config/provider-accounts-config.schema.json:1)
-  - Account last-used state: [`docs/contracts/state/account-last-used.schema.json`](docs/contracts/state/account-last-used.schema.json:1)
-  - Account quota-exhausted state: [`docs/contracts/state/account-quota-exhausted.schema.json`](docs/contracts/state/account-quota-exhausted.schema.json:1)
+  - Account state v1: [`docs/contracts/state/account-state.schema.json`](docs/contracts/state/account-state.schema.json:1)
+  - Group snapshot v1: [`docs/contracts/state/group-quota-state.schema.json`](docs/contracts/state/group-quota-state.schema.json:1)
+  - Legacy state (исторически): [`docs/contracts/state/account-last-used.schema.json`](docs/contracts/state/account-last-used.schema.json:1), [`docs/contracts/state/account-quota-exhausted.schema.json`](docs/contracts/state/account-quota-exhausted.schema.json:1)
 - Реализация (точки интеграции):
   - Router: [`services/account_router.py`](services/account_router.py:1)
   - Qwen provider: [`api/openai/providers/qwen_code.py`](api/openai/providers/qwen_code.py:1)
+
+Связанное расширение (группа snapshot + STATE_DIR + quota_scope):
+
+- [`docs/architecture/quota-group-state-snapshot-and-state-dir.md`](docs/architecture/quota-group-state-snapshot-and-state-dir.md:1)
 
 ## Breaking изменения в accounts-config
 
@@ -42,7 +52,7 @@ Legacy формат `HH:MM` **не поддерживается**.
 Причина вынесения: accounts-config должен оставаться декларативным и не переписываться конкурентными потоками.
 
 ### Layout
-Рекомендуемая структура (provider-scoped):
+Рекомендуемая структура (provider-scoped) с отдельной директрорией state:
 
 ```
 secrets/
@@ -51,34 +61,57 @@ secrets/
     accounts/
       lisa.json
       petr.json
-    state/
+
+<STATE_DIR>/
+  qwen_code/
+    accounts/
       lisa/
-        last_used_at.json
-        quota_exhausted/
-          qwen-coder-model-quota.json
+        account_state.json
       petr/
-        ...
-  gemini_cli/
-    ...
+        account_state.json
 ```
+
+Где:
+
+- `STATE_DIR` — runtime env переменная (обычно смонтирована на HDD).
+- `secrets/` остаётся источником credentials и provider-config и читается в основном при старте.
 
 ### Форматы state файлов
-1) `last_used_at.json`
+Единый файл `account_state.json`:
+
 ```json
-{"version": 1, "last_used_at": "2026-03-16T12:00:00Z"}
+{
+  "version": 1,
+  "last_used_at": "2026-03-16T12:00:00Z",
+  "cooldown": {
+    "last_cooldown_at": "2026-03-16T12:05:00Z"
+  },
+  "quota_exhausted": {
+    "keys": {
+      "gemini-3-flash-preview-quota": "2026-03-16T03:10:00Z",
+      "__provider__": "2026-03-16T03:10:00Z"
+    }
+  }
+}
 ```
 
-2) `quota_exhausted/<model>.json`
-```json
-{"version": 1, "quota_exhausted_at": "2026-03-16T03:10:00Z"}
-```
+Комментарии:
 
-Где ключ `<model>` — фактическое значение поля `model` в запросе к нашему OpenAI-compatible endpoint.
+- `cooldown.last_cooldown_at` используется для восстановления cooldown после рестарта.
+- `quota_exhausted.keys`:
+  - при `quota_scope=per_model` ключ — фактическое значение `model` из запроса.
+  - при `quota_scope=per_provider` ключ — `__provider__`.
+
+Нормативный контракт нового unified state:
+
+- [`docs/contracts/state/account-state.schema.json`](docs/contracts/state/account-state.schema.json:1)
 
 ## Семантика восстановления квоты
 Вместо «reset time-of-day», `quota_exhausted_until` вычисляется как:
 
 `quota_exhausted_until = quota_exhausted_at + period(model_quota_resets[model|default])`
+
+Где `quota_exhausted_at` берётся из `account_state.json.quota_exhausted.keys[model_key]`.
 
 ## Policy: Qwen token refresh
 Цель: не дергать refresh endpoint на каждый запрос и избежать ситуации «refresh не случился из-за свежего last_used_at».
@@ -93,4 +126,3 @@ secrets/
 ## Связь с существующей канонической архитектурой
 Это расширение дополняет текущий канон quota-роутинга:
 - [`docs/architecture/quota-account-rotation-groups-and-models.md`](docs/architecture/quota-account-rotation-groups-and-models.md:1)
-
