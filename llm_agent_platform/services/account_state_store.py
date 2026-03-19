@@ -247,7 +247,7 @@ def _write_json(file_path: Path, payload: dict[str, Any]) -> bool:
         file_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = file_path.with_suffix(file_path.suffix + ".tmp")
         with tmp_path.open("w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False)
+            json.dump(payload, f, ensure_ascii=False, indent=4)
         tmp_path.replace(file_path)
         return True
     except Exception as exc:
