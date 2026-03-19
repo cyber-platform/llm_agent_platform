@@ -12,6 +12,7 @@
     "default": "01:00:00",
     "gemini-3-flash-preview-quota": "01:00:00"
   },
+  "quota_scope": "per_model",
   "all_accounts": [
     "lisa",
     "petr"
