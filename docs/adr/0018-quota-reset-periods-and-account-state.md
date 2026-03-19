@@ -5,6 +5,7 @@
 - Related:
   - [`docs/architecture/quota-reset-periods-and-account-state.md`](docs/architecture/quota-reset-periods-and-account-state.md:1)
   - [`docs/adr/0014-stream-state-container-and-429-rotation-policy.md`](docs/adr/0014-stream-state-container-and-429-rotation-policy.md:1)
+  - [`docs/adr/0019-state-dir-unified-account-state-and-async-writer.md`](docs/adr/0019-state-dir-unified-account-state-and-async-writer.md:1)
 
 ## Контекст
 Quota-роутер сейчас:
@@ -66,3 +67,12 @@ Quota-роутер сейчас:
 - Если потребуется календарная семантика «месяц/неделя по timezone», а не дни.
 - Если появится многопроцессный режим на одной машине и потребуется строгий file-lock.
 
+## Update (2026-03-18)
+
+Persisted state контур расширен отдельным решением:
+
+- runtime state вынесен из `secrets/` в `STATE_DIR`;
+- split state layout унифицирован в `account_state.json`;
+- добавлены `quota_scope`, group snapshot `quota_state.json` и async writer semantics.
+
+Это зафиксировано в [`docs/adr/0019-state-dir-unified-account-state-and-async-writer.md`](docs/adr/0019-state-dir-unified-account-state-and-async-writer.md:1).
