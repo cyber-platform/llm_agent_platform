@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/model-proxy/contracts/config/provider-descriptor.schema.json",
+  "title": "Provider descriptor v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "provider_id",
+    "route_name",
+    "display_name",
+    "auth",
+    "transport",
+    "catalog"
+  ],
+  "$defs": {
+    "provider_model_descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_id",
+        "display_name",
+        "capabilities",
+        "lifecycle",
+        "upstream_id"
+      ],
+      "properties": {
+        "model_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Canonical public model id. Must not encode transport or billing semantics via suffixes like 'quota' or 'vertex'."
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "lifecycle": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upstream_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": true
+        }
+      }
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "provider_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "description": "Canonical provider id in kebab-case. Current approved ids include gemini-cli, google-vertex, qwen-code and openai-chatgpt."
+    },
+    "route_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "description": "Public provider route name in kebab-case. Must match provider_id; equality is enforced by runtime validation."
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "requirements"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "runtime_adapter"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime_adapter": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Runtime adapter identifier selected by orchestration layer."
+        },
+        "base_url_env": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bootstrap", "discovery", "cache"],
+      "properties": {
+        "bootstrap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["models"],
+          "properties": {
+            "models": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/provider_model_descriptor"
+              },
+              "minItems": 1
+            }
+          }
+        },
+        "discovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "strategy": {
+              "type": "string",
+              "minLength": 1
+            },
+            "refresh_hint_seconds": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "metadata": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1
+              },
+              "additionalProperties": true
+            }
+          }
+        },
+        "cache": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["snapshot_enabled"],
+          "properties": {
+            "snapshot_enabled": {
+              "type": "boolean",
+              "description": "Must be true only for discovery-capable providers. Snapshot storage path is globally defined under STATE_DIR."
+            },
+            "refresh_ttl_seconds": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "metadata": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      }
+    }
+  }
+}

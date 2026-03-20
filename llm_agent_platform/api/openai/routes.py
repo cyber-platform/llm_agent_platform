@@ -5,6 +5,7 @@ from llm_agent_platform.auth.credentials import get_auth_availability
 from llm_agent_platform.core.logging import get_logger
 from llm_agent_platform.core.utils import create_openai_error
 from llm_agent_platform.api.openai.pipeline import build_request_context, resolve_provider, resolve_strategy
+from llm_agent_platform.services.provider_registry import get_provider_registry
 from llm_agent_platform.api.openai.types import UpstreamPreparationError
 from llm_agent_platform.services.account_router import AccountRouterError, quota_account_router
 
@@ -62,29 +63,6 @@ def list_models(group_id: str | None = None):
     models = _resolve_group_models(group_id)
     if models is None:
         availability = get_auth_availability()
-        models = []
-        if availability.gemini_quota:
-            models.extend([
-                "gemini-3.1-pro-preview-quota",
-                "gemini-3-flash-preview-quota",
-                "gemini-2.5-pro-quota",
-                "gemini-2.5-flash-quota",
-                "gemini-2.5-flash-lite-quota",
-            ])
-
-        if availability.qwen_quota:
-            models.append("qwen-coder-model-quota")
-
-        if availability.vertex:
-            models.extend([
-                "gemini-3.1-pro-preview-vertex",
-                "gemini-3-flash-preview-vertex",
-                "gemini-2.5-pro-vertex",
-                "gemini-2.5-flash-vertex",
-                "gemini-2.5-flash-lite-vertex",
-                "gemini-3-pro-image-vertex",
-                "gemini-2.5-flash-image-vertex",
-                "nano-banana",
-            ])
+        models = get_provider_registry().list_models_for_availability(availability)
 
     return json.dumps({"data": [{"id": m, "object": "model"} for m in models]})

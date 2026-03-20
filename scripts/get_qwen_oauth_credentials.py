@@ -19,6 +19,10 @@ if __package__ is None or __package__ == "":
     project_root = Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
+    # Добавляем llm_agent_platform для импорта модулей из этого пакета
+    llm_agent_platform_path = project_root / "llm_agent_platform"
+    if str(llm_agent_platform_path) not in sys.path:
+        sys.path.insert(0, str(llm_agent_platform_path))
 
 
 def _load_dotenv(project_root: Path) -> None:
@@ -43,7 +47,7 @@ def _load_dotenv(project_root: Path) -> None:
 if __package__ is None or __package__ == "":
     _load_dotenv(project_root)
 
-from auth.qwen_oauth import (
+from llm_agent_platform.auth.qwen_oauth import (
     QwenOAuthError,
     generate_pkce_pair,
     normalize_qwen_credentials,

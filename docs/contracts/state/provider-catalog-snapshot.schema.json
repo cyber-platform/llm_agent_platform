@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/model-proxy/contracts/state/provider-catalog-snapshot.schema.json",
+  "title": "Provider catalog snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "provider_id",
+    "as_of",
+    "source",
+    "models"
+  ],
+  "$defs": {
+    "provider_model_descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_id",
+        "display_name",
+        "capabilities",
+        "lifecycle",
+        "upstream_id"
+      ],
+      "properties": {
+        "model_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Canonical public model id. Must not encode transport or billing semantics via suffixes like 'quota' or 'vertex'."
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "lifecycle": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upstream_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": true
+        }
+      }
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "provider_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "description": "Canonical provider id in kebab-case. Snapshot files are persisted only for discovery-capable providers."
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the local snapshot was assembled and written."
+    },
+    "source": {
+      "type": "string",
+      "enum": ["bootstrap", "discovery"]
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/provider_model_descriptor"
+      },
+      "minItems": 1
+    }
+  }
+}

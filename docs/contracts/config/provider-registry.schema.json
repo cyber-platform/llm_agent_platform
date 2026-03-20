@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/model-proxy/contracts/config/provider-registry.schema.json",
+  "title": "Provider registry v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "providers"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "providers": {
+      "type": "array",
+      "description": "Registered providers. provider_id uniqueness and route_name uniqueness are enforced by registry validation logic.",
+      "items": {
+        "$ref": "./provider-descriptor.schema.json"
+      },
+      "minItems": 1
+    }
+  }
+}

@@ -207,8 +207,8 @@ class RefactorP2RoutesTests(unittest.TestCase):
                 payload = json.loads(response.data.decode("utf-8"))
                 model_ids = {item["id"] for item in payload["data"]}
 
-                self.assertIn("gemini-3-flash-preview-quota", model_ids)
-                self.assertIn("qwen-coder-model-quota", model_ids)
+                self.assertIn("gemini-3-flash-preview", model_ids)
+                self.assertIn("coder-model", model_ids)
 
     def test_group_aware_models_endpoint(self):
         with _secrets_test_dir() as tmp_dir:

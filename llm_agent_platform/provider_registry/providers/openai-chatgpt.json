@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "provider_id": "openai-chatgpt",
+  "route_name": "openai-chatgpt",
+  "display_name": "OpenAI ChatGPT",
+  "auth": {
+    "kind": "openai-api-key",
+    "requirements": ["api_key"]
+  },
+  "transport": {
+    "kind": "openai-compatible",
+    "runtime_adapter": "openai_chatgpt"
+  },
+  "catalog": {
+    "bootstrap": {
+      "models": [
+        {
+          "model_id": "gpt-4.1",
+          "display_name": "GPT-4.1",
+          "capabilities": ["chat", "streaming", "tools"],
+          "lifecycle": "ga",
+          "upstream_id": "gpt-4.1"
+        },
+        {
+          "model_id": "gpt-4o-mini",
+          "display_name": "GPT-4o mini",
+          "capabilities": ["chat", "streaming", "tools"],
+          "lifecycle": "ga",
+          "upstream_id": "gpt-4o-mini"
+        }
+      ]
+    },
+    "discovery": {
+      "enabled": true,
+      "strategy": "openai-models-list"
+    },
+    "cache": {
+      "snapshot_enabled": true
+    }
+  }
+}
