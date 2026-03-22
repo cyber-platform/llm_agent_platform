@@ -6,7 +6,7 @@
 
 ## Контекст
 
-В stream контуре [`chat_completions()`](../api/openai/routes.py) и [`gemini_proxy()`](../api/gemini/routes.py) возникли скрытые мутации состояния при переключении аккаунтов в nested-функциях. Подход с неявным захватом переменных повышает риск ошибок области видимости и усложняет тестирование.
+В stream контуре [`chat_completions()`](llm_agent_platform/api/openai/routes.py:1) и [`gemini_proxy()`](llm_agent_platform/api/gemini/routes.py:1) возникли скрытые мутации состояния при переключении аккаунтов в nested-функциях. Подход с неявным захватом переменных повышает риск ошибок области видимости и усложняет тестирование.
 
 Параллельно принято архитектурное решение разделить класс `429` на семантические категории:
 - `rate_limit`
@@ -55,7 +55,7 @@ Decision rule:
 ### Нормативный контракт 429
 
 Нормативный формат payload для кодов `all_accounts_on_cooldown` и `all_accounts_exceed_quota` зафиксирован в contract-first артефакте:
-- [`docs/contracts/api/openai/errors/429-error.schema.json`](../contracts/api/openai/errors/429-error.schema.json)
+- [`docs/contracts/api/openai/errors/429-error.schema.json`](docs/contracts/api/openai/errors/429-error.schema.json:1)
 
 ## Альтернативы
 

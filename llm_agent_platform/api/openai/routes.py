@@ -1,25 +1,26 @@
 import json
 from flask import Blueprint, Response, stream_with_context
 
-from llm_agent_platform.auth.credentials import get_auth_availability
 from llm_agent_platform.core.logging import get_logger
 from llm_agent_platform.core.utils import create_openai_error
-from llm_agent_platform.api.openai.pipeline import build_request_context, resolve_provider, resolve_strategy
+from llm_agent_platform.api.openai.pipeline import (
+    build_request_context,
+    resolve_provider,
+    resolve_route_provider,
+    resolve_strategy,
+)
 from llm_agent_platform.services.provider_registry import get_provider_registry
 from llm_agent_platform.api.openai.types import UpstreamPreparationError
-from llm_agent_platform.services.account_router import AccountRouterError, quota_account_router
 
 openai_bp = Blueprint('openai', __name__)
 logger = get_logger(__name__)
 
 
-@openai_bp.route('/v1/chat/completions', methods=['POST'])
-@openai_bp.route('/<group_id>/v1/chat/completions', methods=['POST'])
-def chat_completions(group_id: str | None = None):
+@openai_bp.route('/<provider_name>/v1/chat/completions', methods=['POST'])
+@openai_bp.route('/<provider_name>/<group_name>/v1/chat/completions', methods=['POST'])
+def chat_completions(provider_name: str, group_name: str | None = None):
     try:
-        request_ctx = build_request_context()
-        if group_id is not None:
-            request_ctx.group_id = group_id
+        request_ctx = build_request_context(provider_name, group_name)
         provider = resolve_provider(request_ctx)
         strategy = resolve_strategy(request_ctx)
 
@@ -37,32 +38,21 @@ def chat_completions(group_id: str | None = None):
         logger.exception("[ERROR] Internal Gateway Error in chat_completions")
         return create_openai_error(f"Internal Gateway Error: {str(e)}", "internal_error", 500), 500
 
-def _resolve_group_models(group_id: str) -> list[str] | None:
-    models: list[str] = []
-    group_config_present = False
-    for provider in ("gemini_cli", "qwen_code"):
-        try:
-            cfg = quota_account_router._load_provider_config(provider)
-        except AccountRouterError:
-            continue
-        if cfg.groups:
-            group_config_present = True
-            group = cfg.groups.get(group_id)
-            if group and group.models:
-                models.extend(group.models)
 
-    if group_config_present:
-        return models
-    return None
+def _serialize_models(model_ids: list[str]) -> str:
+    return json.dumps({"data": [{"id": model_id, "object": "model"} for model_id in model_ids]})
 
 
-@openai_bp.route('/v1/models', methods=['GET'])
-@openai_bp.route('/<group_id>/v1/models', methods=['GET'])
-def list_models(group_id: str | None = None):
-    group_id = group_id or "g0"
-    models = _resolve_group_models(group_id)
-    if models is None:
-        availability = get_auth_availability()
-        models = get_provider_registry().list_models_for_availability(availability)
-
-    return json.dumps({"data": [{"id": m, "object": "model"} for m in models]})
+@openai_bp.route('/<provider_name>/v1/models', methods=['GET'])
+@openai_bp.route('/<provider_name>/<group_name>/v1/models', methods=['GET'])
+def list_models(provider_name: str, group_name: str | None = None):
+    try:
+        provider, _resolved_group_id, allowed_model_ids = resolve_route_provider(provider_name, group_name)
+        catalog = get_provider_registry().load_catalog(provider.provider_id)
+        models = [model.model_id for model in catalog.models]
+        if allowed_model_ids is not None:
+            allowed = set(allowed_model_ids)
+            models = [model_id for model_id in models if model_id in allowed]
+        return _serialize_models(models)
+    except UpstreamPreparationError as prep_error:
+        return create_openai_error(prep_error.message, prep_error.error_type, prep_error.status_code), prep_error.status_code

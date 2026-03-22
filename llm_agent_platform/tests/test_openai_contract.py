@@ -222,9 +222,9 @@ class OpenAIContractTests(unittest.TestCase):
             self._write_json(gemini_path, gemini_cfg)
             with self._patched_paths(tmp_dir, gemini_path=gemini_path, qwen_path=gemini_path):
                 response = self.client.post(
-                    "/v1/chat/completions",
+                    "/gemini-cli/v1/chat/completions",
                     json={
-                        "model": "gemini-3-flash-preview-quota",
+                        "model": "gemini-3-flash-preview",
                         "messages": [{"role": "user", "content": "hello"}],
                         "stream": False,
                     },
@@ -260,9 +260,9 @@ class OpenAIContractTests(unittest.TestCase):
             self._write_json(gemini_path, gemini_cfg)
             with self._patched_paths(tmp_dir, gemini_path=gemini_path, qwen_path=gemini_path):
                 response = self.client.post(
-                    "/v1/chat/completions",
+                    "/gemini-cli/v1/chat/completions",
                     json={
-                        "model": "gemini-3-flash-preview-quota",
+                        "model": "gemini-3-flash-preview",
                         "messages": [{"role": "user", "content": "hello"}],
                         "stream": True,
                         "stream_options": {"include_usage": True},
@@ -303,9 +303,9 @@ class OpenAIContractTests(unittest.TestCase):
             self._write_json(gemini_path, gemini_cfg)
             with self._patched_paths(tmp_dir, gemini_path=gemini_path, qwen_path=gemini_path):
                 response = self.client.post(
-                    "/v1/chat/completions",
+                    "/gemini-cli/v1/chat/completions",
                     json={
-                        "model": "gemini-3-flash-preview-quota",
+                        "model": "gemini-3-flash-preview",
                         "messages": [{"role": "user", "content": "ping"}],
                         "stream": False,
                     },
@@ -370,9 +370,9 @@ class OpenAIContractTests(unittest.TestCase):
             self._write_json(gemini_path, gemini_cfg)
             with self._patched_paths(tmp_dir, gemini_path=gemini_path, qwen_path=gemini_path):
                 response = self.client.post(
-                    "/v1/chat/completions",
+                    "/gemini-cli/v1/chat/completions",
                     json={
-                        "model": "gemini-3-flash-preview-quota",
+                        "model": "gemini-3-flash-preview",
                         "messages": [{"role": "user", "content": "hello"}],
                         "stream": False,
                     },
@@ -398,9 +398,9 @@ class OpenAIContractTests(unittest.TestCase):
             self._write_json(gemini_path, gemini_cfg)
             with self._patched_paths(tmp_dir, gemini_path=gemini_path, qwen_path=gemini_path):
                 response = self.client.post(
-                    "/v1/chat/completions",
+                    "/gemini-cli/v1/chat/completions",
                     json={
-                        "model": "gemini-3-flash-preview-quota",
+                        "model": "gemini-3-flash-preview",
                         "messages": [{"role": "user", "content": "ping"}],
                         "stream": False,
                     },
@@ -469,9 +469,9 @@ class OpenAIContractTests(unittest.TestCase):
             self._write_json(qwen_path, qwen_cfg)
             with self._patched_paths(tmp_dir, qwen_path=qwen_path, gemini_path=qwen_path):
                 response = self.client.post(
-                    "/v1/chat/completions",
+                    "/qwen-code/v1/chat/completions",
                     json={
-                        "model": "qwen-coder-model-quota",
+                        "model": "coder-model",
                         "messages": [{"role": "user", "content": "hello"}],
                         "stream": True,
                         "stream_options": {"include_usage": True},
@@ -529,9 +529,9 @@ class OpenAIContractTests(unittest.TestCase):
             self._write_json(qwen_path, qwen_cfg)
             with self._patched_paths(tmp_dir, qwen_path=qwen_path, gemini_path=qwen_path):
                 response = self.client.post(
-                    "/v1/chat/completions",
+                    "/qwen-code/v1/chat/completions",
                     json={
-                        "model": "qwen-coder-model-quota",
+                        "model": "coder-model",
                         "messages": [{"role": "user", "content": "hello"}],
                         "stream": True,
                     },
@@ -592,9 +592,9 @@ class OpenAIContractTests(unittest.TestCase):
             self._write_json(qwen_path, qwen_cfg)
             with self._patched_paths(tmp_dir, qwen_path=qwen_path, gemini_path=qwen_path):
                 response = self.client.post(
-                    "/v1/chat/completions",
+                    "/qwen-code/v1/chat/completions",
                     json={
-                        "model": "qwen-coder-model-quota",
+                        "model": "coder-model",
                         "messages": [{"role": "user", "content": "hello"}],
                         "stream": False,
                     },
@@ -602,6 +602,6 @@ class OpenAIContractTests(unittest.TestCase):
 
                 self.assertEqual(response.status_code, 200)
                 payload = json.loads(response.data.decode("utf-8"))
-        self.assertEqual(payload["model"], "qwen-coder-model-quota")
+        self.assertEqual(payload["model"], "coder-model")
         self.assertEqual(mock_send_generate.call_count, 2)
         self.assertEqual(mock_refresh.call_count, 1)

@@ -22,8 +22,8 @@ Update:
   - Group snapshot v1: [`docs/contracts/state/group-quota-state.schema.json`](docs/contracts/state/group-quota-state.schema.json:1)
   - Legacy state (исторически): [`docs/contracts/state/account-last-used.schema.json`](docs/contracts/state/account-last-used.schema.json:1), [`docs/contracts/state/account-quota-exhausted.schema.json`](docs/contracts/state/account-quota-exhausted.schema.json:1)
 - Реализация (точки интеграции):
-  - Router: [`services/account_router.py`](services/account_router.py:1)
-  - Qwen provider: [`api/openai/providers/qwen_code.py`](api/openai/providers/qwen_code.py:1)
+  - Router: [`llm_agent_platform/services/account_router.py`](llm_agent_platform/services/account_router.py:1)
+  - Qwen provider: [`llm_agent_platform/api/openai/providers/qwen_code.py`](llm_agent_platform/api/openai/providers/qwen_code.py:1)
 
 Связанное расширение (группа snapshot + STATE_DIR + quota_scope):
 

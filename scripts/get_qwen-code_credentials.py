@@ -13,8 +13,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Позволяет запускать скрипт напрямую: `python scripts/get_qwen_oauth_credentials.py`
-# и `uv run scripts/get_qwen_oauth_credentials.py`.
+# Позволяет запускать скрипт напрямую: `python scripts/get_qwen-code_credentials.py`
+# и `uv run scripts/get_qwen-code_credentials.py`.
 if __package__ is None or __package__ == "":
     project_root = Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:

@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/model-proxy/contracts/state/openai-chatgpt-usage-limits.schema.json",
+  "title": "OpenAI ChatGPT usage limits state v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "provider_id",
+    "as_of",
+    "limits"
+  ],
+  "$defs": {
+    "limit_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "used_percent"
+      ],
+      "properties": {
+        "used_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "reset_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "window": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": true
+        }
+      }
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "provider_id": {
+      "type": "string",
+      "const": "openai-chatgpt"
+    },
+    "account_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional best-effort account identifier for provider-specific observability and correlation when available."
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "limits": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/limit_entry"
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": true,
+      "description": "Foundation contract only. Exact WHAM/OpenAI Codex payload mapping is deferred to the research task."
+    }
+  }
+}

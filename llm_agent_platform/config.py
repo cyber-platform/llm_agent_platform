@@ -45,13 +45,21 @@ USER_QWEN_CREDS_PATH = _env_str(
     "USER_QWEN_CREDS_PATH",
     "secrets/user_qwen_credentials.json",
 )
+USER_OPENAI_CHATGPT_CREDS_PATH = _env_str(
+    "USER_OPENAI_CHATGPT_CREDS_PATH",
+    f"{STATE_DIR}/openai-chatgpt/auth/oauth-account.json",
+)
 GEMINI_ACCOUNTS_CONFIG_PATH = _env_str(
     "GEMINI_ACCOUNTS_CONFIG_PATH",
-    "secrets/gemini_cli/accounts_config.json",
+    "secrets/gemini-cli/accounts_config.json",
 )
 QWEN_ACCOUNTS_CONFIG_PATH = _env_str(
     "QWEN_ACCOUNTS_CONFIG_PATH",
     "secrets/qwen_code/accounts_config.json",
+)
+OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH = _env_str(
+    "OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH",
+    "secrets/openai-chatgpt/accounts_config.json",
 )
 SERVICE_ACCOUNT_PATH = _env_str("SERVICE_ACCOUNT_PATH", "secrets/service_account.json")
 
@@ -86,3 +94,57 @@ QWEN_QUOTA_MODELS = [
     for model in _env_str("QWEN_QUOTA_MODELS", "qwen-coder-model-quota").split(",")
     if model.strip()
 ]
+
+# --- OpenAI ChatGPT discovery foundation ---
+OPENAI_CHATGPT_DISCOVERY_BASE_URL = _env_str("OPENAI_CHATGPT_DISCOVERY_BASE_URL")
+
+# --- OpenAI ChatGPT OAuth / runtime constants ---
+OPENAI_CHATGPT_OAUTH_CLIENT_ID = _env_str("OPENAI_CHATGPT_OAUTH_CLIENT_ID")
+OPENAI_CHATGPT_OAUTH_SCOPE = _env_str(
+    "OPENAI_CHATGPT_OAUTH_SCOPE",
+    "openid profile email offline_access",
+)
+OPENAI_CHATGPT_OAUTH_AUTHORIZE_ENDPOINT = _env_str(
+    "OPENAI_CHATGPT_OAUTH_AUTHORIZE_ENDPOINT",
+    "https://auth.openai.com/oauth/authorize",
+)
+OPENAI_CHATGPT_OAUTH_TOKEN_ENDPOINT = _env_str(
+    "OPENAI_CHATGPT_OAUTH_TOKEN_ENDPOINT",
+    "https://auth.openai.com/oauth/token",
+)
+OPENAI_CHATGPT_OAUTH_CALLBACK_HOST = _env_str(
+    "OPENAI_CHATGPT_OAUTH_CALLBACK_HOST",
+    "localhost",
+)
+OPENAI_CHATGPT_OAUTH_CALLBACK_PORT = _env_int(
+    "OPENAI_CHATGPT_OAUTH_CALLBACK_PORT",
+    "1455",
+)
+OPENAI_CHATGPT_OAUTH_CALLBACK_PATH = _env_str(
+    "OPENAI_CHATGPT_OAUTH_CALLBACK_PATH",
+    "/auth/callback",
+)
+OPENAI_CHATGPT_USER_AGENT = _env_str(
+    "OPENAI_CHATGPT_USER_AGENT",
+    "kilo-code",
+)
+OPENAI_CHATGPT_ORIGINATOR = _env_str(
+    "OPENAI_CHATGPT_ORIGINATOR",
+    "kilo-code",
+)
+OPENAI_CHATGPT_BACKEND_BASE_URL = _env_str(
+    "OPENAI_CHATGPT_BACKEND_BASE_URL",
+    "https://chatgpt.com/backend-api/codex",
+)
+OPENAI_CHATGPT_RESPONSES_PATH = _env_str(
+    "OPENAI_CHATGPT_RESPONSES_PATH",
+    "/responses",
+)
+OPENAI_CHATGPT_USAGE_URL = _env_str(
+    "OPENAI_CHATGPT_USAGE_URL",
+    "https://chatgpt.com/backend-api/wham/usage",
+)
+OPENAI_CHATGPT_REFRESH_BUFFER_SECONDS = _env_int(
+    "OPENAI_CHATGPT_REFRESH_BUFFER_SECONDS",
+    "300",
+)

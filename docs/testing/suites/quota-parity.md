@@ -8,12 +8,12 @@
 ## Requirement Traceability
 - Requirement: strict parity outbound к контракту `gemini-cli`.
 - Canonical references:
-  - Parity relay endpoint: [`api/parity/routes.py`](api/parity/routes.py:1)
+  - Parity relay endpoint: [`llm_agent_platform/api/parity/routes.py`](llm_agent_platform/api/parity/routes.py:1)
   - Test map: [`docs/testing/test-map.md`](docs/testing/test-map.md:1)
 - Scripts:
-  - [`test_quota_transport_parity.py`](tests/test_quota_transport_parity.py)
-  - [`golden_cli_generate_request.json`](tests/fixtures/parity/golden_cli_generate_request.json)
-  - [`golden_cli_stream_request.json`](tests/fixtures/parity/golden_cli_stream_request.json)
+  - [`llm_agent_platform/tests/test_quota_transport_parity.py`](llm_agent_platform/tests/test_quota_transport_parity.py:1)
+  - [`llm_agent_platform/tests/fixtures/parity/golden_cli_generate_request.json`](llm_agent_platform/tests/fixtures/parity/golden_cli_generate_request.json:1)
+  - [`llm_agent_platform/tests/fixtures/parity/golden_cli_stream_request.json`](llm_agent_platform/tests/fixtures/parity/golden_cli_stream_request.json:1)
 
 ## Verification Command
-- `uv run python -m unittest tests/test_quota_transport_parity.py`
+- `uv run python -m unittest llm_agent_platform/tests/test_quota_transport_parity.py`

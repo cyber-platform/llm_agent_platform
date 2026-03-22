@@ -38,11 +38,11 @@
   },
   "accounts": {
     "lisa": {
-      "credentials_path": "secrets/gemini_cli/accounts/lisa.json",
+      "credentials_path": "secrets/gemini-cli/accounts/lisa.json",
       "project_id": "my-gcp-project"
     },
     "petr": {
-      "credentials_path": "secrets/gemini_cli/accounts/petr.json",
+      "credentials_path": "secrets/gemini-cli/accounts/petr.json",
       "project_id": "my-gcp-project-2"
     }
   }

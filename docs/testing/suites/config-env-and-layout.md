@@ -1,16 +1,16 @@
-# Suite: Config env split + repo layout refactor
+# Suite: Config env split + runtime package layout
 
 ## Scope
 
-Этот suite фиксирует тест-дизайн для двух связанных изменений:
+Этот suite фиксирует тестовый контур для двух связанных архитектурных инвариантов:
 
 1) Разделение runtime env и OAuth bootstrap env.
-2) Перенос нашего кода в `src/` с оформлением runtime как пакета.
+2) Явный layout с runtime package в [`llm_agent_platform/`](llm_agent_platform:1) и local scripts в [`scripts/`](scripts:1).
 
 Связанные артефакты:
 
-- [`ADR 0015`](docs/adr/0015-env-separation-runtime-vs-oauth-bootstrap.md:1)
-- [`ADR 0016`](docs/adr/0016-codebase-layout-separate-runtime-app-and-local-scripts.md:1)
+- [`docs/adr/0015-env-separation-runtime-vs-oauth-bootstrap.md`](docs/adr/0015-env-separation-runtime-vs-oauth-bootstrap.md:1)
+- [`docs/adr/0016-codebase-layout-separate-runtime-app-and-local-scripts.md`](docs/adr/0016-codebase-layout-separate-runtime-app-and-local-scripts.md:1)
 - Политика env: [`docs/configuration/env-files.md`](docs/configuration/env-files.md:1)
 - Runtime инъекция env: [`docker-compose.yml`](docker-compose.yml:1)
 
@@ -18,16 +18,16 @@
 
 ### Env split
 
-- Локальные OAuth скрипты **должны** загружать [`.env`](.env:1) и [`.env.oauth`](.env.oauth:1) до импорта [`config.py`](config.py:1).
+- Локальные OAuth скрипты **должны** загружать [`.env`](.env:1) и [`.env.oauth`](.env.oauth:1) до импорта [`llm_agent_platform/config.py`](llm_agent_platform/config.py:1).
 - Bootstrap ключи **не должны** попадать в контейнер автоматически.
 - Runtime ключи **должны** инъектироваться **явно** через [`docker-compose.yml`](docker-compose.yml:1) и быть задокументированы в [`.env.example`](.env.example:1).
 
 ### Repo layout
 
-- Целевое состояние:
-  - runtime приложение оформлено как модуль и запускается через `uv run python -m model_proxy`.
-  - runtime код расположен в `src/model_proxy/`, локальные скрипты — в `src/scripts/`.
-  - после переноса в `src/` тесты продолжают проходить.
+- Целевое и текущее canonical состояние:
+  - runtime приложение оформлено как пакет [`llm_agent_platform/`](llm_agent_platform:1) и запускается через [`llm_agent_platform/__main__.py`](llm_agent_platform/__main__.py:1);
+  - runtime код расположен в [`llm_agent_platform/`](llm_agent_platform:1), локальные скрипты — в [`scripts/`](scripts:1);
+  - документация, команды запуска и smoke verification должны ссылаться на фактический layout проекта.
 
 ## Test Cases (Given / When / Then)
 
@@ -35,25 +35,25 @@
 
 Given:
 - существует [`.env`](.env:1)
-- существует [`.env.oauth`](.env.oauth:1) с ключами для [`GEMINI_CLI_CLIENT_ID`](config.py:40) и [`GEMINI_CLI_CLIENT_SECRET`](config.py:41)
+- существует [`.env.oauth`](.env.oauth:1) с ключами для [`Config.GEMINI_CLI_CLIENT_ID`](llm_agent_platform/config.py:50) и [`Config.GEMINI_CLI_CLIENT_SECRET`](llm_agent_platform/config.py:51)
 
 When:
-- запускаем локально `uv run python src/scripts/get_oauth_credentials.py`
+- запускаем локально `uv run python scripts/get_gemini-cli_credentials.py`
 
 Then:
 - скрипт не падает на проверках `client_id/client_secret`
-- создается `secrets/gemini_cli/user_credentials.json`
+- создается `secrets/gemini-cli/user_credentials.json`
 
 ### TC-002 (L2): Local Qwen OAuth script loads `.env` + `.env.oauth`
 
 Given:
-- существует [`.env.oauth`](.env.oauth:1) с ключом для [`QWEN_OAUTH_CLIENT_ID`](config.py:50)
+- существует [`.env.oauth`](.env.oauth:1) с ключом для [`Config.QWEN_OAUTH_CLIENT_ID`](llm_agent_platform/config.py:60)
 
 When:
-- запускаем локально `uv run python src/scripts/get_qwen_oauth_credentials.py`
+- запускаем локально `uv run python scripts/get_qwen-code_credentials.py`
 
 Then:
-- скрипт не падает на проверке client_id в [`auth/qwen_oauth.py`](auth/qwen_oauth.py:30)
+- скрипт не падает на проверке client_id в [`llm_agent_platform/auth/qwen_oauth.py`](llm_agent_platform/auth/qwen_oauth.py:26)
 
 ### TC-003 (L2): Container runtime env injection is explicit
 
@@ -66,7 +66,7 @@ When:
 
 Then:
 - внутри контейнера доступны все runtime ключи
-- прокси стартует и отдает `/v1/models`
+- прокси стартует и отдает provider-scoped `/models`
 
 ### TC-004 (L1/L2): No unused env keys
 
@@ -79,24 +79,24 @@ When:
 Then:
 - каждый ключ из [`.env.example`](.env.example:1) используется в коде, или явно помечен optional и задокументирован
 
-### TC-101 (L2): Entrypoint runs as module
+### TC-101 (L2): Entrypoint runs via runtime package
 
 Given:
-- код прокси перенесен в `src/model_proxy/`
+- runtime package расположен в [`llm_agent_platform/`](llm_agent_platform:1)
 
 When:
-- запускаем `uv run python -m model_proxy`
+- запускаем `uv run python -m llm_agent_platform`
 
 Then:
 - приложение поднимается и регистрирует blueprints
 
-### TC-102 (L2): Unit tests still pass after refactor
+### TC-102 (L2): Unit tests still pass with current layout
 
 Given:
-- перенос в `src/` завершен
+- runtime использует текущий package layout [`llm_agent_platform/`](llm_agent_platform:1)
 
 When:
-- запускаем `uv run python -m unittest discover -s tests -p test_*.py`
+- запускаем `uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
 
 Then:
 - тесты проходят

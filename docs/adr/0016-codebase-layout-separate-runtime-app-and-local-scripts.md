@@ -1,87 +1,80 @@
-# ADR 0016: Код-лейаут: весь код прокси в `src/` (пакет `src/model_proxy/`), локальные скрипты в `src/scripts/`
+# ADR 0016: Runtime package layout `llm_agent_platform/` + local scripts in `scripts/`
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 
-Сейчас структура workspace смешивает:
+Платформа должна иметь явные границы между:
 
-- runtime-код прокси (контейнерный процесс): [`main.py`](main.py:1), [`config.py`](config.py:1), каталоги [`api/`](api), [`auth/`](auth), [`core/`](core), [`services/`](services)
-- локальные одноразовые скрипты (bootstrap/утилиты): [`scripts/get_oauth_credentials.py`](scripts/get_oauth_credentials.py:1), [`scripts/get_qwen_oauth_credentials.py`](scripts/get_qwen_oauth_credentials.py:1)
-- внешние вложенные репозитории (upstream reference), которые мы не меняем: [`qwen-code/`](qwen-code), [`gemini-cli/`](gemini-cli)
+- runtime-кодом контейнерного приложения;
+- локальными bootstrap и utility scripts;
+- внешними nested repos, которые используются только как upstream/reference.
 
-Это усложняет:
+Ранний проектный narrative допускал перенос всего кода в `src/`, но этот вариант не является актуальным Source of Truth и не должен использоваться в active documentation.
 
-- понимание «что является нашим приложением» и что запускается в контейнере;
-- поддержку импортов (скрипты вынуждены подправлять `sys.path`, см. [`scripts/get_oauth_credentials.py`](scripts/get_oauth_credentials.py:14));
-- навигацию для LLM-агента: сложно быстро понять компоненты и где их искать;
-- контроль зависимостей и контуров конфигурации (см. [`ADR 0015`](docs/adr/0015-env-separation-runtime-vs-oauth-bootstrap.md:1)).
+Актуальный runtime layout уже сложился и используется во всей текущей архитектуре платформы:
 
-Дополнительное требование: runtime-конфигурация контейнера должна быть полностью явной (без неочевидных дефолтов и без неиспользуемых переменных).
+- runtime package: [`llm_agent_platform/`](llm_agent_platform:1)
+- local scripts: [`scripts/`](scripts:1)
+- canonical docs and contracts: [`docs/`](docs:1)
+- external nested repos: [`gemini-cli/`](gemini-cli:1), [`qwen-code/`](qwen-code:1), [`kilocode/`](kilocode:1)
+
+Это соответствует provider-centric канону и уменьшает смешение между runtime, bootstrap и reference-кодом.
 
 ## Decision
 
-Принять целевой layout, где **весь наш код** расположен в одном месте: `src/`, а внутри `src/` выделены:
+Принять фактический layout как канонический:
 
-1) `src/model_proxy/` — основной пакет прокси (внутри: `api/`, `auth/`, `core/`, `services/`, `config.py`).
-2) `src/scripts/` — локальные bootstrap/maintenance скрипты (OAuth и т.п.).
-3) Entry point для контейнера — через запуск модуля `model_proxy`.
+1. [`llm_agent_platform/`](llm_agent_platform:1) — единственный runtime package платформы.
+2. [`scripts/`](scripts:1) — локальные bootstrap/maintenance scripts, не являющиеся частью контейнерного runtime.
+3. [`docs/`](docs:1) — Source of Truth для архитектуры, contracts и testing traceability.
+4. Внешние nested repos остаются reference-only и не описываются как runtime-компоненты платформы.
 
-Внешние вложенные репозитории (например [`qwen-code/`](qwen-code)) остаются на верхнем уровне workspace как upstream reference и не смешиваются с нашим кодом.
+### Canonical layout
 
-### Target layout (proposed)
-
-- `src/`
-  - `src/model_proxy/`
-    - `src/model_proxy/api/`
-    - `src/model_proxy/auth/`
-    - `src/model_proxy/core/`
-    - `src/model_proxy/services/`
-    - `src/model_proxy/config.py`
-    - `src/model_proxy/__main__.py` (контейнерный entrypoint)
-  - `src/scripts/`
-    - `src/scripts/get_oauth_credentials.py`
-    - `src/scripts/get_qwen_oauth_credentials.py`
+- [`llm_agent_platform/`](llm_agent_platform:1)
+  - runtime API, auth, core, services, config и entrypoint
+- [`scripts/`](scripts:1)
+  - bootstrap OAuth и вспомогательные локальные скрипты
+- [`docs/`](docs:1)
+  - архитектурный канон, ADR, contracts, testing docs
 
 ### Entry points
 
-- Контейнер: `python -m model_proxy`.
-- Локальные скрипты: запускать из `src/scripts/` и импортировать пакет `model_proxy.*`.
+- Контейнерный runtime стартует через пакет [`llm_agent_platform/__main__.py`](llm_agent_platform/__main__.py:1).
+- Локальные bootstrap scripts запускаются из [`scripts/`](scripts:1).
 
-## Options Considered
+## Options considered
 
-### Option A: Оставить текущий плоский layout
-- Плюсы: минимум изменений.
-- Минусы: остаётся смешение ответственности и `sys.path` hacks.
+### Option A: Сохранить старый плоский narrative
+- Плюсы: не требуются правки документации.
+- Минусы: active docs расходятся с фактическим layout и ломают навигацию.
 
-### Option B: Вынести только скрипты в отдельную папку, runtime оставить в корне
-- Плюсы: чуть лучше читаемость.
-- Минусы: runtime всё равно не оформлен как пакет; импорты остаются хрупкими.
+### Option B: Перенести всё в `src/`
+- Плюсы: классический packaging narrative.
+- Минусы: не соответствует текущему runtime и создаёт ложный Source of Truth.
 
-### Option C (выбрано): `src/` как единственная зона нашего кода + `model_proxy` + `scripts`
-- Плюсы: единая точка входа для навигации; проще для LLM-агента; явные границы; короткие импорты `model_proxy.*`.
-- Минусы: требуется миграция импортов, docker entrypoint, тестов.
+### Option C: Канонизировать фактический layout `llm_agent_platform/` + `scripts/`
+- Плюсы: документация совпадает с реальной структурой проекта; меньше когнитивного шума; проще traceability.
+- Минусы: требуется cleanup legacy docs, где остались ссылки на `src/` и `model_proxy`.
 
 ## Consequences
 
-### Положительные
-- Явная граница: что является нашим кодом (в `src/`), а что внешними nested repos.
-- Скрипты не требуют правки `sys.path`.
-- Проще документировать компоненты и их локации.
+### Positive
+- Runtime boundary совпадает с текущей реализацией.
+- Scripts boundary совпадает с bootstrap workflow.
+- Архитектурные и testing документы могут ссылаться на реальные пути.
 
-### Негативные / Риски
-- Крупное перемещение файлов, риск регрессий в import paths.
-- Потребуется обновить [`Dockerfile`](Dockerfile:1) и [`docker-compose.yml`](docker-compose.yml:1).
-- Потребуется обновить документацию запуска (например, [`docs/setup.md`](docs/setup.md:1), [`docs/auth.md`](docs/auth.md:1)).
+### Negative
+- Нужно пометить и убрать устаревший `src/` narrative из связанных документов.
 
-## Implementation Notes (non-normative)
+## Related canonical documents
 
-- Миграцию выполнять вместе с ревизией переменных окружения:
-  - всё нужное контейнеру должно быть явным и попадать в контейнер (см. [`docker-compose.yml`](docker-compose.yml:1));
-  - неиспользуемые переменные удалить из [`.env.example`](.env.example:1) и из [`config.py`](config.py:1).
-- Зафиксировать «карту компонентов» в документации с путями до кода (для навигации LLM-агента).
+- Layout and component map: [`docs/architecture/component-map.md`](docs/architecture/component-map.md:1)
+- Env boundaries: [`docs/configuration/env-files.md`](docs/configuration/env-files.md:1)
+- Auth bootstrap docs: [`docs/auth.md`](docs/auth.md:1)
 
 ## Review conditions
 
-- Если миграция слишком тяжелая для текущего релиза, рассмотреть поэтапный перенос: сначала `src/` без `packages`, затем выделение `packages`.
+- Пересмотреть ADR, если runtime package будет реально вынесен из [`llm_agent_platform/`](llm_agent_platform:1) в другой layout.

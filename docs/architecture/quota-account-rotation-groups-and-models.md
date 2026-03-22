@@ -1,14 +1,14 @@
-# Quota account rotation: policies + groups + group-aware `/v1/models` (канон)
+# Quota account rotation: policies + provider-local groups + provider-scoped `/models` (канон)
 
 Цель: зафиксировать каноническое описание уже реализованного quota-first account-rotation контура:
 - rotation policies: `random_order` + `rotate_after_n_successes`;
 - группы аккаунтов (изоляция state/счётчиков по `(provider_id, group_id)`);
-- URL-prefix groups (вариант B): `/<group_id>/v1/*` при сохранении default `g0` на `/v1/*`;
-- group-aware `GET /v1/models`.
+- provider-local groups через `/<provider_name>/<group_id>/v1/*`;
+- provider-scoped `GET /<provider_name>/v1/models`.
 
 ## Scope
-- Только quota контуры провайдеров `gemini_cli` и `qwen_code`.
-- OpenAI-compatible API: `/v1/chat/completions`, `/v1/models`.
+- Только quota контуры провайдеров `gemini-cli` и `qwen-code`.
+- OpenAI-compatible API в provider-scoped contract.
 
 Non-scope:
 - Реальные upstream лимиты и их SLA.
@@ -16,13 +16,13 @@ Non-scope:
 
 ## Source of Truth (самодостаточно)
 - Реализация (ключевые точки):
-  - Router: [`services/account_router.py`](services/account_router.py:1)
-  - Strategy: [`api/openai/strategies/rotate_on_429_rounding.py`](api/openai/strategies/rotate_on_429_rounding.py:1)
-  - Routes: [`api/openai/routes.py`](api/openai/routes.py:1)
+  - Router: [`llm_agent_platform/services/account_router.py`](llm_agent_platform/services/account_router.py:1)
+  - Strategy: [`llm_agent_platform/api/openai/strategies/rotate_on_429_rounding.py`](llm_agent_platform/api/openai/strategies/rotate_on_429_rounding.py:1)
+  - Routes: [`llm_agent_platform/api/openai/routes.py`](llm_agent_platform/api/openai/routes.py:1)
 - Тест-дизайн и трассировка:
   - Suite: [`docs/testing/suites/quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md:1)
   - Test map: [`docs/testing/test-map.md`](docs/testing/test-map.md:1)
-- ADR по URL-prefix groups и group-aware models: [`docs/adr/0017-url-prefix-groups-and-group-aware-models.md`](docs/adr/0017-url-prefix-groups-and-group-aware-models.md:1)
+- ADR по provider-centric routing: [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:1)
 - Breaking расширение: reset periods + persisted account state: [`docs/architecture/quota-reset-periods-and-account-state.md`](docs/architecture/quota-reset-periods-and-account-state.md:1)
 
 ## Конфигурация (provider accounts-config)
@@ -38,9 +38,9 @@ Non-scope:
 - `rotation_policy.rotate_after_n_successes: int` — after-N: переключать аккаунт после N успешных запросов.
 - `rotation_policy.rate_limit_threshold`, `rotation_policy.quota_exhausted_threshold`, `rotation_policy.rate_limit_cooldown_seconds` — параметры 429 policy.
 
-### `groups` и default group `g0`
+### `groups` и default group
 - `groups.<gid>.accounts: list[str]` — пул аккаунтов группы.
-- `groups.<gid>.models: list[str]` — список моделей, который будет возвращён `GET /<gid>/v1/models`.
+- `groups.<gid>.models: list[str]` — список моделей, который будет возвращён `GET /<provider_name>/<gid>/v1/models`.
 - Backward compatibility:
   - если `groups` отсутствует, эквивалентно одной группе `g0`, построенной из `all_accounts`.
 
@@ -48,19 +48,19 @@ Non-scope:
 - если `groups` присутствует, аккаунт может входить **только в одну группу** (disjoint groups).
 
 ## Внешний HTTP контракт (OpenAI-compatible)
-### Group selection: URL-prefix (вариант B)
-- Default: `/v1/*` означает `group_id=g0`.
-- Group-specific: `/<group_id>/v1/*` означает `group_id=<group_id>`.
+### Group selection inside provider namespace
+- Default: `/<provider_name>/v1/*` означает default group выбранного provider.
+- Group-specific: `/<provider_name>/<group_id>/v1/*` означает `group_id=<group_id>` внутри выбранного provider.
 
 Эндпоинты:
-- `POST /v1/chat/completions`
-- `POST /<group_id>/v1/chat/completions`
-- `GET /v1/models`
-- `GET /<group_id>/v1/models`
+- `POST /<provider_name>/v1/chat/completions`
+- `POST /<provider_name>/<group_id>/v1/chat/completions`
+- `GET /<provider_name>/v1/models`
+- `GET /<provider_name>/<group_id>/v1/models`
 
-### Group-aware `/v1/models`
-- Если в provider-config присутствует `groups`, список моделей берётся из `groups.<gid>.models` по всем провайдерам (union).
-- Если `groups` отсутствует, используется backward-compatible поведение (динамически по доступной авторизации), см. описание в [`docs/auth.md`](docs/auth.md:134).
+### Provider-scoped `/models`
+- Если в provider-config присутствует `groups`, список моделей берётся из `groups.<gid>.models` только выбранного provider.
+- Если `groups` отсутствует, используется default group выбранного provider.
 
 ### 429 contract: all-cooldown vs all-exhausted
 Нормативный JSON schema для 429 ошибок:
@@ -87,7 +87,7 @@ State ведётся по ключу `(provider_id, group_id)`:
 ## Потоки
 ```mermaid
 flowchart TD
-  A[Request in group] --> B[Select account by provider_id and group_id]
+  A[Request in provider group] --> B[Select account by provider_id and group_id]
   B --> C[Execute upstream]
   C -->|200 OK| D[Register success]
   D -->|if rotate_after_n_successes reached| E[Switch account]
@@ -98,13 +98,13 @@ flowchart TD
 
 ## Verification (evidence)
 ### Commands
-- `uv run python -m compileall api auth core services main.py tests`
-- `uv run python -m unittest discover -s tests -p "test_*.py"`
+- `uv run python -m compileall llm_agent_platform`
+- `uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
 
 ### Relevant tests
-- Router unit: [`tests/test_quota_account_router.py`](tests/test_quota_account_router.py:1)
-- Routes: [`tests/test_refactor_p2_routes.py`](tests/test_refactor_p2_routes.py:1)
-- OpenAI contract: [`tests/test_openai_contract.py`](tests/test_openai_contract.py:1)
+- Router unit: [`llm_agent_platform/tests/test_quota_account_router.py`](llm_agent_platform/tests/test_quota_account_router.py:1)
+- Routes: [`llm_agent_platform/tests/test_refactor_p2_routes.py`](llm_agent_platform/tests/test_refactor_p2_routes.py:1)
+- OpenAI contract: [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1)
 
 ## ADR
-- [`docs/adr/0017-url-prefix-groups-and-group-aware-models.md`](docs/adr/0017-url-prefix-groups-and-group-aware-models.md:1)
+- [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:1)

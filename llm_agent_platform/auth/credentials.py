@@ -12,6 +12,7 @@ from llm_agent_platform.config import (
     GEMINI_ACCOUNTS_CONFIG_PATH,
     GEMINI_CLI_CLIENT_ID,
     GEMINI_CLI_CLIENT_SECRET,
+    OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH,
     QWEN_ACCOUNTS_CONFIG_PATH,
     SERVICE_ACCOUNT_PATH,
 )
@@ -24,11 +25,12 @@ logger = get_logger(__name__)
 class AuthAvailability:
     gemini_quota: bool
     qwen_quota: bool
+    openai_chatgpt: bool
     vertex: bool
     diagnostics: list[str]
 
     def has_any(self) -> bool:
-        return self.gemini_quota or self.qwen_quota or self.vertex
+        return self.gemini_quota or self.qwen_quota or self.openai_chatgpt or self.vertex
 
 
 _auth_state = {
@@ -141,6 +143,16 @@ def get_auth_availability() -> AuthAvailability:
             f"with refresh_token in '{QWEN_ACCOUNTS_CONFIG_PATH}'."
         )
 
+    openai_chatgpt = _provider_has_valid_account_data(
+        OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH,
+        provider="openai-chatgpt",
+    )
+    if not openai_chatgpt:
+        diagnostics.append(
+            "OpenAI ChatGPT auth unavailable: provide valid accounts config "
+            f"with refresh_token in '{OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH}'."
+        )
+
     vertex_project_id = os.environ.get("VERTEX_PROJECT_ID", "").strip()
     vertex_service_account = Path(SERVICE_ACCOUNT_PATH)
     vertex = bool(vertex_project_id) and vertex_service_account.exists()
@@ -153,6 +165,7 @@ def get_auth_availability() -> AuthAvailability:
     return AuthAvailability(
         gemini_quota=gemini_quota,
         qwen_quota=qwen_quota,
+        openai_chatgpt=openai_chatgpt,
         vertex=vertex,
         diagnostics=diagnostics,
     )
@@ -229,6 +242,9 @@ def initialize_auth() -> bool:
     if availability.qwen_quota:
         logger.info("[AUTH] Qwen quota auth detected.")
         logger.info("[AUTH] - Qwen runtime refresh uses client_id from credentials file.")
+    if availability.openai_chatgpt:
+        logger.info("[AUTH] OpenAI ChatGPT auth detected.")
+        logger.info("[AUTH] - OpenAI ChatGPT runtime refresh uses client_id from credentials file.")
     if availability.vertex:
         logger.info("[AUTH] Vertex auth detected.")
     return True

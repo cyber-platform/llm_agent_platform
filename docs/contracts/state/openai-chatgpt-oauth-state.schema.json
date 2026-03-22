@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/model-proxy/contracts/state/openai-chatgpt-oauth-state.schema.json",
+  "title": "OpenAI ChatGPT OAuth state v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "provider_id",
+    "access_token"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "provider_id": {
+      "type": "string",
+      "const": "openai-chatgpt"
+    },
+    "account_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional best-effort account identifier used for provider-specific headers and observability when available."
+    },
+    "access_token": {
+      "type": "string",
+      "minLength": 1
+    },
+    "refresh_token": {
+      "type": "string",
+      "minLength": 1
+    },
+    "token_type": {
+      "type": "string",
+      "minLength": 1,
+      "default": "Bearer"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "obtained_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scopes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "metadata": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": true,
+      "description": "Foundation contract only. Exact endpoint, PKCE details and provider-specific runtime mapping are documented in docs/providers/openai-chatgpt.md."
+    }
+  }
+}

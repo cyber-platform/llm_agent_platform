@@ -4,7 +4,9 @@ import json
 
 from llm_agent_platform.core.logging import get_logger
 from llm_agent_platform.core.utils import create_openai_error, sanitize_data
+from llm_agent_platform.api.openai.providers.openai_chatgpt import OpenAIChatGPTProvider
 from llm_agent_platform.api.openai.providers.base import Provider
+from llm_agent_platform.api.openai.providers.qwen_code import QwenCodeProvider
 from llm_agent_platform.api.openai.types import ChatRequestContext
 from llm_agent_platform.api.openai.response_shaper import shape_gemini_nonstream_response
 from llm_agent_platform.api.openai.streaming import gemini_chunk_to_sse_events, build_usage_stream_chunk
@@ -57,8 +59,12 @@ class RotateOn429RoundingStrategy:
     def _select_account(self, provider: str, model: str, group_id: str) -> SelectedAccount:
         return quota_account_router.select_account(provider, model, group_id=group_id)
 
+    @staticmethod
+    def _uses_openai_chunks(ctx: ChatRequestContext) -> bool:
+        return ctx.provider_runtime_adapter in {QwenCodeProvider.id, OpenAIChatGPTProvider.id}
+
     def execute_non_stream(self, ctx: ChatRequestContext, provider: Provider) -> tuple[str, int]:
-        provider_id = "qwen_code" if ctx.is_qwen_quota_mode else "gemini_cli"
+        provider_id = ctx.provider_runtime_adapter
         group_id = ctx.group_id
         try:
             selected_account = self._select_account(provider_id, ctx.target_model, group_id)
@@ -144,6 +150,16 @@ class RotateOn429RoundingStrategy:
             if status_code != 200:
                 return create_openai_error(f"Upstream Error: {data_text}", "upstream_error", status_code), status_code
 
+            if isinstance(data, dict) and data.get("object") == "chat.completion":
+                data["model"] = ctx.raw_model
+                quota_account_router.register_success(
+                    provider_id,
+                    selected_account.account.name,
+                    group_id=group_id,
+                    model=current_model,
+                )
+                return json.dumps(sanitize_data(data), ensure_ascii=False), 200
+
             if ctx.is_qwen_quota_mode:
                 if isinstance(data, dict):
                     data["model"] = ctx.raw_model
@@ -167,7 +183,7 @@ class RotateOn429RoundingStrategy:
         ), last_status
 
     def stream(self, ctx: ChatRequestContext, provider: Provider):
-        provider_id = "qwen_code" if ctx.is_qwen_quota_mode else "gemini_cli"
+        provider_id = ctx.provider_runtime_adapter
         group_id = ctx.group_id
         try:
             selected_account = self._select_account(provider_id, ctx.target_model, group_id)
@@ -190,7 +206,7 @@ class RotateOn429RoundingStrategy:
                 if not line:
                     continue
 
-                if ctx.is_qwen_quota_mode and isinstance(line, str) and line.startswith("data: "):
+                if self._uses_openai_chunks(ctx) and isinstance(line, str) and line.startswith("data: "):
                     raw = line[6:].strip()
                     if raw == "[DONE]":
                         quota_account_router.register_success(provider_id, selected_account.account.name, group_id=group_id)
@@ -250,14 +266,20 @@ class RotateOn429RoundingStrategy:
                         yield f"data: {create_openai_error(f'Upstream API Error: {error_text}', 'upstream_error', 429)}\n\n"
                         return
 
-                    openai_chunk = self._openai_chunk_from_qwen(parsed, ctx.raw_model)
+                    if parsed.get("object") == "chat.completion.chunk":
+                        openai_chunk = parsed
+                        openai_chunk["model"] = ctx.raw_model
+                    else:
+                        openai_chunk = self._openai_chunk_from_qwen(parsed, ctx.raw_model)
                     yield f"data: {json.dumps(sanitize_data(openai_chunk), ensure_ascii=False)}\n\n"
 
-                    usage = parsed.get("usage")
+                    usage = parsed.get("usage") or openai_chunk.get("usage")
                     if usage:
                         usage_accumulated["prompt_tokens"] = usage.get("prompt_tokens", 0)
                         usage_accumulated["completion_tokens"] = usage.get("completion_tokens", 0)
                         usage_accumulated["total_tokens"] = usage.get("total_tokens", 0)
+                        if usage.get("completion_tokens_details"):
+                            usage_accumulated["completion_tokens_details"] = usage.get("completion_tokens_details")
                     continue
 
                 chunk_data = parse_cloud_code_sse_line(line)

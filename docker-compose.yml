@@ -5,6 +5,11 @@ services:
     ports:
       - "4000:4000"
     volumes:
+      # Dev-режим: runtime-код всегда берётся с хоста, без baked-in snapshot в image
+      - ./llm_agent_platform:/app/llm_agent_platform:rw
+      # На случай обновления entrypoint/метаданных проекта внутри dev-среды
+      - ./pyproject.toml:/app/pyproject.toml:ro
+      - ./uv.lock:/app/uv.lock:ro
       # Монтируем директорию секретов
       # user_credentials.json - для Quota (OAuth)
       # service_account.json - для Vertex (Credits)
@@ -25,8 +30,9 @@ services:
       GEMINI_CLI_CLIENT_SECRET: ${GEMINI_CLI_CLIENT_SECRET}
       USER_GEMINI_CREDS_PATH: ${USER_GEMINI_CREDS_PATH:-/app/secrets/user_gemini_credentials.json}
       USER_QWEN_CREDS_PATH: ${USER_QWEN_CREDS_PATH:-/app/secrets/user_qwen_credentials.json}
-      GEMINI_ACCOUNTS_CONFIG_PATH: ${GEMINI_ACCOUNTS_CONFIG_PATH:-/app/secrets/gemini_cli/accounts_config.json}
+      GEMINI_ACCOUNTS_CONFIG_PATH: ${GEMINI_ACCOUNTS_CONFIG_PATH:-/app/secrets/gemini-cli/accounts_config.json}
       QWEN_ACCOUNTS_CONFIG_PATH: ${QWEN_ACCOUNTS_CONFIG_PATH:-/app/secrets/qwen_code/accounts_config.json}
+      OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH: ${OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH:-/app/secrets/openai-chatgpt/accounts_config.json}
       SERVICE_ACCOUNT_PATH: ${SERVICE_ACCOUNT_PATH:-/app/secrets/service_account.json}
       STATE_DIR: ${STATE_DIR:-/app/state}
       STATE_FLUSH_INTERVAL_SECONDS: ${STATE_FLUSH_INTERVAL_SECONDS:-3}

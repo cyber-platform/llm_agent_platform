@@ -230,7 +230,7 @@ def refresh_access_token(refresh_token: str, client_id: str | None = None) -> di
     if not effective_client_id:
         raise QwenOAuthError(
             "Qwen token refresh requires client_id from credentials file. "
-            "Re-run scripts/get_qwen_oauth_credentials.py to regenerate credentials."
+            "Re-run scripts/get_qwen-code_credentials.py to regenerate credentials."
         )
     payload = {
         "grant_type": "refresh_token",
@@ -308,7 +308,7 @@ def refresh_qwen_credentials_file(path: str | Path = USER_QWEN_CREDS_PATH) -> di
     if not credentials_client_id:
         raise QwenOAuthError(
             f"Missing client_id in {Path(path)}. "
-            "Re-run scripts/get_qwen_oauth_credentials.py to regenerate credentials."
+            "Re-run scripts/get_qwen-code_credentials.py to regenerate credentials."
         )
 
     refreshed = refresh_access_token(

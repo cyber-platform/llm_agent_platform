@@ -1,47 +1,45 @@
 # LLM Agent Platform
 
-**LLM Agent Platform** — это открытая платформа для LLM агентов, которая предоставляет удобный OpenAI совместимый форма запросов для всех LLM-моделей.
-
-
-
-Мы стремимся расширить границы возможного, перенося мощь консольных инструментов в современные GUI-интерфейсы и образовательные экосистемы.
+**LLM Agent Platform** — это provider-centric платформа для LLM-агентов и developer tools, которая предоставляет единый OpenAI-compatible API поверх нескольких провайдеров и сохраняет provider-specific особенности внутри отдельных интеграций.
 
 ---
 
-## ✨ Зачем это нужно?
+## ✨ Что дает платформа
 
-1.  **Универсальный доступ**: Платформа поддерживает два режима работы на одном порту:
-    *   **OpenAI Compatible API**: Для подключения к любым инструментам, поддерживающим OpenAI (Kilo Code, Cline, Roo Code, VS Code и др.).
-    *   **Native Gemini API**: Для инструментов, поддерживающих нативный протокол Google Gemini (Google AI Studio, Vertex AI SDK).
+1. **Единый OpenAI-compatible вход для агентных инструментов**
+   - Подключение через provider-scoped маршруты `/<provider_name>/v1/*` и `/<provider_name>/<group_name>/v1/*`.
+   - Явный выбор provider через URL, а не через эвристики по имени модели.
 
-2.  **Квоты**: Проект позволяет использовать ваши квоты на общение с современными LLM моделями `Google Gemini 3` в рамках вашей подписки `Google AI Pro` или `Free tier` прямо в IDE.
+2. **Поддержка нескольких provider integrations**
+   - Платформа не привязана к одному provider.
+   - Одинаковые `model_id` у разных providers являются нормальным сценарием и не конфликтуют благодаря provider namespace.
 
-Платформа будет привязана к вашему `Google`-аккаунту через официальную авторизацию от `Google` и будет использовать выделенные вам квоты.
+3. **Provider-local routing и account groups**
+   - Группы аккаунтов живут внутри namespace конкретного provider.
+   - Модели и account pools изолируются на уровне `(provider_id, group_id)`.
 
-> Платформа намеренно поддерживает авторизацию только через один Google-аккаунт.
+4. **Единый архитектурный канон и contracts**
+   - Общая архитектура фиксируется в [`docs/architecture/`](docs/architecture:1).
+   - Contracts фиксируются в [`docs/contracts/`](docs/contracts:1).
+   - Provider-specific особенности документируются отдельно в [`docs/providers/`](docs/providers:1) и индексируются в [`docs/providers/README.md`](docs/providers/README.md:1).
 
-Ее задача расширить ваши возможности в рамках выделенных вам квот для вашего личного использования.
-
-3.  **Мультимодальность и Рассуждения**: Полноценная поддержка **Vision** (работа с изображениями) и **Reasoning Mode** (отображение цепочки размышлений модели).
-4.  **Образование и RAG**: Проект закладывает фундамент для обучения вместе с ИИ, включая интеграцию с **Obsidian** для создания тестов и сессий по вашим личным заметкам.
-5.  **Автоматическая аутентификация**: Автоматическое обновление OAuth токенов с фоновым обновлением для непрерывной работы.
-
-Я заметил большой потенциал Gemini 3 в области образования. В оффициальном чате с Gemini уже доступны тесты по SAT.
-
-При этом Gemini 3 может не только быть интервьювером проводящим экзамен, но еще и классно объясняет материал и помогает пользователю разобраться с задачей, понять идеи заложенные в решении данной задачи, если пользователь не справляется.
-
-Но это общие знания. А что будет если добавить Gemini 3 RAG MCP tool для поиска акутальных теме обсуждения запросов пользователя с его личными заметками в Obsidian по которым пользователь обучается?
-
-Так можно будет объединить всю мощь современной LLM и базы/графа знаний из Obsidian.
+5. **Платформа для эволюции provider-specific runtime adapters**
+   - Общий OpenAI-compatible surface остается стабильным.
+   - Специфика авторизации, runtime transport и usage limits инкапсулируется внутри provider adapters.
 
 ---
 
-## 🌓 Гибридная модель
+## 🧭 Архитектурная модель
 
-Платформа поддерживает два режима работы, позволяя гибко управлять ресурсами вашего Google-аккаунта:
+Платформа строится вокруг трех уровней:
+- provider-scoped routing;
+- provider registry и provider-local catalogs;
+- runtime adapters и execution strategies
+- account groups
 
-*   **Quota Mode** (`gemini-*-quota`): Режим использования квот от `gemini-cli`. Использует ваши персональные бесплатные квоты от вашего Google-аккаунта режимов `Free-tier` и подписки `Google AI Pro`.
-*   **Vertex Mode** (`gemini-*-vertex`): Использует облачные кредиты ($10/мес), входящие в подписку `Google AI Pro`, через Vertex AI API.
+При этом discovery-based catalogs остаются ожидаемой capability платформы, но текущие active providers могут использовать только static bootstrap catalog.
+
+Канон зафиксирован в [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:1) и [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1).
 
 ---
 
@@ -49,11 +47,13 @@
 
 ### 1. Авторизация
 
-Запустите скрипт регистрации через ваш Google аккаунт (подписка `Google AI Pro` учтется автоматически):
+Для quota-based providers используйте соответствующие OAuth bootstrap scripts:
 ```bash
-python3 scripts/get_oauth_credentials.py
+uv run python scripts/get_gemini-cli_credentials.py
 ```
-*Подробнее в [Инструкции по авторизации](./docs/auth.md).*
+Подробности:
+- [`docs/auth.md`](docs/auth.md:1)
+- provider-specific страницы в [`docs/providers/`](docs/providers:1)
 
 ### 2. Запуск через Docker
 ```bash
@@ -63,48 +63,41 @@ docker-compose up -d --build
 
 ### 3. Подключение к IDE
 
-#### Вариант А: OpenAI Compatible (Рекомендуемый для большинства)
+#### Вариант А: OpenAI Compatible
 | Параметр | Значение |
 | :--- | :--- |
-| **Base URL** | `http://localhost:4000/v1` |
+| **Base URL** | `http://localhost:4000/<provider_name>/v1` |
 | **API Key** | `any-string` |
 | **Provider** | OpenAI Compatible |
 
-#### Вариант Б: Native Gemini (Для Kilo Code и др.)
+Пример:
+- `http://localhost:4000/gemini-cli/v1`
+- `http://localhost:4000/qwen-code/v1`
+- `http://localhost:4000/openai-chatgpt/v1`
+
+#### Вариант Б: Native Gemini
 | Параметр | Значение |
 | :--- | :--- |
 | **Base URL** | `http://localhost:4000` |
 | **API Key** | `any-string` |
 | **Provider** | Gemini (Google AI Studio / Vertex AI) |
 
-### 4. заархивировать репозиторий
-
-```
-zip -r9e llm-agent-platform.zip llm_agent_platform -x qwen-code/* kilocode/*
-```
-
----
-
-## 📸 Скриншоты работы
-
-тут будут скриншоты работы с kilo code
-
----
-
 ## 📖 Документация
 
-*   [Философия и Видение проекта](./docs/vision.md)
-*   [Настройка ключей и OAuth](./docs/auth.md)
-*   [Установка и развертывание](./docs/setup.md)
-*   [Использование и список моделей](./docs/usage.md)
+- [Видение проекта](./docs/vision.md)
+- [Настройка авторизации](./docs/auth.md)
+- [Установка и развертывание](./docs/setup.md)
+- [Сценарии запуска](./docs/run/README.md)
+- [Использование платформы](./docs/usage.md)
+- [Карта компонентов](./docs/architecture/component-map.md)
+- [Каталог провайдеров](./docs/providers/README.md)
+- [Provider: `openai-chatgpt`](./docs/providers/openai-chatgpt.md)
 
 ---
 
-## ❤️ Благодарности
+## ❤️ Принцип документации
 
-Этот проект существует благодаря команде разработки `Gemini 3` и щедрым квотам для работы с моделью от компании **Google**.
-
-Мы верим в будущее, где мощные ИИ-инструменты доступны каждому творцу для обучения и созидания новых open source проектов.
+Source of Truth для актуальной архитектуры находится в [`docs/`](docs:1). Временные планы и task-артефакты не должны быть обязательными для понимания текущего состояния системы.
 
 ---
 *Проект распространяется под лицензией MIT.*

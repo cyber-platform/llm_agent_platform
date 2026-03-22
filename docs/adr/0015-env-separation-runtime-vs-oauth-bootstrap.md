@@ -7,20 +7,20 @@ Accepted
 
 В проекте есть два разных рантайма с разными требованиями к конфигурации:
 
-1) **Прокси-сервис** запускается в контейнере через [`docker-compose.yml`](docker-compose.yml:1) и читает конфигурацию из переменных окружения процесса (см. [`config.py`](config.py:1)).
+1) **Платформа для LLM-агентов** запускается в контейнере через [`docker-compose.yml`](docker-compose.yml:1) и читает конфигурацию из переменных окружения процесса (см. [`llm_agent_platform/config.py`](llm_agent_platform/config.py:1)).
 
 2) **OAuth bootstrap-скрипты** запускаются локально (вне контейнера) из VS Code/uv, например:
-   - [`scripts/get_oauth_credentials.py`](scripts/get_oauth_credentials.py:1)
-   - [`scripts/get_qwen_oauth_credentials.py`](scripts/get_qwen_oauth_credentials.py:1)
+   - [`scripts/get_gemini-cli_credentials.py`](scripts/get_gemini-cli_credentials.py:1)
+   - [`scripts/get_qwen-code_credentials.py`](scripts/get_qwen-code_credentials.py:1)
 
 Сейчас:
 
-- [`config.py`](config.py:1) читает значения из `os.environ` (см. [`_env_str`](config.py:4)) и **не загружает** [`.env`](.env:1) автоматически.
+- [`llm_agent_platform/config.py`](llm_agent_platform/config.py:1) читает значения из `os.environ` и **не загружает** [`.env`](.env:1) автоматически.
 - Docker Compose читает [`.env`](.env:1) **для подстановки** значений в compose-файл, а внутрь контейнера попадают только явно заданные переменные (см. `environment:` в [`docker-compose.yml`](docker-compose.yml:14)).
 
 Из-за этого локальные OAuth-скрипты могут не видеть значения, которые пользователь ожидает взять из [`.env`](.env:1), что приводит к ошибке вида:
 
-- проверка наличия [`GEMINI_CLI_CLIENT_ID`](config.py:40) в [`scripts/get_oauth_credentials.py`](scripts/get_oauth_credentials.py:99)
+- проверка наличия [`GEMINI_CLI_CLIENT_ID`](llm_agent_platform/config.py:59) в [`scripts/get_gemini-cli_credentials.py`](scripts/get_gemini-cli_credentials.py:99)
 
 Дополнительно [`.env.example`](.env.example:1) сейчас смешивает runtime-настройки и bootstrap-параметры OAuth, что создаёт ощущение «лишних» переменных и размывает границы ответственности.
 
@@ -34,7 +34,7 @@ Accepted
 И дополнительно:
 
 - Контейнеру прокси передавать runtime-переменные через `env_file: .env` в [`docker-compose.yml`](docker-compose.yml:1).
-- Локальные OAuth-скрипты перед импортом [`config.py`](config.py:1) загружают оба файла:
+- Локальные OAuth-скрипты перед импортом [`llm_agent_platform/config.py`](llm_agent_platform/config.py:1) загружают оба файла:
   - сначала [`.env`](.env:1)
   - затем [`.env.oauth`](.env.oauth:1) с приоритетом (override)
 
@@ -42,7 +42,7 @@ Bootstrap OAuth секреты не должны автоматически по
 
 ## Options Considered
 
-### Option A: Один файл [`.env`](.env:1) для всего + автозагрузка внутри [`config.py`](config.py:1)
+### Option A: Один файл [`.env`](.env:1) для всего + автозагрузка внутри [`llm_agent_platform/config.py`](llm_agent_platform/config.py:1)
 - Плюсы: проще в объяснении.
 - Минусы: смешение ответственности, риск утечки OAuth bootstrap параметров в runtime; сложнее контролировать «что именно должно попасть в контейнер».
 
@@ -72,7 +72,7 @@ Bootstrap OAuth секреты не должны автоматически по
   - `env_file: .env` в [`docker-compose.yml`](docker-compose.yml:1)
   - `environment:` остаётся для override-переменных (например, `LOG_DIR` как путь внутри контейнера).
 - OAuth bootstrap источники:
-  - локальная загрузка [`.env`](.env:1) и [`.env.oauth`](.env.oauth:1) внутри [`scripts/get_oauth_credentials.py`](scripts/get_oauth_credentials.py:1) и [`scripts/get_qwen_oauth_credentials.py`](scripts/get_qwen_oauth_credentials.py:1).
+  - локальная загрузка [`.env`](.env:1) и [`.env.oauth`](.env.oauth:1) внутри [`scripts/get_gemini-cli_credentials.py`](scripts/get_gemini-cli_credentials.py:1) и [`scripts/get_qwen-code_credentials.py`](scripts/get_qwen-code_credentials.py:1).
 
 ## Diagram
 
@@ -88,4 +88,3 @@ flowchart TD
   H --> I[Proxy process импортирует config и читает os.environ]
   I --> J[Proxy читает secrets через volume mount]
 ```
-

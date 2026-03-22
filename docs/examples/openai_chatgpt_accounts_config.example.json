@@ -1,0 +1,51 @@
+{
+  "active_account": "user_credentials",
+  "mode": "rounding",
+  "rotation_policy": {
+    "rate_limit_threshold": 2,
+    "quota_exhausted_threshold": 2,
+    "rate_limit_cooldown_seconds": 5,
+    "random_order": false,
+    "rotate_after_n_successes": 0
+  },
+  "model_quota_resets": {
+    "default": "07:00:00",
+    "gpt-5.4": "07:00:00",
+    "gpt-5.4-mini": "07:00:00"
+  },
+  "quota_scope": "per_provider",
+  "all_accounts": [
+    "user_credentials",
+    "backup"
+  ],
+  "groups": {
+    "default": {
+      "accounts": [
+        "user_credentials"
+      ],
+      "models": [
+        "gpt-5.4",
+        "gpt-5.4-mini"
+      ]
+    },
+    "codex": {
+      "accounts": [
+        "backup"
+      ],
+      "models": [
+        "gpt-5.3-codex",
+        "gpt-5.2-codex",
+        "gpt-5.1-codex-max",
+        "gpt-5.1-codex-mini"
+      ]
+    }
+  },
+  "accounts": {
+    "user_credentials": {
+      "credentials_path": "secrets/openai-chatgpt/accounts/user_credentials.json"
+    },
+    "backup": {
+      "credentials_path": "secrets/openai-chatgpt/accounts/backup.json"
+    }
+  }
+}

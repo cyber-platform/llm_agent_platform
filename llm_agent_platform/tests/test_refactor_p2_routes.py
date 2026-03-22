@@ -141,16 +141,7 @@ class RefactorP2RoutesTests(unittest.TestCase):
             model="gemini-3-flash-preview",
         )
 
-    @patch(
-        "llm_agent_platform.api.openai.routes.get_auth_availability",
-        return_value=AuthAvailability(
-            gemini_quota=True,
-            qwen_quota=True,
-            vertex=False,
-            diagnostics=[],
-        ),
-    )
-    def test_smoke_import_and_models_endpoint(self, _mock_availability):
+    def test_smoke_import_and_models_endpoint(self):
         self.assertIsNotNone(app)
 
         with _secrets_test_dir() as tmp_dir:
@@ -201,14 +192,23 @@ class RefactorP2RoutesTests(unittest.TestCase):
                 patch("llm_agent_platform.services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
                 _patched_state_dir(tmp_dir),
             ):
-                response = self.client.get("/v1/models")
-                self.assertEqual(response.status_code, 200)
+                gemini_response = self.client.get("/gemini-cli/v1/models")
+                self.assertEqual(gemini_response.status_code, 200)
+                gemini_payload = json.loads(gemini_response.data.decode("utf-8"))
+                gemini_ids = {item["id"] for item in gemini_payload["data"]}
+                self.assertIn("gemini-3-flash-preview", gemini_ids)
 
-                payload = json.loads(response.data.decode("utf-8"))
-                model_ids = {item["id"] for item in payload["data"]}
+                qwen_response = self.client.get("/qwen-code/v1/models")
+                self.assertEqual(qwen_response.status_code, 200)
+                qwen_payload = json.loads(qwen_response.data.decode("utf-8"))
+                qwen_ids = {item["id"] for item in qwen_payload["data"]}
+                self.assertIn("coder-model", qwen_ids)
 
-                self.assertIn("gemini-3-flash-preview", model_ids)
-                self.assertIn("coder-model", model_ids)
+                openai_response = self.client.get("/openai-chatgpt/v1/models")
+                self.assertEqual(openai_response.status_code, 200)
+                openai_payload = json.loads(openai_response.data.decode("utf-8"))
+                openai_ids = {item["id"] for item in openai_payload["data"]}
+                self.assertIn("gpt-5.4", openai_ids)
 
     def test_group_aware_models_endpoint(self):
         with _secrets_test_dir() as tmp_dir:
@@ -241,11 +241,11 @@ class RefactorP2RoutesTests(unittest.TestCase):
                 "groups": {
                     "g1": {
                         "accounts": ["lisa"],
-                        "models": ["qwen-g1-model-quota"],
+                        "models": ["coder-model"],
                     },
                     "g2": {
                         "accounts": ["petr"],
-                        "models": ["qwen-g2-model-quota"],
+                        "models": ["coder-model"],
                     },
                 },
                 "accounts": {
@@ -273,17 +273,67 @@ class RefactorP2RoutesTests(unittest.TestCase):
                 patch("llm_agent_platform.services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
                 _patched_state_dir(tmp_dir),
             ):
-                g1_response = self.client.get("/g1/v1/models")
+                default_response = self.client.get("/qwen-code/v1/models")
+                self.assertEqual(default_response.status_code, 200)
+                default_payload = json.loads(default_response.data.decode("utf-8"))
+                default_ids = {item["id"] for item in default_payload["data"]}
+                self.assertEqual(default_ids, {"coder-model"})
+
+                g1_response = self.client.get("/qwen-code/g1/v1/models")
                 self.assertEqual(g1_response.status_code, 200)
                 g1_payload = json.loads(g1_response.data.decode("utf-8"))
                 g1_ids = {item["id"] for item in g1_payload["data"]}
-                self.assertEqual(g1_ids, {"qwen-g1-model-quota"})
+                self.assertEqual(g1_ids, {"coder-model"})
 
-                g2_response = self.client.get("/g2/v1/models")
+                g2_response = self.client.get("/qwen-code/g2/v1/models")
                 self.assertEqual(g2_response.status_code, 200)
                 g2_payload = json.loads(g2_response.data.decode("utf-8"))
                 g2_ids = {item["id"] for item in g2_payload["data"]}
-                self.assertEqual(g2_ids, {"qwen-g2-model-quota"})
+                self.assertEqual(g2_ids, {"coder-model"})
+
+    def test_unknown_provider_models_returns_contract_error(self):
+        response = self.client.get("/missing-provider/v1/models")
+        self.assertEqual(response.status_code, 400)
+        payload = json.loads(response.data.decode("utf-8"))
+        self.assertIn("Unknown provider", payload["error"]["message"])
+
+    def test_unknown_group_returns_contract_error(self):
+        with _secrets_test_dir() as tmp_dir:
+            qwen_path = tmp_dir / "qwen_accounts_config.json"
+            qwen_cfg = {
+                "mode": "rounding",
+                "active_account": "acct-1",
+                "all_accounts": ["acct-1"],
+                "groups": {
+                    "g1": {
+                        "accounts": ["acct-1"],
+                        "models": ["coder-model"],
+                    }
+                },
+                "accounts": {
+                    "acct-1": {"credentials_path": "secrets_test/accounts/qwen_acct-1.json"},
+                },
+                "rotation_policy": {
+                    "rate_limit_threshold": 2,
+                    "quota_exhausted_threshold": 2,
+                    "rate_limit_cooldown_seconds": 5,
+                },
+                "model_quota_resets": {
+                    "default": "00:00:00",
+                },
+            }
+            _seed_credentials_from_config(qwen_cfg)
+            self._write_json(qwen_path, qwen_cfg)
+
+            with (
+                patch("llm_agent_platform.services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+                _patched_state_dir(tmp_dir),
+            ):
+                response = self.client.get("/qwen-code/missing/v1/models")
+
+        self.assertEqual(response.status_code, 400)
+        payload = json.loads(response.data.decode("utf-8"))
+        self.assertIn("Unknown group", payload["error"]["message"])
 
     @patch("llm_agent_platform.api.gemini.routes.quota_account_router.select_account")
     @patch("llm_agent_platform.api.gemini.routes.get_gemini_access_token_from_file", return_value="token-123")

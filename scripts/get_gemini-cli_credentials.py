@@ -9,8 +9,8 @@ from urllib.parse import parse_qs, urlparse
 
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-# Позволяет запускать скрипт напрямую: `python scripts/get_oauth_credentials.py`
-# и `uv run scripts/get_oauth_credentials.py`.
+# Позволяет запускать скрипт напрямую: `python scripts/get_gemini-cli_credentials.py`
+# и `uv run scripts/get_gemini-cli_credentials.py`.
 if __package__ is None or __package__ == "":
     project_root = Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:

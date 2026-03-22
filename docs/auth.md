@@ -1,18 +1,25 @@
 # 🔐 Руководство по авторизации
 
-Прокси поддерживает два независимых контура авторизации:
+Платформа поддерживает несколько provider-specific контуров авторизации:
 - Gemini OAuth quota (Google Cloud Code / `gemini-cli` совместимый поток).
 - Qwen OAuth quota (device flow).
+- OpenAI ChatGPT OAuth runtime (Authorization Code + PKCE).
 
 Также опционально поддерживается Vertex AI через сервисный аккаунт.
+
+Общее устройство платформы описано в [`docs/architecture/component-map.md`](docs/architecture/component-map.md:1), а provider-specific особенности должны выноситься на отдельные страницы в [`docs/providers/`](docs/providers:1).
+
+Актуальный список providers и их readiness/status сводится в [`docs/providers/README.md`](docs/providers/README.md:1).
+
+Для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1) в текущем каноне фиксируется static catalog baseline и OAuth/runtime boundary без live discovery.
 
 ---
 
 ## 1) Gemini OAuth quota
 
 ### Что создаётся
-- Базовый файл OAuth: `secrets/gemini_cli/user_credentials.json`.
-- Далее пользователь может вручную переименовывать/копировать его в именованные аккаунты (например, `secrets/gemini_cli/accounts/lisa.json`, `secrets/gemini_cli/accounts/petr.json`) и указывать их в `secrets/gemini_cli/accounts_config.json`.
+- Базовый файл OAuth: `secrets/gemini-cli/user_credentials.json`.
+- Далее пользователь может вручную переименовывать/копировать его в именованные аккаунты (например, `secrets/gemini-cli/accounts/lisa.json`, `secrets/gemini-cli/accounts/petr.json`) и указывать их в `secrets/gemini-cli/accounts_config.json`.
 
 ### Шаги
 1. Установите зависимости:
@@ -21,7 +28,7 @@
    ```
 2. Запустите OAuth-скрипт:
    ```bash
-   uv run python scripts/get_oauth_credentials.py
+   uv run python scripts/get_gemini-cli_credentials.py
    ```
 3. Пройдите авторизацию в браузере.
 
@@ -31,7 +38,7 @@
 - `NO_BROWSER=true` — не открывать браузер автоматически.
 - `OAUTH_CALLBACK_PORT=NNNN` — фиксированный порт callback-сервера.
 - `OAUTH_CALLBACK_HOST=127.0.0.1` — bind-адрес callback-сервера.
-- `USER_GEMINI_CREDS_PATH=secrets/gemini_cli/user_credentials.json` — путь сохранения credentials.
+- `USER_GEMINI_CREDS_PATH=secrets/gemini-cli/user_credentials.json` — путь сохранения credentials.
 
 ---
 
@@ -42,10 +49,12 @@
 - Далее пользователь может вручную переименовывать/копировать его в именованные аккаунты (например, `secrets/qwen_code/accounts/lisa.json`, `secrets/qwen_code/accounts/petr.json`) и указывать их в `secrets/qwen_code/accounts_config.json`.
 - В credentials также сохраняется `client_id` (runtime refresh прокси использует именно его).
 
+Текущий storage namespace для Qwen остаётся `qwen_code`; отдельная полная миграция в kebab-case вынесена в [`tasks_descriptions/tasks/033-qwen-storage-kebab-case-migration.md`](tasks_descriptions/tasks/033-qwen-storage-kebab-case-migration.md:1).
+
 ### Шаги
 1. Запустите OAuth device-flow скрипт:
    ```bash
-   uv run python scripts/get_qwen_oauth_credentials.py
+   uv run python scripts/get_qwen-code_credentials.py
    ```
 2. Откройте ссылку в браузере и завершите подтверждение.
 3. Скрипт дождётся токена и сохранит credentials в `secrets/qwen_code/user_credentials.json`.
@@ -55,7 +64,7 @@
 - источник: `qwen-code/packages/core/src/qwen/qwenOAuth2.ts` (`QWEN_OAUTH_SCOPE`)
 
 Важно по разделению bootstrap/runtime:
-- `QWEN_OAUTH_CLIENT_ID` и `QWEN_OAUTH_SCOPE` нужны для bootstrap device-flow (скрипт `scripts/get_qwen_oauth_credentials.py`).
+- `QWEN_OAUTH_CLIENT_ID` и `QWEN_OAUTH_SCOPE` нужны для bootstrap device-flow (скрипт [`scripts/get_qwen-code_credentials.py`](scripts/get_qwen-code_credentials.py:1)).
 - Runtime прокси при refresh берёт `client_id` из credentials-файла аккаунта.
 
 ---
@@ -63,43 +72,19 @@
 ## 3) Конфиги ротации аккаунтов (single/rounding)
 
 Источник политики ротации — только provider-конфиги:
-- `secrets/gemini_cli/accounts_config.json`
+- `secrets/gemini-cli/accounts_config.json`
 - `secrets/qwen_code/accounts_config.json`
+- `secrets/openai-chatgpt/accounts_config.json`
+
+Канонический общий документ по всем provider-agnostic параметрам accounts-config:
+- [`docs/configuration/provider-accounts-config.md`](docs/configuration/provider-accounts-config.md:1)
 
 Примеры структуры вынесены в отдельные файлы:
 - Gemini: [`docs/examples/gemini_accounts_config.example.json`](docs/examples/gemini_accounts_config.example.json:1)
 - Qwen: [`docs/examples/qwen_accounts_config.example.json`](docs/examples/qwen_accounts_config.example.json:1)
+- OpenAI ChatGPT: [`docs/examples/openai_chatgpt_accounts_config.example.json`](docs/examples/openai_chatgpt_accounts_config.example.json:1)
 
 Для Qwen в `accounts.<name>` достаточно `credentials_path`; поле `project_id` не требуется.
-
-Режимы:
-- `single` — используется только `active_account`.
-- `rounding` — round-robin по `all_accounts` с раздельной обработкой `rate_limit` (cooldown) и `quota_exhausted` (exhausted-until).
-
-Опции `rotation_policy` (актуально для `rounding`):
-- `rotation_policy.random_order`: при переключении выбирать следующий аккаунт случайно из доступных.
-- `rotation_policy.rotate_after_n_successes`: принудительно переключать аккаунт после N успешных запросов.
-
-Quota groups (URL-prefix вариант B):
-- В provider-config можно задать `groups`: `groups.<group_id>.accounts` и `groups.<group_id>.models`.
-- Для вызовов OpenAI-compatible API можно использовать префикс `/<group_id>/v1/*` (например, `/<group_id>/v1/chat/completions`).
-- Без префикса используется дефолтная группа `g0`.
-- Важно: если `groups` присутствует, то `GET /v1/models` и `GET /<group_id>/v1/models` берут модели из `groups.<group_id>.models` (по всем провайдерам). Поэтому в `groups.g0.models` нужно явно задать модели для дефолтного пути `/v1/models`.
-
-### Breaking: `model_quota_resets` как период восстановления квоты
-`model_quota_resets` теперь задаёт **период восстановления квоты**, формат `DD:HH:MM`.
-
-Семантика exhausted:
-- при фиксации quota-exhausted запоминаем момент `quota_exhausted_at`;
-- до истечения `quota_exhausted_at + model_quota_resets[model|default]` аккаунт считается exhausted для модели.
-
-Дополнительно provider-config поддерживает `quota_scope`:
-- `per_model` — exhausted считается отдельно по каждой модели;
-- `per_provider` — exhausted считается общим для провайдера, persisted ключ = `__provider__`.
-
-На время rollout отсутствие `quota_scope` интерпретируется как `per_model`, но в канонических config-файлах поле следует указывать явно.
-
-Канон: [`docs/architecture/quota-reset-periods-and-account-state.md`](docs/architecture/quota-reset-periods-and-account-state.md:1).
 
 ### Persisted runtime state (last_used + quota_exhausted)
 Runtime state не хранится в provider-config.
@@ -161,7 +146,7 @@ Qwen refresh выполняется:
 - если все аккаунты во временном cooldown, прокси возвращает `all_accounts_on_cooldown`;
 - если все аккаунты исчерпали quota для модели, прокси возвращает `all_accounts_exceed_quota`.
 
-Нормативный формат `429` ошибок закреплен в [`docs/contracts/api/openai/errors/429-error.schema.json`](contracts/api/openai/errors/429-error.schema.json).
+Нормативный формат `429` ошибок закреплен в [`docs/contracts/api/openai/errors/429-error.schema.json`](docs/contracts/api/openai/errors/429-error.schema.json:1).
 
 Дополнение: теория паттерна async writer (coalesce map) вынесена в:
 
@@ -169,7 +154,79 @@ Qwen refresh выполняется:
 
 ---
 
-## 4) Vertex AI mode (опционально)
+## 4) OpenAI ChatGPT OAuth runtime
+
+Текущий статус интеграции [`openai-chatgpt`](llm_agent_platform/provider_registry/providers/openai-chatgpt.json:1):
+
+- `GET /openai-chatgpt/v1/models` и `POST /openai-chatgpt/v1/chat/completions` уже обслуживаются runtime implementation.
+- Для каталога используется static bootstrap catalog без live discovery.
+- Bootstrap script реализован в [`scripts/get_openai-chatgpt_credentials.py`](scripts/get_openai-chatgpt_credentials.py:1).
+- Runtime adapter использует private backend surface и общий provider accounts-config contract для `single` и `rounding`.
+- Usage adapter вынесен в monitoring-only контур [`llm_agent_platform/services/provider_usage_limits.py`](llm_agent_platform/services/provider_usage_limits.py:1).
+
+### Что создаётся
+- Базовый файл OAuth по умолчанию: `secrets/openai-chatgpt/accounts/user_credentials.json`.
+- Далее пользователь может переименовать или скопировать его в именованные account-файлы и сослаться на них через `OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH`.
+
+Provider-specific канон:
+- [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
+
+### Runtime state foundation
+
+В `STATE_DIR` зарезервированы файлы:
+
+```text
+<STATE_DIR>/openai-chatgpt/auth/oauth-account.json
+<STATE_DIR>/openai-chatgpt/usage/limits.json
+```
+
+Контракты:
+
+- OAuth state: [`docs/contracts/state/openai-chatgpt-oauth-state.schema.json`](docs/contracts/state/openai-chatgpt-oauth-state.schema.json:1)
+- Usage limits state: [`docs/contracts/state/openai-chatgpt-usage-limits.schema.json`](docs/contracts/state/openai-chatgpt-usage-limits.schema.json:1)
+
+`account_id` в OAuth state трактуется как optional best-effort field и должен использоваться только при наличии значения.
+
+### Storage boundary
+
+Для платформы в целом каноническая граница хранения задаётся так:
+
+- user OAuth credentials в `secrets/<provider_id>/...` — это пользовательские credentials;
+- общий quota state живёт только в [`STATE_DIR`](llm_agent_platform/config.py:30) по общему канону [`account_state.json`](docs/contracts/state/account-state.schema.json:1) и [`quota_state.json`](docs/contracts/state/group-quota-state.schema.json:1);
+- provider-specific usage snapshot, если provider умеет отдавать usage/limits данные, тоже живёт только в [`STATE_DIR`](llm_agent_platform/config.py:30).
+
+Следствие:
+
+- provider-specific monitoring snapshot не должен перетирать `access_token`, `refresh_token` и другой OAuth material в `secrets/`;
+- provider-specific mutable state и monitoring state должны быть структурно отделены от пользовательских credentials.
+
+### Path resolution ports
+
+Чтобы эта граница не размазывалась по provider adapters, path-resolution должен быть разделён на два платформенных направления:
+
+- credentials locator port — отвечает только за ссылки на user credentials в `secrets/`;
+- runtime state paths port — отвечает только за mutable state в [`STATE_DIR`](llm_agent_platform/config.py:30), включая platform router/quota state и provider monitoring snapshots.
+
+Это означает, что provider adapters и usage-monitoring не должны сами вычислять пути строковыми `replace(...)`, а должны опираться на общие платформенные path-resolver компоненты.
+
+Runtime invariant для provider:
+- `one forced refresh retry on auth failure`
+
+### Что запускать
+
+1. Получить OAuth state:
+   ```bash
+   uv run python scripts/get_openai-chatgpt_credentials.py
+   ```
+2. Указать файл аккаунта в `OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH`.
+3. Для single mode достаточно одного аккаунта с `credentials_path`; для rounding provider использует тот же общий quota contour, что и остальные providers.
+
+Пример provider accounts-config:
+- [`docs/examples/openai_chatgpt_accounts_config.example.json`](docs/examples/openai_chatgpt_accounts_config.example.json:1)
+
+---
+
+## 5) Vertex AI mode (опционально)
 
 Используется сервисный аккаунт в `secrets/service_account.json` и переменные `VERTEX_PROJECT_ID`/`VERTEX_LOCATION`.
 
@@ -206,14 +263,10 @@ Qwen refresh выполняется:
 
 ---
 
-## Поведение прокси при наличии/отсутствии авторизации
+## Поведение платформы при наличии/отсутствии авторизации
 
-- `GET /v1/models` и `GET /<group_id>/v1/models`:
-  - Если в provider-config присутствует `groups`, список моделей формируется как объединение `groups.<group_id>.models` по провайдерам.
-    - Примеры структуры: [`docs/examples/gemini_accounts_config.example.json`](docs/examples/gemini_accounts_config.example.json:1), [`docs/examples/qwen_accounts_config.example.json`](docs/examples/qwen_accounts_config.example.json:1).
-  - Если `groups` отсутствует, используется backward-compatible поведение: список моделей формируется динамически и показывает только модели, для которых реально доступна авторизация:
-    - Gemini quota модели — если валиден provider-config (`secrets/gemini_cli/accounts_config.json` по умолчанию) и есть `refresh_token` в credentials активного (или любого из `all_accounts` для `rounding`) аккаунта.
-    - Qwen quota модели — если валиден provider-config (`secrets/qwen_code/accounts_config.json` по умолчанию) и есть `refresh_token` в credentials активного (или любого из `all_accounts` для `rounding`) аккаунта.
-    - Vertex модели — если задан `VERTEX_PROJECT_ID` и существует `secrets/service_account.json`.
+- `GET /<provider_name>/v1/models` и `GET /<provider_name>/<group_id>/v1/models` работают внутри выбранного provider namespace.
+- Если provider поддерживает groups, список моделей для named group фильтруется по `groups.<group_id>.models` данного provider.
+- Если groups не заданы, используется default group выбранного provider.
 
 - При старте прокси выполняется fail-fast проверка: если не найден ни один валидный источник авторизации (Gemini quota / Qwen quota / Vertex), контейнер завершается с ошибкой и пишет диагностику в логи.

@@ -11,6 +11,9 @@ from llm_agent_platform.services.account_router import BaseAccount
 class ProviderRuntimeCreds:
     token: str | None
     resource_url: str | None = None
+    token_type: str = "Bearer"
+    account_id: str | None = None
+    metadata: dict | None = None
 
 
 class Provider(Protocol):

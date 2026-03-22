@@ -7,6 +7,13 @@ from llm_agent_platform.services.account_router import SelectedAccount
 
 @dataclass
 class ChatRequestContext:
+    provider_id: str
+    provider_runtime_adapter: str
+    provider_transport_kind: str
+    provider_auth_kind: str
+    provider_mode: str | None
+    uses_account_router: bool
+    allowed_model_ids: tuple[str, ...] | None
     data: dict
     raw_model: str
     target_model: str

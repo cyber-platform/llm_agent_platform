@@ -1,6 +1,12 @@
 # 🛠️ Установка и развертывание
 
-Проект использует современные инструменты управления зависимостями (**uv**) и контейнеризацию (**Docker**), что гарантирует быструю и стабильную работу на любой платформе.
+Платформа использует **uv** и **Docker** для локального запуска и контейнерного развертывания.
+
+Актуальные сценарии запуска сервиса вынесены в отдельный раздел [`docs/run/README.md`](docs/run/README.md:1).
+
+Текущий основной workflow разработки:
+
+- [`docs/run/dev.md`](docs/run/dev.md:1)
 
 ---
 
@@ -17,8 +23,8 @@
 
 ### Шаг 1: Клонирование репозитория
 ```bash
-git clone https://github.com/your-repo/gemini-openai-proxy.git
-cd gemini-openai-proxy
+git clone <your-repo-url>
+cd model_proxy
 ```
 
 ### Шаг 2: Подготовка окружения
@@ -37,11 +43,13 @@ cp .env.example .env
 *   `VERTEX_LOCATION`: Регион (по умолчанию `us-central1`).
 
 ### Шаг 4: Авторизация
-Для работы прокси необходимо получить токены доступа. Выполните команду:
+Для quota-based providers подготовьте OAuth credentials. Базовый пример для Gemini OAuth:
 ```bash
-uv run python scripts/get_oauth_credentials.py
+uv run python scripts/get_gemini-cli_credentials.py
 ```
-*Подробности процесса описаны в [Руководстве по авторизации](./auth.md).*
+Подробности:
+- [`docs/auth.md`](docs/auth.md:1)
+- provider-specific страницы в [`docs/providers/`](docs/providers:1)
 
 ---
 
@@ -57,26 +65,26 @@ docker-compose up -d --build
 ### Вариант Б: Локальный запуск
 Если вы хотите запустить сервер напрямую:
 ```bash
-uv run python main.py
+uv run python -m llm_agent_platform
 ```
 
 ---
 
 ## 4. Проверка работоспособности
 
-Вы можете проверить, что прокси отвечает, с помощью простых команд `curl`:
+Вы можете проверить, что сервис отвечает, через provider-scoped маршруты:
 
 **Список моделей:**
 ```bash
-curl http://localhost:4000/v1/models
+curl http://localhost:4000/gemini-cli/v1/models
 ```
 
 **Простой запрос к модели:**
 ```bash
-curl -X POST http://localhost:4000/v1/chat/completions \
+curl -X POST http://localhost:4000/gemini-cli/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
-  "model": "gemini-3-flash-preview-quota",
+  "model": "gemini-2.5-flash",
   "messages": [{"role": "user", "content": "Привет! Как дела?"}]
 }'
 ```
@@ -84,7 +92,7 @@ curl -X POST http://localhost:4000/v1/chat/completions \
 ---
 
 ## 📂 Структура папок
-*   `main.py`: Основной код прокси-сервера на Flask.
+*   `llm_agent_platform/`: runtime-код платформы.
 *   `scripts/`: Вспомогательные скрипты для регистрации и тестов.
-*   `secrets/`: **Критически важная папка.** Здесь хранятся ваши ключи (`user_credentials.json`, `service_account.json`). Никогда не передавайте её содержимое третьим лицам!
-*   `docs/`: Полная документация проекта.
+*   `secrets/`: чувствительные данные и локальные credentials.
+*   `docs/`: Source of Truth для архитектуры, contracts и testing traceability.

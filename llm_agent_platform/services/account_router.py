@@ -9,7 +9,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from llm_agent_platform.config import GEMINI_ACCOUNTS_CONFIG_PATH, QWEN_ACCOUNTS_CONFIG_PATH, STATE_DIR
+from llm_agent_platform.config import (
+    GEMINI_ACCOUNTS_CONFIG_PATH,
+    OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH,
+    QWEN_ACCOUNTS_CONFIG_PATH,
+    STATE_DIR,
+)
 from llm_agent_platform.core.logging import get_logger
 from llm_agent_platform.services.account_state_store import (
     PROVIDER_QUOTA_SENTINEL,
@@ -608,10 +613,18 @@ class QuotaAccountRouter:
 
     def _normalize_provider_id(self, provider: str) -> str:
         if provider == "gemini":
-            return "gemini_cli"
+            return "gemini-cli"
         if provider == "qwen":
             return "qwen_code"
+        if provider == "openai-chatgpt":
+            return "openai-chatgpt"
         return provider
+
+    def try_load_provider_config(self, provider: str) -> ProviderConfig | None:
+        try:
+            return self._load_provider_config(provider)
+        except AccountRouterError:
+            return None
 
     def _resolve_pool(self, cfg: ProviderConfig, group_id: str) -> list[str]:
         if not cfg.groups:
@@ -967,10 +980,12 @@ class QuotaAccountRouter:
         return account
 
     def _config_path_for_provider(self, provider: str) -> Path:
-        if provider in {"gemini_cli", "gemini"}:
+        if provider in {"gemini_cli", "gemini-cli", "gemini"}:
             return Path(GEMINI_ACCOUNTS_CONFIG_PATH)
         if provider in {"qwen_code", "qwen"}:
             return Path(QWEN_ACCOUNTS_CONFIG_PATH)
+        if provider in {"openai_chatgpt", "openai-chatgpt"}:
+            return Path(OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH)
         raise AccountRouterError(f"Unsupported provider: {provider}")
 
     def _state_paths(self, provider_id: str, account_name: str) -> AccountStatePaths:

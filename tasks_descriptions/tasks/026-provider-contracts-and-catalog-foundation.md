@@ -1,19 +1,19 @@
 # Task: Provider contracts and catalog foundation
 
 ## Контекст
-- Источник: [`plans/2026-03-19-provider-centric-platform-redesign-spec.md`](plans/2026-03-19-provider-centric-platform-redesign-spec.md:1)
-- Связанные артефакты: [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:1), [`plans/2026-03-19-provider-centric-contracts-outline.md`](plans/2026-03-19-provider-centric-contracts-outline.md:1), [`plans/2026-03-19-provider-centric-test-design.md`](plans/2026-03-19-provider-centric-test-design.md:1)
+- Источник: [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:1)
+- Связанные артефакты: [`docs/contracts/config/provider-descriptor.schema.json`](docs/contracts/config/provider-descriptor.schema.json:1), [`docs/contracts/config/provider-registry.schema.json`](docs/contracts/config/provider-registry.schema.json:1), [`docs/contracts/state/provider-catalog-snapshot.schema.json`](docs/contracts/state/provider-catalog-snapshot.schema.json:1), [`docs/providers/README.md`](docs/providers/README.md:1)
 
 ## Architecture Context References
 - [ ] [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:23)
-- [ ] [`docs/architecture/quota-group-state-snapshot-and-state-dir.md`](docs/architecture/quota-group-state-snapshot-and-state-dir.md:1)
+- [ ] [`docs/architecture/component-map.md`](docs/architecture/component-map.md:74)
 
 ## Specification References
-- [ ] [`plans/2026-03-19-provider-centric-platform-redesign-spec.md`](plans/2026-03-19-provider-centric-platform-redesign-spec.md:207)
-- [ ] [`plans/2026-03-19-provider-centric-contracts-outline.md`](plans/2026-03-19-provider-centric-contracts-outline.md:11)
+- [ ] [`docs/contracts/config/provider-descriptor.schema.json`](docs/contracts/config/provider-descriptor.schema.json:1)
+- [ ] [`docs/contracts/state/provider-catalog-snapshot.schema.json`](docs/contracts/state/provider-catalog-snapshot.schema.json:1)
 
 ## Test Design References
-- [ ] [`plans/2026-03-19-provider-centric-test-design.md`](plans/2026-03-19-provider-centric-test-design.md:58)
+- [ ] [`docs/testing/suites/provider-catalogs.md`](docs/testing/suites/provider-catalogs.md:1)
 - [ ] [`docs/testing/test-map.md`](docs/testing/test-map.md:1)
 
 ## Workflow References

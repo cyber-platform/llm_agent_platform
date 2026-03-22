@@ -1,7 +1,18 @@
 # ADR 0017: URL-prefix quota groups + group-aware `GET /v1/models`
 
-- Status: Accepted
+- Status: Superseded by [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:1)
 - Date: 2026-03-16
+
+## Superseded note
+
+Этот ADR сохраняется только как ранний шаг эволюции quota-групп.
+
+Текущий активный канон больше не использует глобальные маршруты `/v1/*` и `/<group_id>/v1/*` как публичный namespace. Вместо этого платформа использует provider-scoped routing из [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:23):
+
+- `/<provider_name>/v1/*`
+- `/<provider_name>/<group_name>/v1/*`
+
+Ниже документ сохраняется только для понимания происхождения идеи provider-local group isolation.
 
 ## Контекст
 
@@ -77,6 +88,6 @@
 
 ## Verification
 
-- Компиляция: `uv run python -m compileall api auth core services main.py tests`
-- Тесты: `uv run python -m unittest discover -s tests -p "test_*.py"`
+- Компиляция: `uv run python -m compileall llm_agent_platform`
+- Тесты: `uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
 - Трассировка тестов: [`docs/testing/suites/quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md:1)

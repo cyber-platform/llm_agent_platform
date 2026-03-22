@@ -15,6 +15,7 @@ from llm_agent_platform.config import (
     STATE_WRITER_MAX_PENDING_FILES,
 )
 from llm_agent_platform.core.logging import get_logger
+from llm_agent_platform.services.credentials_paths import normalize_provider_storage_id
 
 logger = get_logger(__name__)
 
@@ -38,14 +39,20 @@ class AccountStatePaths:
 
     @property
     def account_dir(self) -> Path:
-        return Path(self.root_dir) / self.provider_id / "accounts" / self.account_name
+        return Path(self.root_dir) / normalize_provider_storage_id(self.provider_id) / "accounts" / self.account_name
 
     @property
     def account_state_path(self) -> Path:
         return self.account_dir / ACCOUNT_STATE_FILENAME
 
     def group_quota_state_path(self, group_id: str) -> Path:
-        return Path(self.root_dir) / self.provider_id / "groups" / group_id / GROUP_QUOTA_STATE_FILENAME
+        return (
+            Path(self.root_dir)
+            / normalize_provider_storage_id(self.provider_id)
+            / "groups"
+            / group_id
+            / GROUP_QUOTA_STATE_FILENAME
+        )
 
 
 class AsyncStateWriter:
@@ -226,7 +233,13 @@ def write_group_quota_state(
     *,
     writer: AsyncStateWriter | None = state_writer,
 ) -> None:
-    file_path = default_state_root() / provider_id / "groups" / group_id / GROUP_QUOTA_STATE_FILENAME
+    file_path = (
+        default_state_root()
+        / normalize_provider_storage_id(provider_id)
+        / "groups"
+        / group_id
+        / GROUP_QUOTA_STATE_FILENAME
+    )
     _persist_json(file_path, payload, writer=writer)
 
 
