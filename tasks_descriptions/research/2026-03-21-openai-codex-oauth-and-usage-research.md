@@ -4,7 +4,7 @@ Status: draft for discussion
 
 ## Scope
 
-Исследование выполнено как вход для runtime-задачи [`tasks_descriptions/tasks/016-gpt-integration.md`](tasks_descriptions/tasks/016-gpt-integration.md:1) в рамках research-задачи [`tasks_descriptions/tasks/031-openai-codex-oauth-and-usage-research.md`](tasks_descriptions/tasks/031-openai-codex-oauth-and-usage-research.md:1).
+Исследование выполнено как вход для runtime-задачи [`tasks_descriptions/tasks/016-gpt-integration.md`](tasks_descriptions/tasks/016-gpt-integration.md:1) в рамках завершённого research этапа по reference behavior [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1).
 
 Цель — понять, какие части upstream reference из [`externel_projects/kilocode/src/integrations/openai-codex/oauth.ts`](externel_projects/kilocode/src/integrations/openai-codex/oauth.ts:1), [`externel_projects/kilocode/src/api/providers/openai-codex.ts`](externel_projects/kilocode/src/api/providers/openai-codex.ts:1) и [`externel_projects/kilocode/src/integrations/openai-codex/rate-limits.ts`](externel_projects/kilocode/src/integrations/openai-codex/rate-limits.ts:1) можно переносить почти буквально в наш runtime, а какие части требуют адаптации под provider-centric границы из [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:21).
 
@@ -580,8 +580,8 @@ Reference из [`externel_projects/kilocode/src/integrations/openai-codex/rate-l
 
 Этот документ намеренно совмещает факты исследования и архитектурный анализ. После согласования выводов отсюда можно:
 
-- обновить [`tasks_descriptions/tasks/031-openai-codex-oauth-and-usage-research.md`](tasks_descriptions/tasks/031-openai-codex-oauth-and-usage-research.md:1)
 - обновить [`tasks_descriptions/tasks/016-gpt-integration.md`](tasks_descriptions/tasks/016-gpt-integration.md:1)
+- синхронизировать provider-specific канон в [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
 - при необходимости подготовить follow-up на уточнение contract semantics
 
 До этого момента документ считается черновиком для обсуждения.

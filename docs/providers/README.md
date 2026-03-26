@@ -15,7 +15,7 @@
 
 | Provider | Route namespace | Auth kind | Catalog kind | Usage-limits capability | Runtime readiness | Details |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `openai-chatgpt` | `/openai-chatgpt/v1/*` | OAuth-based foundation | static bootstrap catalog | reactive exhaustion detection + optional future proactive usage polling for observability and monitoring | foundation only, runtime adapter not implemented | [`openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1) |
+| `openai-chatgpt` | `/openai-chatgpt/v1/*` | OAuth-based runtime | static bootstrap catalog | reactive exhaustion detection + monitoring-only proactive usage polling for observability | Implemented | [`openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1) |
 
 ## Canonical capability semantics
 
