@@ -15,14 +15,10 @@
     ".env"
   ],
   "force_exclude": [
-    ".venv",
-    "qwen-code",
-    "gemini-cli",
-    "kilocode",
-    "model_proxy.zip"
+    ".venv"
   ],
   "output": {
-    "filename": "model_proxy.zip",
+    "filename": "llm_platform_backup.zip",
     "directory": "."
   }
 }
