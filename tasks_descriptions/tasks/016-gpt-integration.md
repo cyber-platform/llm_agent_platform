@@ -42,8 +42,8 @@
 - [ ] Документация и связанные артефакты обновлены при необходимости
 
 ## Execution Status
-- Current State: Runtime implementation выполнена: descriptor [`llm_agent_platform/provider_registry/providers/openai-chatgpt.json`](llm_agent_platform/provider_registry/providers/openai-chatgpt.json:1) переведен на static-only catalog baseline, добавлены OAuth bootstrap script [`scripts/get_openai-chatgpt_credentials.py`](scripts/get_openai-chatgpt_credentials.py:1) и auth manager [`llm_agent_platform/auth/openai_chatgpt_oauth.py`](llm_agent_platform/auth/openai_chatgpt_oauth.py:1), private backend adapter [`llm_agent_platform/api/openai/providers/openai_chatgpt.py`](llm_agent_platform/api/openai/providers/openai_chatgpt.py:1), provider usage port [`llm_agent_platform/services/provider_usage_limits.py`](llm_agent_platform/services/provider_usage_limits.py:1), а также config/router wiring для `single|rounding` и provider-local groups.
-- Next Step: Прогнать полный тестовый контур, затем синхронизировать Memory Bank под фактическую реализацию task 016.
-- Blockers: осталось только финальное подтверждение полным набором тестов и обновление Memory Bank; исследовательская и архитектурная зависимости уже закрыты артефактами [`tasks_descriptions/research/2026-03-21-openai-codex-oauth-and-usage-research.md`](tasks_descriptions/research/2026-03-21-openai-codex-oauth-and-usage-research.md:1), [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:41) и [`docs/auth.md`](docs/auth.md:157)
+- Current State: `openai-chatgpt` streaming adapter дополнительно выровнен под strict OpenAI-compatible `chat/completions` contract для KiloCode: Responses events больше не дублируют финальные `tool_calls[].function.arguments`, reasoning stream нормализуется в `reasoning_text`, а runtime parity закреплена regression-тестами в [`llm_agent_platform/tests/test_openai_chatgpt_runtime.py`](llm_agent_platform/tests/test_openai_chatgpt_runtime.py:1).
+- Next Step: При необходимости прогнать смежный OpenAI contract contour и затем синхронизировать Memory Bank под фактическое поведение runtime adapter.
+- Blockers: отсутствуют для текущего фикса; остаются только более широкая интеграционная проверка и последующая синхронизация Memory Bank.
 - Contract Changes: present
-- Verification: `uv run python -m unittest llm_agent_platform/tests/test_provider_catalogs.py llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
+- Verification: `uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
