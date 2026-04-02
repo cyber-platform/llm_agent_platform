@@ -86,6 +86,7 @@ State contract задается в [`docs/contracts/state/openai-chatgpt-oauth-s
 - bootstrap script: [`scripts/get_openai-chatgpt_credentials.py`](scripts/get_openai-chatgpt_credentials.py:1)
 - auth manager: [`llm_agent_platform/auth/openai_chatgpt_oauth.py`](llm_agent_platform/auth/openai_chatgpt_oauth.py:1)
 - provider adapter: [`llm_agent_platform/api/openai/providers/openai_chatgpt.py`](llm_agent_platform/api/openai/providers/openai_chatgpt.py:1)
+- streaming adapter обязан нормализовать private Responses stream в strict OpenAI-compatible `chat/completions` SSE contract без дублирования final `tool_calls` arguments и с reasoning через `reasoning_text`.
 
 ## Auth failure invariant
 

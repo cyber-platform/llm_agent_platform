@@ -7,16 +7,22 @@ from unittest.mock import patch
 
 from llm_agent_platform.__main__ import app
 from llm_agent_platform.config import OPENAI_CHATGPT_ORIGINATOR
-from llm_agent_platform.services.provider_usage_limits import OpenAIChatGptUsageLimitsAdapter
+from llm_agent_platform.services.provider_usage_limits import (
+    OpenAIChatGptUsageLimitsAdapter,
+)
 
 SECRETS_TEST_ROOT = Path("secrets_test")
 
 
 class FakeResponse:
-    def __init__(self, status_code: int, payload: dict | None = None, text: str | None = None):
+    def __init__(
+        self, status_code: int, payload: dict | None = None, text: str | None = None
+    ):
         self.status_code = status_code
         self._payload = payload
-        self.text = text if text is not None else json.dumps(payload or {}, ensure_ascii=False)
+        self.text = (
+            text if text is not None else json.dumps(payload or {}, ensure_ascii=False)
+        )
         self.headers = {"content-type": "application/json"}
 
     def json(self):
@@ -65,13 +71,17 @@ class FakeHttpClient:
         self.get_calls: list[dict] = []
 
     def post(self, url, headers=None, json=None, content=None):
-        self.post_calls.append({"url": url, "headers": headers or {}, "json": json, "content": content})
+        self.post_calls.append(
+            {"url": url, "headers": headers or {}, "json": json, "content": content}
+        )
         if not self.post_responses:
             raise AssertionError("Unexpected POST call")
         return self.post_responses.pop(0)
 
     def stream(self, method, url, headers=None, json=None):
-        self.stream_calls.append({"method": method, "url": url, "headers": headers or {}, "json": json})
+        self.stream_calls.append(
+            {"method": method, "url": url, "headers": headers or {}, "json": json}
+        )
         if not self.stream_responses:
             raise AssertionError("Unexpected stream call")
         return self.stream_responses.pop(0)
@@ -97,7 +107,9 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
     @staticmethod
     def _write_json(path: Path, payload: dict) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
     @staticmethod
     def _openai_accounts_config(credentials_path: str, *, mode: str = "single") -> dict:
@@ -131,13 +143,36 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
     def _patched_paths(self, tmp_dir: Path, openai_config_path: Path):
         with (
             patch("llm_agent_platform.services.account_router.STATE_DIR", str(tmp_dir)),
-            patch("llm_agent_platform.services.account_state_store.STATE_DIR", str(tmp_dir)),
-            patch("llm_agent_platform.services.provider_registry.STATE_DIR", str(tmp_dir)),
+            patch(
+                "llm_agent_platform.services.account_state_store.STATE_DIR",
+                str(tmp_dir),
+            ),
+            patch(
+                "llm_agent_platform.services.provider_registry.STATE_DIR", str(tmp_dir)
+            ),
             patch("llm_agent_platform.config.STATE_DIR", str(tmp_dir)),
-            patch("llm_agent_platform.services.account_router.OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH", str(openai_config_path)),
-            patch("llm_agent_platform.auth.credentials.OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH", str(openai_config_path)),
+            patch(
+                "llm_agent_platform.services.account_router.OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH",
+                str(openai_config_path),
+            ),
+            patch(
+                "llm_agent_platform.auth.credentials.OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH",
+                str(openai_config_path),
+            ),
         ):
             yield
+
+    @staticmethod
+    def _sse_json_events(payload: str) -> list[dict]:
+        events: list[dict] = []
+        for line in payload.splitlines():
+            if not line.startswith("data: "):
+                continue
+            raw = line[6:].strip()
+            if raw == "[DONE]":
+                continue
+            events.append(json.loads(raw))
+        return events
 
     def test_non_stream_single_mode_uses_private_backend_and_optional_account_id(self):
         with _tmp_state_dir() as tmp_dir:
@@ -154,7 +189,9 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                     "expires_at": "2099-01-01T00:00:00Z",
                 },
             )
-            self._write_json(accounts_config_path, self._openai_accounts_config(str(creds_path)))
+            self._write_json(
+                accounts_config_path, self._openai_accounts_config(str(creds_path))
+            )
 
             fake_client = FakeHttpClient(
                 post_responses=[
@@ -166,19 +203,29 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                             "choices": [
                                 {
                                     "index": 0,
-                                    "message": {"role": "assistant", "content": "hello from openai-chatgpt"},
+                                    "message": {
+                                        "role": "assistant",
+                                        "content": "hello from openai-chatgpt",
+                                    },
                                     "finish_reason": "stop",
                                 }
                             ],
-                            "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5},
+                            "usage": {
+                                "prompt_tokens": 3,
+                                "completion_tokens": 2,
+                                "total_tokens": 5,
+                            },
                         },
                     )
                 ]
             )
 
-            with self._patched_paths(tmp_dir, accounts_config_path), patch(
-                "llm_agent_platform.api.openai.providers.openai_chatgpt.get_http_client",
-                return_value=fake_client,
+            with (
+                self._patched_paths(tmp_dir, accounts_config_path),
+                patch(
+                    "llm_agent_platform.api.openai.providers.openai_chatgpt.get_http_client",
+                    return_value=fake_client,
+                ),
             ):
                 response = self.client.post(
                     "/openai-chatgpt/v1/chat/completions",
@@ -190,16 +237,29 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
 
             body = json.loads(response.data.decode("utf-8"))
             usage_state = json.loads(
-                (tmp_dir / "openai-chatgpt" / "usage" / "accounts" / "acct-1" / "limits.json").read_text(
-                    encoding="utf-8"
-                )
+                (
+                    tmp_dir
+                    / "openai-chatgpt"
+                    / "usage"
+                    / "accounts"
+                    / "acct-1"
+                    / "limits.json"
+                ).read_text(encoding="utf-8")
             )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(body["model"], "gpt-5.4")
-        self.assertEqual(body["choices"][0]["message"]["content"], "hello from openai-chatgpt")
-        self.assertEqual(fake_client.post_calls[0]["url"], "https://chatgpt.com/backend-api/codex/responses")
-        self.assertEqual(fake_client.post_calls[0]["headers"]["originator"], OPENAI_CHATGPT_ORIGINATOR)
+        self.assertEqual(
+            body["choices"][0]["message"]["content"], "hello from openai-chatgpt"
+        )
+        self.assertEqual(
+            fake_client.post_calls[0]["url"],
+            "https://chatgpt.com/backend-api/codex/responses",
+        )
+        self.assertEqual(
+            fake_client.post_calls[0]["headers"]["originator"],
+            OPENAI_CHATGPT_ORIGINATOR,
+        )
         self.assertNotIn("ChatGPT-Account-Id", fake_client.post_calls[0]["headers"])
         self.assertEqual(usage_state["provider_id"], "openai-chatgpt")
 
@@ -218,7 +278,9 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                     "expires_at": "2099-01-01T00:00:00Z",
                 },
             )
-            self._write_json(accounts_config_path, self._openai_accounts_config(str(creds_path)))
+            self._write_json(
+                accounts_config_path, self._openai_accounts_config(str(creds_path))
+            )
 
             fake_client = FakeHttpClient(
                 post_responses=[
@@ -231,27 +293,38 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                             "choices": [
                                 {
                                     "index": 0,
-                                    "message": {"role": "assistant", "content": "after refresh"},
+                                    "message": {
+                                        "role": "assistant",
+                                        "content": "after refresh",
+                                    },
                                     "finish_reason": "stop",
                                 }
                             ],
-                            "usage": {"prompt_tokens": 2, "completion_tokens": 2, "total_tokens": 4},
+                            "usage": {
+                                "prompt_tokens": 2,
+                                "completion_tokens": 2,
+                                "total_tokens": 4,
+                            },
                         },
                     ),
                 ]
             )
 
-            with self._patched_paths(tmp_dir, accounts_config_path), patch(
-                "llm_agent_platform.api.openai.providers.openai_chatgpt.get_http_client",
-                return_value=fake_client,
-            ), patch(
-                "llm_agent_platform.api.openai.providers.openai_chatgpt.OpenAIChatGPTOAuthManager.force_refresh",
-                return_value={
-                    "access_token": "token-456",
-                    "token_type": "Bearer",
-                    "account_id": "acct-xyz",
-                },
-            ) as mock_refresh:
+            with (
+                self._patched_paths(tmp_dir, accounts_config_path),
+                patch(
+                    "llm_agent_platform.api.openai.providers.openai_chatgpt.get_http_client",
+                    return_value=fake_client,
+                ),
+                patch(
+                    "llm_agent_platform.api.openai.providers.openai_chatgpt.OpenAIChatGPTOAuthManager.force_refresh",
+                    return_value={
+                        "access_token": "token-456",
+                        "token_type": "Bearer",
+                        "account_id": "acct-xyz",
+                    },
+                ) as mock_refresh,
+            ):
                 response = self.client.post(
                     "/openai-chatgpt/v1/chat/completions",
                     json={
@@ -266,8 +339,12 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
         self.assertEqual(body["choices"][0]["message"]["content"], "after refresh")
         self.assertEqual(mock_refresh.call_count, 1)
         self.assertEqual(len(fake_client.post_calls), 2)
-        self.assertEqual(fake_client.post_calls[1]["headers"]["Authorization"], "Bearer token-456")
-        self.assertEqual(fake_client.post_calls[1]["headers"]["ChatGPT-Account-Id"], "acct-xyz")
+        self.assertEqual(
+            fake_client.post_calls[1]["headers"]["Authorization"], "Bearer token-456"
+        )
+        self.assertEqual(
+            fake_client.post_calls[1]["headers"]["ChatGPT-Account-Id"], "acct-xyz"
+        )
 
     def test_stream_route_emits_openai_chunks_and_usage(self):
         with _tmp_state_dir() as tmp_dir:
@@ -285,7 +362,9 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                     "expires_at": "2099-01-01T00:00:00Z",
                 },
             )
-            self._write_json(accounts_config_path, self._openai_accounts_config(str(creds_path)))
+            self._write_json(
+                accounts_config_path, self._openai_accounts_config(str(creds_path))
+            )
 
             fake_client = FakeHttpClient(
                 stream_responses=[
@@ -301,9 +380,12 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                 ]
             )
 
-            with self._patched_paths(tmp_dir, accounts_config_path), patch(
-                "llm_agent_platform.api.openai.providers.openai_chatgpt.get_http_client",
-                return_value=fake_client,
+            with (
+                self._patched_paths(tmp_dir, accounts_config_path),
+                patch(
+                    "llm_agent_platform.api.openai.providers.openai_chatgpt.get_http_client",
+                    return_value=fake_client,
+                ),
             ):
                 response = self.client.post(
                     "/openai-chatgpt/v1/chat/completions",
@@ -316,14 +398,23 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                 )
                 payload = response.data.decode("utf-8")
             usage_state = json.loads(
-                (tmp_dir / "openai-chatgpt" / "usage" / "accounts" / "acct-1" / "limits.json").read_text(
-                    encoding="utf-8"
-                )
+                (
+                    tmp_dir
+                    / "openai-chatgpt"
+                    / "usage"
+                    / "accounts"
+                    / "acct-1"
+                    / "limits.json"
+                ).read_text(encoding="utf-8")
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('"content": "hello"', payload)
-        self.assertIn('"usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5}', payload)
+        self.assertIn('"content": "hel"', payload)
+        self.assertIn('"content": "lo"', payload)
+        self.assertIn(
+            '"usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5}',
+            payload,
+        )
         self.assertIn("data: [DONE]", payload)
         self.assertEqual(usage_state["metadata"]["usage"]["total_tokens"], 5)
 
@@ -342,7 +433,9 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                     "expires_at": "2099-01-01T00:00:00Z",
                 },
             )
-            self._write_json(accounts_config_path, self._openai_accounts_config(str(creds_path)))
+            self._write_json(
+                accounts_config_path, self._openai_accounts_config(str(creds_path))
+            )
 
             fake_client = FakeHttpClient(
                 stream_responses=[
@@ -354,9 +447,12 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                 ]
             )
 
-            with self._patched_paths(tmp_dir, accounts_config_path), patch(
-                "llm_agent_platform.api.openai.providers.openai_chatgpt.get_http_client",
-                return_value=fake_client,
+            with (
+                self._patched_paths(tmp_dir, accounts_config_path),
+                patch(
+                    "llm_agent_platform.api.openai.providers.openai_chatgpt.get_http_client",
+                    return_value=fake_client,
+                ),
             ):
                 response = self.client.post(
                     "/openai-chatgpt/v1/chat/completions",
@@ -373,6 +469,151 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
         self.assertIn("backend unavailable", payload)
         self.assertNotIn("data: [DONE]", payload)
 
+    def test_stream_tool_call_deltas_do_not_duplicate_final_arguments(self):
+        with _tmp_state_dir() as tmp_dir:
+            creds_path = tmp_dir / "openai-chatgpt" / "auth" / "oauth-account.json"
+            accounts_config_path = tmp_dir / "openai_accounts_config.json"
+            self._write_json(
+                creds_path,
+                {
+                    "version": 1,
+                    "provider_id": "openai-chatgpt",
+                    "access_token": "token-123",
+                    "refresh_token": "refresh-123",
+                    "token_type": "Bearer",
+                    "account_id": "acct-1",
+                    "expires_at": "2099-01-01T00:00:00Z",
+                },
+            )
+            self._write_json(
+                accounts_config_path, self._openai_accounts_config(str(creds_path))
+            )
+
+            fake_client = FakeHttpClient(
+                stream_responses=[
+                    FakeStreamResponse(
+                        200,
+                        [
+                            'data: {"type":"response.function_call_arguments.delta","call_id":"call_1","name":"read","index":0,"delta":"{\\"path\\""}',
+                            'data: {"type":"response.function_call_arguments.delta","call_id":"call_1","name":"read","index":0,"delta":":\\"/tmp/a.txt\\"}"}',
+                            'data: {"type":"response.output_item.done","item":{"type":"function_call","call_id":"call_1","name":"read","arguments":"{\\"path\\":\\"/tmp/a.txt\\"}"}}',
+                            'data: {"type":"response.done","response":{"usage":{"input_tokens":4,"output_tokens":3,"total_tokens":7}}}',
+                        ],
+                    )
+                ]
+            )
+
+            with (
+                self._patched_paths(tmp_dir, accounts_config_path),
+                patch(
+                    "llm_agent_platform.api.openai.providers.openai_chatgpt.get_http_client",
+                    return_value=fake_client,
+                ),
+            ):
+                response = self.client.post(
+                    "/openai-chatgpt/v1/chat/completions",
+                    json={
+                        "model": "gpt-5.4",
+                        "messages": [{"role": "user", "content": "read file"}],
+                        "stream": True,
+                        "tools": [
+                            {
+                                "type": "function",
+                                "function": {
+                                    "name": "read",
+                                    "description": "Read file",
+                                    "parameters": {
+                                        "type": "object",
+                                        "properties": {"path": {"type": "string"}},
+                                    },
+                                },
+                            }
+                        ],
+                    },
+                )
+                payload = response.data.decode("utf-8")
+
+        events = self._sse_json_events(payload)
+        tool_events = [
+            event
+            for event in events
+            if event.get("choices")
+            and event["choices"][0].get("delta", {}).get("tool_calls")
+        ]
+        finish_events = [
+            event
+            for event in events
+            if event.get("choices")
+            and event["choices"][0].get("finish_reason") == "tool_calls"
+        ]
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(tool_events), 2)
+        self.assertEqual(
+            [
+                item["choices"][0]["delta"]["tool_calls"][0]["function"]["arguments"]
+                for item in tool_events
+            ],
+            ['{"path"', ':"/tmp/a.txt"}'],
+        )
+        self.assertEqual(len(finish_events), 1)
+        self.assertIn("data: [DONE]", payload)
+
+    def test_stream_reasoning_is_exposed_as_reasoning_text(self):
+        with _tmp_state_dir() as tmp_dir:
+            creds_path = tmp_dir / "openai-chatgpt" / "auth" / "oauth-account.json"
+            accounts_config_path = tmp_dir / "openai_accounts_config.json"
+            self._write_json(
+                creds_path,
+                {
+                    "version": 1,
+                    "provider_id": "openai-chatgpt",
+                    "access_token": "token-123",
+                    "refresh_token": "refresh-123",
+                    "token_type": "Bearer",
+                    "account_id": "acct-1",
+                    "expires_at": "2099-01-01T00:00:00Z",
+                },
+            )
+            self._write_json(
+                accounts_config_path, self._openai_accounts_config(str(creds_path))
+            )
+
+            fake_client = FakeHttpClient(
+                stream_responses=[
+                    FakeStreamResponse(
+                        200,
+                        [
+                            'data: {"type":"response.reasoning_text.delta","delta":"thinking"}',
+                            'data: {"type":"response.output_text.delta","delta":"done"}',
+                            'data: {"type":"response.done","response":{"usage":{"input_tokens":2,"output_tokens":2,"total_tokens":4}}}',
+                        ],
+                    )
+                ]
+            )
+
+            with (
+                self._patched_paths(tmp_dir, accounts_config_path),
+                patch(
+                    "llm_agent_platform.api.openai.providers.openai_chatgpt.get_http_client",
+                    return_value=fake_client,
+                ),
+            ):
+                response = self.client.post(
+                    "/openai-chatgpt/v1/chat/completions",
+                    json={
+                        "model": "gpt-5.4",
+                        "messages": [{"role": "user", "content": "think"}],
+                        "stream": True,
+                    },
+                )
+                payload = response.data.decode("utf-8")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('"reasoning_text": "thinking"', payload)
+        self.assertNotIn('"reasoning_content"', payload)
+        self.assertIn('"content": "done"', payload)
+
     def test_group_models_route_uses_provider_local_subset(self):
         with _tmp_state_dir() as tmp_dir:
             creds_path = tmp_dir / "openai-chatgpt" / "auth" / "oauth-account.json"
@@ -388,14 +629,19 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                     "expires_at": "2099-01-01T00:00:00Z",
                 },
             )
-            self._write_json(accounts_config_path, self._openai_accounts_config(str(creds_path), mode="rounding"))
+            self._write_json(
+                accounts_config_path,
+                self._openai_accounts_config(str(creds_path), mode="rounding"),
+            )
 
             with self._patched_paths(tmp_dir, accounts_config_path):
                 response = self.client.get("/openai-chatgpt/team-a/v1/models")
 
         body = json.loads(response.data.decode("utf-8"))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual({item["id"] for item in body["data"]}, {"gpt-5.4", "gpt-5.4-mini"})
+        self.assertEqual(
+            {item["id"] for item in body["data"]}, {"gpt-5.4", "gpt-5.4-mini"}
+        )
 
     def test_usage_adapter_normalizes_wham_windows(self):
         with _tmp_state_dir() as tmp_dir:
@@ -434,15 +680,24 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                 )
             )
 
-            with patch("llm_agent_platform.config.STATE_DIR", str(tmp_dir)), patch(
-                "llm_agent_platform.services.provider_usage_limits.get_http_client", return_value=fake_client
+            with (
+                patch("llm_agent_platform.config.STATE_DIR", str(tmp_dir)),
+                patch(
+                    "llm_agent_platform.services.provider_usage_limits.get_http_client",
+                    return_value=fake_client,
+                ),
             ):
                 snapshot = OpenAIChatGptUsageLimitsAdapter(creds_path).fetch_snapshot()
 
             usage_state = json.loads(
-                (tmp_dir / "openai-chatgpt" / "usage" / "accounts" / "default" / "limits.json").read_text(
-                    encoding="utf-8"
-                )
+                (
+                    tmp_dir
+                    / "openai-chatgpt"
+                    / "usage"
+                    / "accounts"
+                    / "default"
+                    / "limits.json"
+                ).read_text(encoding="utf-8")
             )
 
         self.assertEqual(snapshot["limits"]["primary"]["used_percent"], 42.0)

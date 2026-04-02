@@ -7,6 +7,8 @@
 - Проверка private backend runtime adapter для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1), включая forced refresh retry и optional `ChatGPT-Account-Id`.
 - Проверка маппинга upstream-ошибки в OpenAI error shape.
 - Проверка streamed non-200 ошибки для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): ошибка должна вернуться как OpenAI-compatible SSE event, без silent разрыва потока.
+- Проверка strict OpenAI-compatible streaming parity для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): partial `tool_calls[].function.arguments` не дублируются на `response.output_item.done`.
+- Проверка reasoning parity для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): reasoning stream отдается через `reasoning_text`, совместимый с KiloCode OpenAI-compatible parser.
 
 ## Test Level (L1–L4)
 - L3 System (integration, real deps): контракт проверяется через реальный Flask endpoint прокси и реальные форматы ответа (JSON/SSE).
