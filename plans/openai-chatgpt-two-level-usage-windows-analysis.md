@@ -262,7 +262,7 @@ Periodic refresh — это optional provider capability.
 
 ## Следующий этап реализации
 
-После перехода в [`code`](.kilocode/rules/index.md:1) режим задача декомпозируется так:
+После перехода к реализации задача декомпозируется так:
 
 1. Обновить state layout и path resolution вокруг [`resolve_runtime_state_paths()`](llm_agent_platform/services/runtime_state_paths.py:48)
 2. Развести `usage_windows.json` и `request_usage.json`

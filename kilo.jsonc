@@ -1,0 +1,9 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "instructions": [
+    ".kilo/rules/01-context-loading.md",
+    ".kilo/rules/02-git-boundaries.md",
+    ".kilo/rules/03-documentation.md",
+    ".kilo/rules/04-task-navigation.md"
+  ]
+}

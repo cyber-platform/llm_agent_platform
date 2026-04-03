@@ -13,7 +13,7 @@
 
 - [x] [`ADR 0015`](docs/adr/0015-env-separation-runtime-vs-oauth-bootstrap.md:1)
 - [ ] [`docs/architecture/component-map.md`](docs/architecture/component-map.md:1)
-- [ ] [`.kilocode/rules/memory-bank/systemPatterns.md`](.kilocode/rules/memory-bank/systemPatterns.md:1)
+- [ ] [`docs/vision.md`](docs/vision.md:1)
 
 ## Specification References
 
@@ -79,4 +79,3 @@
 - Blockers: none
 - Contract Changes: none
 - Verification: см. тест-кейсы TC-001..TC-004 в [`docs/testing/suites/config-env-and-layout.md`](docs/testing/suites/config-env-and-layout.md:1)
-

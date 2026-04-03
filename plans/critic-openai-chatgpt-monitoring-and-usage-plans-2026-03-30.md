@@ -3,7 +3,7 @@
 - Date: 2026-03-30
 - Target feature / plan: [`plans/openai-chatgpt-monitoring-frontend-prototype.md`](plans/openai-chatgpt-monitoring-frontend-prototype.md:1), [`plans/openai-chatgpt-two-level-usage-windows-analysis.md`](plans/openai-chatgpt-two-level-usage-windows-analysis.md:1)
 - Target task set: source task [`tasks_descriptions/tasks/039-two-level-openai-chatgpt.md`](tasks_descriptions/tasks/039-two-level-openai-chatgpt.md:1) + будущая декомпозиция в [`tasks_descriptions/tasks/`](tasks_descriptions/tasks:1)
-- Critic execution profile: role=Critic, reasoning level=4, skills=[`critic-taskset-semantic-critique`](../../../../.kilocode/skills-critic/critic-taskset-semantic-critique/SKILL.md:1), [`critic-taskset-semantic-critique-llm-platform`](.kilocode/skills-critic/critic-taskset-semantic-critique-llm-platform/SKILL.md:1)
+- Critic execution profile: role=Critic, reasoning level=4, skills=`critic-taskset-semantic-critique` + [`local-taskset-semantic-critique`](.kilo/skills/local-taskset-semantic-critique/SKILL.md:1)
 - Storage note: отчёт сохранён в [`plans/`](plans:1) по явному запросу пользователя; канонический runtime-путь для critic report по skill остаётся [`tasks_descriptions/feedback/critic/`](tasks_descriptions/feedback/critic:1)
 
 ## Executive summary
