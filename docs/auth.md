@@ -173,17 +173,28 @@ Provider-specific канон:
 
 ### Runtime state foundation
 
-В `STATE_DIR` зарезервированы файлы:
+В `STATE_DIR` для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1) канонизируется account-centric layout:
 
 ```text
-<STATE_DIR>/openai-chatgpt/auth/oauth-account.json
-<STATE_DIR>/openai-chatgpt/usage/limits.json
+<STATE_DIR>/openai-chatgpt/
+  auth/oauth-account.json
+  accounts/
+    <account_name>/
+      account_state.json
+      usage_windows.json
+      request_usage.json
+  groups/
+    <group_id>/
+      quota_state.json
 ```
 
 Контракты:
 
 - OAuth state: [`docs/contracts/state/openai-chatgpt-oauth-state.schema.json`](docs/contracts/state/openai-chatgpt-oauth-state.schema.json:1)
-- Usage limits state: [`docs/contracts/state/openai-chatgpt-usage-limits.schema.json`](docs/contracts/state/openai-chatgpt-usage-limits.schema.json:1)
+- Routing state: [`docs/contracts/state/account-state.schema.json`](docs/contracts/state/account-state.schema.json:1)
+- Usage windows: [`docs/contracts/state/openai-chatgpt-usage-windows.schema.json`](docs/contracts/state/openai-chatgpt-usage-windows.schema.json:1)
+- Request usage: [`docs/contracts/state/openai-chatgpt-request-usage.schema.json`](docs/contracts/state/openai-chatgpt-request-usage.schema.json:1)
+- Group snapshot: [`docs/contracts/state/group-quota-state.schema.json`](docs/contracts/state/group-quota-state.schema.json:1)
 
 `account_id` в OAuth state трактуется как optional best-effort field и должен использоваться только при наличии значения.
 
@@ -199,6 +210,12 @@ Provider-specific канон:
 
 - provider-specific monitoring snapshot не должен перетирать `access_token`, `refresh_token` и другой OAuth material в `secrets/`;
 - provider-specific mutable state и monitoring state должны быть структурно отделены от пользовательских credentials.
+
+### Current admin monitoring boundary
+
+Для текущего monitoring PoC admin surface допустима без auth только в local single-user boundary.
+
+Это временное допущение для operator-facing PoC и не считается baseline для shared dev or prod. Future hardening вынесен в [`tasks_descriptions/plans/040-admin-surface-auth-and-rbac-hardening.md`](tasks_descriptions/plans/040-admin-surface-auth-and-rbac-hardening.md:1).
 
 ### Path resolution ports
 

@@ -7,6 +7,7 @@
 В рамках suite тестируем:
 
 - новый persisted account state формат `account_state.json`
+- provider-specific account artifacts `usage_windows.json` и `request_usage.json`
 - новый layout под `STATE_DIR` (state на HDD)
 - восстановление in-memory состояния роутера при старте из файлов
 - `quota_scope: per_model | per_provider`
@@ -31,6 +32,8 @@ Non-scope:
 
 - REQ-STATE-DIR: state-файлы пишутся/читаются из `STATE_DIR`, secrets остаются в `secrets/`.
 - REQ-ACCOUNT-STATE-V1: единый файл `account_state.json` содержит `last_used_at`, `cooldown.last_cooldown_at`, `quota_exhausted.keys`.
+- REQ-USAGE-WINDOWS-V1: provider-specific monitoring snapshot хранится в `usage_windows.json` и пишет refresh metadata отдельно от request counters.
+- REQ-REQUEST-USAGE-V1: request-driven observability хранится в `request_usage.json` и не перетирает monitoring windows.
 - REQ-LAZY-HYDRATE: при первом доступе к `(provider_id, group_id)` runtime восстанавливает in-memory state из `STATE_DIR` (lazy hydrate = lazy restore persisted state) без обязательного глобального pre-scan.
 - REQ-COOLDOWN-RESTORE: cooldown переживает рестарт (восстанавливается из `last_cooldown_at`).
 - REQ-QUOTA-SCOPE: provider accounts-config поддерживает `quota_scope=per_model|per_provider`.
@@ -64,6 +67,11 @@ Non-scope:
 
 - TC-ASTATE-1 (L1): Given `account_state.json` c `quota_exhausted.keys`, When router восстанавливает состояние из файла (hydrate), Then router считает exhausted корректно.
 
+### REQ-USAGE-WINDOWS-V1 + REQ-REQUEST-USAGE-V1
+
+- TC-UPROV-1 (L1): Given provider monitoring refresh обновляет usage snapshot, When persisted payload materialized, Then `usage_windows.json` содержит два окна и refresh metadata.
+- TC-UPROV-2 (L1): Given request-path usage update, When persisted payload materialized, Then `request_usage.json` обновляется отдельно и не затирает `usage_windows.json`.
+
 ### REQ-LAZY-HYDRATE
 
 - TC-HYDRATE-1 (L1): Given в `STATE_DIR` уже есть `account_state.json`, When первый вызов роутера обращается к `(provider_id, group_id)`, Then in-memory state lazily восстанавливается из файлов без отдельного bootstrap scan API.
@@ -95,6 +103,8 @@ Non-scope:
 | :--- | :--- | :---: | :--- |
 | REQ-STATE-DIR | TC-STATE-DIR-1 | L1 | `tests/test_quota_account_router.py` (или новый `tests/test_quota_state_persistence.py`) |
 | REQ-ACCOUNT-STATE-V1 | TC-ASTATE-1 | L1 | то же |
+| REQ-USAGE-WINDOWS-V1 | TC-UPROV-1 | L1 | то же |
+| REQ-REQUEST-USAGE-V1 | TC-UPROV-2 | L1 | то же |
 | REQ-LAZY-HYDRATE | TC-HYDRATE-1 | L1 | то же |
 | REQ-COOLDOWN-RESTORE | TC-CD-RESTORE-1, TC-CD-RESTORE-2 | L1 | то же |
 | REQ-QUOTA-SCOPE | TC-QSCOPE-1, TC-QSCOPE-2 | L1 | то же |

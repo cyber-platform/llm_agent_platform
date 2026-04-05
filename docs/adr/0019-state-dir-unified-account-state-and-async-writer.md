@@ -94,3 +94,13 @@
 - Если потребуется multi-process writer с межпроцессной координацией.
 - Если понадобится строгая cross-file transactional consistency.
 - Если monitoring snapshot станет operational source of truth, а не best-effort артефактом.
+
+## Update (2026-04-05)
+
+Provider-specific account monitoring artifacts и admin read-model boundary были расширены отдельным решением:
+
+- добавлены `usage_windows.json` и `request_usage.json` как account-scoped provider artifacts;
+- зафиксировано, что admin UI читает только backend read-model из in-memory state;
+- public `429` surface сохранён отдельно от richer internal/admin taxonomy.
+
+Это зафиксировано в [`docs/adr/0021-account-centric-provider-monitoring-and-admin-read-model.md`](docs/adr/0021-account-centric-provider-monitoring-and-admin-read-model.md:1).

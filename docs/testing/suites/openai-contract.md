@@ -6,6 +6,7 @@
 - Проверка записи `last_used_at` для Qwen streaming.
 - Проверка private backend runtime adapter для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1), включая forced refresh retry и optional `ChatGPT-Account-Id`.
 - Проверка маппинга upstream-ошибки в OpenAI error shape.
+- Проверка того, что richer internal/admin quota taxonomy для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1) не расширяет public `429` contract.
 - Проверка streamed non-200 ошибки для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): ошибка должна вернуться как OpenAI-compatible SSE event, без silent разрыва потока.
 - Проверка strict OpenAI-compatible streaming parity для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): partial `tool_calls[].function.arguments` не дублируются на `response.output_item.done`.
 - Проверка reasoning parity для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): reasoning stream отдается через `reasoning_text`, совместимый с KiloCode OpenAI-compatible parser.
@@ -18,6 +19,7 @@
 - Canonical references:
   - Архитектура pipeline: [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1)
   - Нормативные схемы ошибок: [`docs/contracts/api/openai/errors/429-error.schema.json`](docs/contracts/api/openai/errors/429-error.schema.json:1)
+  - Provider-specific quota boundary: [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
 - Script: [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1), [`llm_agent_platform/tests/test_openai_chatgpt_runtime.py`](llm_agent_platform/tests/test_openai_chatgpt_runtime.py:1)
 
 ## Verification Command
