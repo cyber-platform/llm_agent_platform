@@ -1,222 +1,111 @@
-# Frontend prototype: monitoring UI для provider usage states
+# Frontend prototype: monitoring UI for provider usage states
 
 ## Scope
 
-Этот документ описывает согласованный первый прототип админского monitoring UI и синхронизирован с quota architecture в [`plans/openai-chatgpt-two-level-usage-windows-analysis.md`](plans/openai-chatgpt-two-level-usage-windows-analysis.md:1).
+Этот документ фиксирует переписанный baseline для первого monitoring UI и синхронизирован с архитектурными freeze-решениями `F-001`–`F-005` в директории [`tasks_descriptions/plans/current_focus`](tasks_descriptions/plans/current_focus:1).
 
 Пилотный scope:
 
-- без авторизации
-- без ролей и разграничений
-- только веб-интерфейс администратора сервиса
-- первая реализация только для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1)
+- только для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1);
+- только локальный single-user PoC;
+- без auth и RBAC только внутри этого локального PoC boundary;
+- не shared dev baseline и не production-like deployment;
+- UI читает только backend admin API и не читает state files напрямую.
 
-При этом backend и frontend сразу проектируются в общем модульном виде для поддержки нескольких providers в будущем.
+## Architectural alignment
 
-## Relevant context для критика
+План опирается на уже принятые решения:
 
-### Основные документы
+- новый account-centric state boundary из [`discussion-f-001-state-and-contract-boundary-openai-chatgpt-monitoring.md`](tasks_descriptions/plans/current_focus/discussion-f-001-state-and-contract-boundary-openai-chatgpt-monitoring.md:178);
+- in-memory-first ownership model из [`discussion-f-002-state-ownership-and-write-paths-openai-chatgpt-monitoring.md`](tasks_descriptions/plans/current_focus/discussion-f-002-state-ownership-and-write-paths-openai-chatgpt-monitoring.md:249);
+- internal/admin-only taxonomy при неизменном public `429` surface из [`discussion-f-003-public-429-surface-and-internal-quota-states-openai-chatgpt-monitoring.md`](tasks_descriptions/plans/current_focus/discussion-f-003-public-429-surface-and-internal-quota-states-openai-chatgpt-monitoring.md:288);
+- `Activate` как session-scoped in-memory preferred-account override из [`discussion-f-004-activate-semantics-and-routing-boundary-openai-chatgpt-monitoring.md`](tasks_descriptions/plans/current_focus/discussion-f-004-activate-semantics-and-routing-boundary-openai-chatgpt-monitoring.md:223);
+- no-auth boundary только для local single-user PoC из [`discussion-f-005-no-auth-admin-surface-boundary-openai-chatgpt-monitoring.md`](tasks_descriptions/plans/current_focus/discussion-f-005-no-auth-admin-surface-boundary-openai-chatgpt-monitoring.md:225).
 
-- quota architecture: [`plans/openai-chatgpt-two-level-usage-windows-analysis.md`](plans/openai-chatgpt-two-level-usage-windows-analysis.md:1)
-- задача-источник: [`tasks_descriptions/tasks/039-two-level-openai-chatgpt.md`](tasks_descriptions/tasks/039-two-level-openai-chatgpt.md:1)
-- provider page: [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
-- usage overview: [`docs/usage.md`](docs/usage.md:1)
-- auth overview: [`docs/auth.md`](docs/auth.md:1)
+## Goal
 
-### Contracts и архитектурные страницы
-
-- usage limits state contract: [`docs/contracts/state/openai-chatgpt-usage-limits.schema.json`](docs/contracts/state/openai-chatgpt-usage-limits.schema.json:1)
-- account state contract: [`docs/contracts/state/account-state.schema.json`](docs/contracts/state/account-state.schema.json:1)
-- group quota state contract: [`docs/contracts/state/group-quota-state.schema.json`](docs/contracts/state/group-quota-state.schema.json:1)
-- общий state layout canon: [`docs/architecture/quota-group-state-snapshot-and-state-dir.md`](docs/architecture/quota-group-state-snapshot-and-state-dir.md:1)
-- quota reset canon: [`docs/architecture/quota-reset-periods-and-account-state.md`](docs/architecture/quota-reset-periods-and-account-state.md:1)
-- pipeline and strategy overview: [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1)
-
-### Текущая реализация и integration points
-
-- state root config: [`STATE_DIR`](llm_agent_platform/config.py:30)
-- usage endpoint config: [`OPENAI_CHATGPT_USAGE_URL`](llm_agent_platform/config.py:143)
-- runtime state path resolver: [`resolve_runtime_state_paths()`](llm_agent_platform/services/runtime_state_paths.py:48)
-- usage polling adapter: [`OpenAIChatGptUsageLimitsAdapter.fetch_snapshot()`](llm_agent_platform/services/provider_usage_limits.py:37)
-- OpenAI runtime provider: [`OpenAIChatGPTProvider.execute_non_stream()`](llm_agent_platform/api/openai/providers/openai_chatgpt.py:515)
-- OpenAI stream path: [`OpenAIChatGPTProvider.stream_lines()`](llm_agent_platform/api/openai/providers/openai_chatgpt.py:545)
-- rounding strategy: [`RotateOn429RoundingStrategy.execute_non_stream()`](llm_agent_platform/api/openai/strategies/rotate_on_429_rounding.py:66)
-- rounding stream strategy: [`RotateOn429RoundingStrategy.stream()`](llm_agent_platform/api/openai/strategies/rotate_on_429_rounding.py:185)
-- router state updates: [`quota_account_router.register_event()`](llm_agent_platform/services/account_router.py:369)
-
-### Текущее фактическое состояние файлов
-
-- account runtime state example: [`../../../../../../data/model_proxy_state/openai-chatgpt/accounts/kristina/account_state.json`](../../../../../../data/model_proxy_state/openai-chatgpt/accounts/kristina/account_state.json:1)
-- current usage snapshot example: [`../../../../../../data/model_proxy_state/openai-chatgpt/usage/accounts/kristina/limits.json`](../../../../../../data/model_proxy_state/openai-chatgpt/usage/accounts/kristina/limits.json:1)
-- current group snapshot example: [`../../../../../../data/model_proxy_state/openai-chatgpt/groups/g0/quota_state.json`](../../../../../../data/model_proxy_state/openai-chatgpt/groups/g0/quota_state.json:1)
-
-### Reference implementation
-
-- usage parser: [`parseOpenAiCodexUsagePayload()`](externel_projects/kilocode/src/integrations/openai-codex/rate-limits.ts:30)
-- usage fetcher: [`fetchOpenAiCodexRateLimitInfo()`](externel_projects/kilocode/src/integrations/openai-codex/rate-limits.ts:69)
-- reference type contract: [`OpenAiCodexRateLimitInfo`](externel_projects/kilocode/packages/types/src/providers/openai-codex-rate-limits.ts:4)
-
-## Цель UI
-
-UI должен быстро показывать оператору текущее состояние аккаунтов provider и давать минимальные административные действия.
+UI должен быстро показывать оператору текущее состояние provider accounts и давать минимальный набор операторских действий для живого наблюдения за системой.
 
 Для пилота UI должен отвечать на вопросы:
 
-- какие аккаунты доступны сейчас
-- какие аккаунты заблокированы
-- насколько заполнены short и long usage windows
-- когда ожидается reset обоих окон
-- когда будет следующий refresh monitoring state
-- какой аккаунт сейчас активен
+- какие аккаунты доступны сейчас;
+- какие аккаунты временно заблокированы;
+- насколько заполнены short и long usage windows;
+- когда ожидается reset каждого окна;
+- когда был последний refresh monitoring state и когда запланирован следующий;
+- какой аккаунт сейчас помечен preferred для текущего процесса.
 
-## Monitoring source
+## Security boundary
 
-Для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1) мониторинг должен строиться не через запрос к модели, а через dedicated usage endpoint [`OPENAI_CHATGPT_USAGE_URL`](llm_agent_platform/config.py:143).
+### Allowed pilot boundary
 
-Это позволяет:
+No-auth admin surface допустима только если одновременно верны все условия:
 
-- обновлять usage windows отдельно от runtime request path
-- не тратить квоту на synthetic model requests
-- использовать `wham/usage` как canonical source для `usage_windows.json`
+- интерфейс используется только локально одним оператором;
+- это PoC or exploratory stage;
+- нет shared deployment requirement;
+- нет требования аудита операторских действий;
+- нет требования разделения ролей и прав.
 
-## Общая архитектура UI
+### Return-to-Stage-2 trigger
 
-### Layout
+Вопрос auth and RBAC обязан вернуться в Stage 2, если происходит хотя бы одно из событий:
 
-Экран делится на две зоны:
+- UI становится доступен нескольким пользователям;
+- UI становится доступен вне локальной машины разработчика;
+- UI попадает в shared dev or team-facing environment;
+- добавляются mutating actions сильнее, чем текущий in-memory `Activate`;
+- появляется требование audit trail для операторских действий;
+- появляется требование security review перед rollout.
 
-- sidebar со списком providers
-- основная область выбранного provider
+## Monitoring source and read-model boundary
 
-### Sidebar
+### Monitoring source
 
-В пилоте в sidebar будет только [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1), но сам sidebar строится динамически через provider list endpoint.
+Для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1) monitoring строится через dedicated usage endpoint [`OPENAI_CHATGPT_USAGE_URL`](llm_agent_platform/config.py:143), а не через synthetic model requests.
 
-### Main provider page
+### Read-model boundary
 
-Основная страница provider показывает аккаунты **внутри их групп**.
+Фронтенд читает только backend admin API.
 
-Для пилота это означает:
+Backend admin API строит contract-first read-model из:
 
-- provider page верхнего уровня
-- group sections внутри provider
-- строки аккаунтов внутри каждой группы
+- in-memory router state;
+- in-memory latest monitoring snapshot;
+- in-memory latest request-usage snapshot;
+- provider capabilities и operator-action availability.
 
-## Модульность backend и frontend
+Persisted files не участвуют в live delivery path к UI и нужны только для restore after restart и audit trail согласно [`discussion-f-002-state-ownership-and-write-paths-openai-chatgpt-monitoring.md`](tasks_descriptions/plans/current_focus/discussion-f-002-state-ownership-and-write-paths-openai-chatgpt-monitoring.md:257).
 
-### Backend
+### Multi-provider UI model
 
-Backend endpoint проектируется в общем виде для нескольких providers:
+Monitoring windows для providers появляются динамически по списку доступных providers из provider list endpoint.
 
-- общий provider list contract
-- общий provider page contract
-- provider-specific capabilities
-- provider-specific row fields и drawer sections
+Следствия:
 
-### Frontend
+- frontend shell и provider navigation остаются общими;
+- provider page является provider-specific экраном;
+- набор колонок в account table может отличаться у разных providers;
+- drawer является provider-specific и может иметь разные sections и payload shape у разных providers.
 
-Фронтенд также проектируется как модульный набор provider-specific компонентов:
+На текущем этапе первый и единственный provider в UI — [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1).
 
-- reusable shell components
-- provider-specific columns
-- provider-specific drawer sections
-- capability-driven actions
+## Canonical state inputs
 
-Следствие:
+UI и backend read-model опираются на новый канон account-centric artifacts:
 
-- некоторые UI blocks могут существовать только для части providers
-- некоторые actions могут быть скрыты для providers без нужной capability
-- добавление нового provider не требует пересборки общего shell
+- [`account_state.json`](docs/contracts/state/account-state.schema.json:1) как routing/runtime truth;
+- `usage_windows.json` как provider-specific monitoring truth;
+- `request_usage.json` как provider-specific request observability truth;
+- [`quota_state.json`](docs/contracts/state/group-quota-state.schema.json:1) как group-level derived snapshot.
 
-## Таблица аккаунтов
+Legacy `limits.json` не считается каноном и не должен использоваться ни UI, ни backend read-model.
 
-### Колонки пилота
+## UI data contracts
 
-Для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1) каждая строка аккаунта в пилоте содержит:
+### Contract status
 
-- `user name`
-- `status`
-- `short window quota percent`
-- `short window reset at`
-- `long window quota percent`
-- `long window reset at`
-- `refresh datetime`
-- `last refreshed at`
-- `quota blocked until`
-- `block reason`
-- action column с кнопкой `Activate`
-
-### Активный аккаунт
-
-Текущий активный аккаунт должен выделяться явно:
-
-- имя пользователя подсвечено зелёным
-- optional badge `active`
-- кнопка `Activate` disabled
-
-### Состояния строки
-
-Нормализованные состояния строки:
-
-- `healthy`
-- `near_short_limit`
-- `near_long_limit`
-- `blocked_short_window`
-- `blocked_long_window`
-- `refresh_failed`
-- `stale`
-- `active`
-
-`active` может быть отдельным флагом и визуально сочетаться с любым quota state.
-
-## Drawer по клику на аккаунт
-
-Для пилота согласован drawer по клику на строку аккаунта.
-
-Назначение drawer:
-
-- не перегружать таблицу техническими деталями
-- дать оператору доступ к raw monitoring payload и runtime state
-
-### Что показываем в drawer
-
-#### 1. Raw monitoring payload
-
-Из `usage_windows.json`:
-
-- raw short window
-- raw long window
-- `used_percent`
-- `window_minutes`
-- `reset_at`
-- provider-specific metadata
-
-#### 2. Refresh metadata
-
-- `last_refreshed_at`
-- `next_refresh_at`
-- `refresh_interval_seconds`
-- `refresh_status`
-- `last_refresh_error`
-
-#### 3. Routing state
-
-- `status`
-- `quota_blocked_until`
-- `block_reason`
-- `quota_block_metadata`
-- group membership
-- summary из `account_state.json`
-
-#### 4. Request usage details
-
-Из `request_usage.json`:
-
-- token usage counters
-- last request summary
-- optional aggregated request stats
-
-## UI data contract
+Admin monitoring API считается contract-first boundary. Payload contracts должны жить в [`docs/contracts/`](docs/contracts:1), а этот план описывает только целевую shape and semantics.
 
 ### Provider list endpoint
 
@@ -231,7 +120,10 @@ Backend endpoint проектируется в общем виде для нес
       "provider_id": "openai-chatgpt",
       "label": "OpenAI ChatGPT",
       "account_count": 8,
-      "has_monitoring": true
+      "has_monitoring": true,
+      "capabilities": {
+        "supports_provider_page": true
+      }
     }
   ]
 }
@@ -252,15 +144,21 @@ Backend endpoint проектируется в общем виде для нес
     "supports_drawer": true,
     "supports_usage_windows": true
   },
+  "security_boundary": {
+    "auth_mode": "none",
+    "scope": "local_single_user_poc",
+    "shared_deployment_allowed": false
+  },
   "refresh_interval_seconds": 86400,
   "groups": [
     {
-      "group_id": "g0",
+      "group_id": "default",
       "display_name": "Default group",
+      "runtime_group_key": "g0",
       "accounts": [
         {
           "account_name": "kristina",
-          "is_active": true,
+          "is_preferred_for_session": true,
           "status": "blocked_short_window",
           "short_window": {
             "used_percent": 72,
@@ -289,7 +187,8 @@ Backend endpoint проектируется в общем виде для нес
           },
           "actions": {
             "can_activate": false,
-            "activate_endpoint": "/admin/monitoring/providers/openai-chatgpt/accounts/kristina/activate"
+            "activate_endpoint": "/admin/monitoring/providers/openai-chatgpt/accounts/kristina/activate",
+            "activate_semantics": "session_scoped_in_memory_preferred_account_override"
           },
           "drawer": {
             "raw_monitoring_payload": {},
@@ -303,109 +202,225 @@ Backend endpoint проектируется в общем виде для нес
 }
 ```
 
+#### Notes
+
+- `runtime_group_key` допускается только как debug field; operator-facing anchor должен использовать `display_name` и стабильный API-level `group_id`, а не внутренний `g0`;
+- row statuses в этом payload являются **admin-only taxonomy** и не меняют public OpenAI-compatible `429` contract.
+
 ### Activate endpoint
 
 `POST /admin/monitoring/providers/openai-chatgpt/accounts/<account_name>/activate`
 
 Назначение:
 
-- переключить active account для provider
-- вернуть обновлённое provider page state
-- позволить UI сразу подсветить нового active account
+- задать preferred account только для текущего runtime process;
+- не менять provider config files;
+- не bypass-ить cooldown, exhausted checks, group isolation или rotation safeguards;
+- вернуть обновлённое provider page state или action result, достаточный для немедленного UI refresh.
+
+### Provider page contract notes
+
+- provider page payload является contract-first, но provider-specific read-model boundary;
+- table columns определяются provider capabilities и provider-specific field set;
+- drawer payload и drawer sections определяются provider-specific mapping;
+- общий frontend shell не должен предполагать одинаковый набор usage windows, columns или drawer blocks для всех providers.
+
+## Overall UI structure
+
+### Layout
+
+Экран делится на две зоны:
+
+- sidebar со списком providers;
+- основная область выбранного provider.
+
+### Sidebar
+
+Список providers строится динамически через provider list endpoint.
+
+В пилоте в sidebar будет только [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1), но архитектура сразу допускает появление новых provider pages без переписывания shell.
+
+### Main provider page
+
+Основная страница provider является provider-specific screen и показывает аккаунты внутри их операторски-нормализованных групп.
+
+Для пилота это означает:
+
+- provider page верхнего уровня;
+- group sections внутри provider;
+- строки аккаунтов внутри каждой группы.
+
+## Table design
+
+### Pilot columns
+
+Для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1) каждая строка аккаунта содержит:
+
+- `user name`;
+- `status`;
+- `short window quota percent`;
+- `short window reset at`;
+- `long window quota percent`;
+- `long window reset at`;
+- `next refresh at`;
+- `last refreshed at`;
+- `quota blocked until`;
+- `block reason`;
+- action column с кнопкой `Activate`.
+
+Для других providers колонки могут отличаться. Общий shell должен поддерживать provider-specific column sets.
+
+### Preferred account highlight
+
+Текущий session-preferred account должен выделяться явно:
+
+- имя пользователя подсвечено зелёным;
+- optional badge `preferred`;
+- кнопка `Activate` disabled для уже выбранного session-preferred account.
+
+### Row states
+
+Нормализованные состояния строки:
+
+- `healthy`;
+- `near_short_limit`;
+- `near_long_limit`;
+- `blocked_short_window`;
+- `blocked_long_window`;
+- `refresh_failed`;
+- `stale`;
+- `preferred` как отдельный flag.
+
+Эти состояния являются admin-only vocabulary и не должны трактоваться как public API error codes.
+
+## Drawer
+
+Для пилота согласован drawer по клику на строку аккаунта.
+
+Назначение drawer:
+
+- не перегружать таблицу техническими деталями;
+- дать оператору доступ к monitoring payload, request observability и runtime routing state.
+
+Drawer является provider-specific UI block. Для разных providers допустимы разные sections, labels и raw payload fragments.
+
+### Drawer sections
+
+#### Raw monitoring payload
+
+Из `usage_windows.json` shape:
+
+- raw short window;
+- raw long window;
+- `used_percent`;
+- `window_minutes`;
+- `reset_at`;
+- provider-specific metadata.
+
+#### Refresh metadata
+
+- `last_refreshed_at`;
+- `next_refresh_at`;
+- `refresh_interval_seconds`;
+- `refresh_status`;
+- `last_refresh_error`.
+
+#### Routing state
+
+- `status`;
+- `quota_blocked_until`;
+- `block_reason`;
+- `quota_block_metadata`;
+- group membership;
+- summary из [`account_state.json`](docs/contracts/state/account-state.schema.json:1).
+
+#### Request usage details
+
+Из `request_usage.json` shape:
+
+- token usage counters;
+- last request summary;
+- optional aggregated request stats.
 
 ## Presentation rules
 
-### Цвета progress bars
+### Color thresholds
 
-#### Short window
+#### Shared thresholds for pilot
 
-- `0-69%` — зелёный
-- `70-89%` — жёлтый
-- `90-100%` — красный
+- `0-60%` — зелёный;
+- `61-85%` — жёлтый;
+- `86-100%` — красный.
 
-#### Long window
-
-- `0-59%` — зелёный
-- `60-84%` — жёлтый
-- `85-100%` — красный
-
-Long window подсвечивается раньше, потому что восстанавливается медленнее.
+Для пилота short window и long window используют одинаковые пороги. Если для другого provider или следующей итерации понадобятся отдельные thresholds, это будет provider-specific presentation rule.
 
 ### Default sorting
 
 Рекомендуемый порядок внутри группы:
 
-1. blocked accounts
-2. accounts with critical long window
-3. accounts with critical short window
-4. остальные
-5. stale и refresh_failed поднимаются вверх внутри своей зоны риска
+1. blocked accounts;
+2. accounts with critical long window;
+3. accounts with critical short window;
+4. остальные;
+5. `stale` и `refresh_failed` поднимаются вверх внутри своей зоны риска.
 
-## Data sources для backend read-model
-
-Backend provider page агрегирует account-centric state layout из [`plans/openai-chatgpt-two-level-usage-windows-analysis.md`](plans/openai-chatgpt-two-level-usage-windows-analysis.md:1):
-
-- [`account_state.json`](../../../../../../data/model_proxy_state/openai-chatgpt/accounts/kristina/account_state.json:1)
-- `usage_windows.json`
-- `request_usage.json`
-- [`quota_state.json`](../../../../../../data/model_proxy_state/openai-chatgpt/groups/g0/quota_state.json:1)
-
-Фронтенд не должен читать state files напрямую.
-
-## Что не включать в pilot
+## What is excluded from pilot
 
 Чтобы не раздувать первую версию, в пилот не включаем:
 
-- auth
-- RBAC
-- editing accounts
-- group management UI
-- charts и history views
-- per-request logs
-- manual quota override
-- websocket live updates
+- auth;
+- RBAC;
+- editing accounts config;
+- group management UI;
+- charts и history views;
+- per-request logs;
+- manual quota override;
+- websocket live updates;
+- shared deployment support.
 
-Пилот = grouped table + drawer + activate action.
+Пилот = grouped table + drawer + session-scoped `Activate` action внутри local single-user boundary.
 
 ## Implementation sequence
 
-### Шаг 1
+### Step 1
 
-Сделать backend read-model endpoint для provider list и provider page.
+Зафиксировать contract-first schema для provider list и provider page admin read-model в [`docs/contracts/`](docs/contracts:1).
 
-### Шаг 2
+### Step 2
 
-Подготовить provider-specific mapping для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1):
+Подготовить backend read-model mapping для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1):
 
-- short window
-- long window
-- refresh metadata
-- routing state
-- activate capability
+- short window;
+- long window;
+- refresh metadata;
+- routing state;
+- session-preferred account semantics;
+- local PoC security boundary fields.
 
-### Шаг 3
+### Step 3
 
 Сделать frontend shell:
 
-- sidebar providers
-- provider page
-- grouped account table
-- progress bars
-- datetime formatting
+- sidebar providers;
+- provider page;
+- grouped account table;
+- progress bars;
+- datetime formatting.
 
-### Шаг 4
+### Step 4
 
-Добавить drawer и activate flow.
+Добавить drawer и `Activate` flow c session-scoped in-memory semantics.
 
-## Согласованные решения
+## Agreed decisions
 
 Зафиксировано следующее:
 
-- UI pilot только для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1), но архитектура общая для нескольких providers
-- accounts отображаются внутри групп
-- колонка `status` входит в пилот
-- `last refreshed at`, `quota blocked until`, `block reason` входят в пилот
-- drawer по клику на аккаунт входит в пилот
-- activate action входит в пилот
-- активный аккаунт подсвечивается зелёным
-- monitoring refresh для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1) идёт через dedicated usage endpoint, а не через model request
+- UI pilot только для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1), но архитектура admin API и frontend shell остаётся общей для нескольких providers;
+- provider page и drawer считаются provider-specific blocks, а список providers появляется динамически из доступного provider registry/read-model;
+- набор мониторинговых окон, table columns и drawer sections может отличаться у разных providers;
+- accounts отображаются внутри групп, но operator-facing group identity не должна сводиться к внутреннему `g0`;
+- backend admin API является единственной live boundary для UI;
+- row statuses являются admin-only taxonomy;
+- `Activate` входит в пилот только как session-scoped in-memory preferred-account override;
+- no-auth surface допустима только как local single-user PoC and not as shared-dev baseline;
+- monitoring refresh для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1) идёт через dedicated usage endpoint, а не через model request.
