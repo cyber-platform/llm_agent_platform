@@ -1,5 +1,25 @@
 # Suite: Unified quota account rotation (random + by-N + provider-local groups + provider-scoped models)
 
+## Suite ID
+- `TS-QUOTA-ACCOUNT-ROTATION`
+
+## Documentation roots
+- `docs/testing/test-map.md`
+- `docs/testing/traceability.md`
+- `docs/testing/suites/quota-account-rotation.md`
+
+## Implementation roots
+- `llm_agent_platform/tests/test_quota_account_router.py`
+- `llm_agent_platform/tests/test_refactor_p2_routes.py`
+- `llm_agent_platform/tests/test_openai_contract.py`
+
+## Search anchors
+- `TS-QUOTA-ACCOUNT-ROTATION`
+- `test_quota_account_router.py`
+- `TC-RAND-`
+- `TC-MODELS-`
+- `REQ-`
+
 ## Scope
 Базовый контур (существующий):
 - Выбор аккаунта в режиме `single` через `active_account`.
@@ -22,6 +42,7 @@
 
 ## Requirement Traceability
 ### Requirements (нормализованные идентификаторы)
+- Suite rollout note: suite-level anchor уже каноничен как `TS-QUOTA-ACCOUNT-ROTATION`; existing requirement and case identifiers сохраняются как legacy-compatible anchors до отдельной нормализации.
 - REQ-015-RANDOM: random-order switching в `rounding`.
 - REQ-016-BY-N: rotate-after-N-successes (by-N) в `rounding`.
 - REQ-GRP-ISO: group isolation (state изолирован между группами).

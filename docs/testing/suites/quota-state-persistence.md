@@ -1,5 +1,23 @@
 # Suite: Quota state persistence (STATE_DIR + account_state.json + group snapshot + async writer)
 
+## Suite ID
+- `TS-QUOTA-STATE-PERSISTENCE`
+
+## Documentation roots
+- `docs/testing/test-map.md`
+- `docs/testing/traceability.md`
+- `docs/testing/suites/quota-state-persistence.md`
+
+## Implementation roots
+- `llm_agent_platform/tests/test_quota_account_router.py`
+- planned `llm_agent_platform/tests/test_quota_state_persistence.py`
+
+## Search anchors
+- `TS-QUOTA-STATE-PERSISTENCE`
+- `test_quota_account_router.py`
+- `TC-STATE-`
+- `STATE_DIR`
+
 ## Scope
 
 Покрываем изменения в quota-first контуре, связанные с persisted runtime state и мониторинговым snapshot.
@@ -27,6 +45,8 @@ Non-scope:
 - Теория coalesce map: [`docs/theory/coalesce-map.md`](docs/theory/coalesce-map.md:1)
 
 ## Requirement Traceability
+
+- Suite rollout note: suite-level anchor уже каноничен как `TS-QUOTA-STATE-PERSISTENCE`; existing requirement and case identifiers сохраняются как legacy-compatible anchors до отдельной нормализации.
 
 ### Requirements
 

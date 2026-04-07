@@ -2,22 +2,34 @@
 
 ## Overview
 - Контур покрывает provider-centric OpenAI-compatible контракт, quota-runtime поведение и provider-specific boundaries.
-- Трассировка поддерживается на уровне `requirement -> suite -> test script`.
+- Целевая трассировка: `requirement -> suite -> test case -> test implementation`.
+- Текущее состояние rollout: suite-level `TS-*` идентификаторы уже каноничны; test-case-level `TC-*` вводятся постепенно по мере обновления suites и test code.
+
+## Conventions
+- Testing documentation SoT живет в `docs/testing/`.
+- Каждая suite page должна задавать `Suite ID`, `Documentation roots`, `Implementation roots` и `Search anchors`.
+- Если агенту нужна документация по suite, search нужно начинать в `docs/testing/`.
+- Если агенту нужна реализация тестов, search нужно начинать с `Implementation roots`, указанных в suite page.
+- Подробные traceability conventions зафиксированы в `docs/testing/traceability.md`.
 
 ## Suites
-| Suite | Requirement | Scripts | Status |
-| :--- | :--- | :--- | :--- |
-| [`openai-contract.md`](docs/testing/suites/openai-contract.md) | OpenAI stream/non-stream контракт для provider-scoped routes, включая `openai-chatgpt` private backend adapter и streamed error mapping | [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1), [`llm_agent_platform/tests/test_openai_chatgpt_runtime.py`](llm_agent_platform/tests/test_openai_chatgpt_runtime.py:1) | active |
-| [`proxy-routes.md`](docs/testing/suites/proxy-routes.md) | Smoke/endpoint покрытие для `/<provider_name>/v1/models`, provider-local groups, native Gemini proxy и parity relay | [`llm_agent_platform/tests/test_refactor_p2_routes.py`](llm_agent_platform/tests/test_refactor_p2_routes.py:1) | active |
-| [`provider-catalogs.md`](docs/testing/suites/provider-catalogs.md) | Provider-local catalogs: static bootstrap catalogs и provider-specific catalog boundaries; для `openai-chatgpt` каноничен static catalog baseline | [`llm_agent_platform/tests/test_provider_catalogs.py`](llm_agent_platform/tests/test_provider_catalogs.py:1) | active |
-| [`quota-parity.md`](docs/testing/suites/quota-parity.md) | Quota payload parity с `gemini-cli` shape | [`llm_agent_platform/tests/test_quota_transport_parity.py`](llm_agent_platform/tests/test_quota_transport_parity.py:1) | active |
-| [`quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md) | Unified quota account rotation для `gemini` и `qwen`: `single/rounding`, switch policies (random, by-N), groups isolation, group-aware provider-scoped `/models`, all-cooldown `please wait <seconds>` | [`llm_agent_platform/tests/test_quota_account_router.py`](llm_agent_platform/tests/test_quota_account_router.py:1), [`llm_agent_platform/tests/test_refactor_p2_routes.py`](llm_agent_platform/tests/test_refactor_p2_routes.py:1), [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1) | active |
-| [`quota-state-persistence.md`](docs/testing/suites/quota-state-persistence.md) | Persisted quota state: `STATE_DIR`, `account_state.json`, provider-specific account monitoring artifacts, group snapshot, `quota_scope` (per_model/per_provider), async writer | [`test_quota_account_router.py`](llm_agent_platform/tests/test_quota_account_router.py) | active |
-| [`admin-monitoring-read-model.md`](docs/testing/suites/admin-monitoring-read-model.md) | Dynamic provider list, provider-specific admin monitoring page/drawer, backend read-model boundary, session-scoped `Activate`, local single-user PoC scope | planned `llm_agent_platform/tests/test_admin_monitoring_read_model.py` | planned |
-| [`config-env-and-layout.md`](docs/testing/suites/config-env-and-layout.md) | Env split `.env`/`.env.oauth` + runtime layout [`llm_agent_platform/`](llm_agent_platform:1) and [`scripts/`](scripts:1) | manual + smoke scripts | planned |
+| Suite ID | Suite Page | Scope | Implementation roots | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| `TS-OPENAI-CONTRACT` | [`openai-contract.md`](docs/testing/suites/openai-contract.md) | OpenAI stream/non-stream contract, provider-scoped routes, `openai-chatgpt` runtime adapter and streamed error mapping | [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1), [`llm_agent_platform/tests/test_openai_chatgpt_runtime.py`](llm_agent_platform/tests/test_openai_chatgpt_runtime.py:1) | active |
+| `TS-PROXY-ROUTES` | [`proxy-routes.md`](docs/testing/suites/proxy-routes.md) | Provider-scoped routing, group-aware routes, native Gemini proxy and parity relay coverage | [`llm_agent_platform/tests/test_refactor_p2_routes.py`](llm_agent_platform/tests/test_refactor_p2_routes.py:1) | active |
+| `TS-PROVIDER-CATALOGS` | [`provider-catalogs.md`](docs/testing/suites/provider-catalogs.md) | Provider-local catalogs and static bootstrap catalog boundaries | [`llm_agent_platform/tests/test_provider_catalogs.py`](llm_agent_platform/tests/test_provider_catalogs.py:1) | active |
+| `TS-QUOTA-PARITY` | [`quota-parity.md`](docs/testing/suites/quota-parity.md) | Quota transport parity with `gemini-cli` payload and stream shape | [`llm_agent_platform/tests/test_quota_transport_parity.py`](llm_agent_platform/tests/test_quota_transport_parity.py:1) | active |
+| `TS-QUOTA-ACCOUNT-ROTATION` | [`quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md) | Unified quota rotation, group isolation, provider-scoped models and cooldown fast-fail behavior | [`llm_agent_platform/tests/test_quota_account_router.py`](llm_agent_platform/tests/test_quota_account_router.py:1), [`llm_agent_platform/tests/test_refactor_p2_routes.py`](llm_agent_platform/tests/test_refactor_p2_routes.py:1), [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1) | active |
+| `TS-QUOTA-STATE-PERSISTENCE` | [`quota-state-persistence.md`](docs/testing/suites/quota-state-persistence.md) | Persisted quota state, `STATE_DIR`, provider-specific artifacts, group snapshot and async writer | [`llm_agent_platform/tests/test_quota_account_router.py`](llm_agent_platform/tests/test_quota_account_router.py:1) | active |
+| `TS-ADMIN-MONITORING-READ-MODEL` | [`admin-monitoring-read-model.md`](docs/testing/suites/admin-monitoring-read-model.md) | Dynamic provider list, provider-specific monitoring page and backend read-model boundary | planned `llm_agent_platform/tests/test_admin_monitoring_read_model.py` | planned |
+| `TS-CONFIG-ENV-AND-LAYOUT` | [`config-env-and-layout.md`](docs/testing/suites/config-env-and-layout.md) | Env split, runtime package layout and verification command alignment | manual + smoke scripts | planned |
 
 ## Runbook
 - Запуск: `uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
 - Быстрая проверка синтаксиса: `uv run python -m compileall llm_agent_platform`
 - Тестовые артефакты: используются фиктивные файлы в `secrets_test/`
 - Целевая runtime-проверка `openai-chatgpt`: `uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
+
+## Related Files
+- `docs/testing/traceability.md`
+- `docs/testing/suites/`

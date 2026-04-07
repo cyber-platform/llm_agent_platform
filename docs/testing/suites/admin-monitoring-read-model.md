@@ -1,5 +1,22 @@
 # Suite: Admin monitoring read-model
 
+## Suite ID
+- `TS-ADMIN-MONITORING-READ-MODEL`
+
+## Documentation roots
+- `docs/testing/test-map.md`
+- `docs/testing/traceability.md`
+- `docs/testing/suites/admin-monitoring-read-model.md`
+
+## Implementation roots
+- planned `llm_agent_platform/tests/test_admin_monitoring_read_model.py`
+
+## Search anchors
+- `TS-ADMIN-MONITORING-READ-MODEL`
+- `test_admin_monitoring_read_model.py`
+- `admin monitoring`
+- `read-model`
+
 ## Scope
 
 - Проверка динамического provider list для admin monitoring shell.
@@ -11,6 +28,9 @@
 ## Requirement Traceability
 
 - Requirement: admin monitoring surface строится поверх contract-first read-model и provider-specific pages.
+- Rollout metadata:
+  - suite anchor: `TS-ADMIN-MONITORING-READ-MODEL`
+  - future case anchors: `TC-ADMIN-MONITORING-READ-MODEL-...`
 - Canonical references:
   - [`docs/architecture/admin-monitoring-read-model.md`](docs/architecture/admin-monitoring-read-model.md:1)
   - [`docs/contracts/api/admin/monitoring/providers-list.schema.json`](docs/contracts/api/admin/monitoring/providers-list.schema.json:1)

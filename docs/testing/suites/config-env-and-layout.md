@@ -1,5 +1,24 @@
 # Suite: Config env split + runtime package layout
 
+## Suite ID
+- `TS-CONFIG-ENV-AND-LAYOUT`
+
+## Documentation roots
+- `docs/testing/test-map.md`
+- `docs/testing/traceability.md`
+- `docs/testing/suites/config-env-and-layout.md`
+
+## Implementation roots
+- `llm_agent_platform/tests/`
+- `scripts/`
+- `docker-compose.yml`
+
+## Search anchors
+- `TS-CONFIG-ENV-AND-LAYOUT`
+- `TC-CONFIG-ENV-AND-LAYOUT-`
+- `.env.oauth`
+- `llm_agent_platform/__main__.py`
+
 ## Scope
 
 Этот suite фиксирует тестовый контур для двух связанных архитектурных инвариантов:
@@ -16,6 +35,8 @@
 
 ## Requirement Traceability
 
+- Suite rollout note: suite-level anchor уже каноничен как `TS-CONFIG-ENV-AND-LAYOUT`; this suite also uses normalized `TC-CONFIG-ENV-AND-LAYOUT-*` identifiers as baseline for future test metadata rollout.
+
 ### Env split
 
 - Локальные OAuth скрипты **должны** загружать [`.env`](.env:1) и [`.env.oauth`](.env.oauth:1) до импорта [`llm_agent_platform/config.py`](llm_agent_platform/config.py:1).
@@ -31,7 +52,7 @@
 
 ## Test Cases (Given / When / Then)
 
-### TC-001 (L2): Local Gemini OAuth script loads `.env` + `.env.oauth`
+### TC-CONFIG-ENV-AND-LAYOUT-001 (L2): Local Gemini OAuth script loads `.env` + `.env.oauth`
 
 Given:
 - существует [`.env`](.env:1)
@@ -44,7 +65,7 @@ Then:
 - скрипт не падает на проверках `client_id/client_secret`
 - создается `secrets/gemini-cli/user_credentials.json`
 
-### TC-002 (L2): Local Qwen OAuth script loads `.env` + `.env.oauth`
+### TC-CONFIG-ENV-AND-LAYOUT-002 (L2): Local Qwen OAuth script loads `.env` + `.env.oauth`
 
 Given:
 - существует [`.env.oauth`](.env.oauth:1) с ключом для [`Config.QWEN_OAUTH_CLIENT_ID`](llm_agent_platform/config.py:60)
@@ -55,7 +76,7 @@ When:
 Then:
 - скрипт не падает на проверке client_id в [`llm_agent_platform/auth/qwen_oauth.py`](llm_agent_platform/auth/qwen_oauth.py:26)
 
-### TC-003 (L2): Container runtime env injection is explicit
+### TC-CONFIG-ENV-AND-LAYOUT-003 (L2): Container runtime env injection is explicit
 
 Given:
 - runtime значения заданы в [`.env`](.env:1)
@@ -68,7 +89,7 @@ Then:
 - внутри контейнера доступны все runtime ключи
 - прокси стартует и отдает provider-scoped `/models`
 
-### TC-004 (L1/L2): No unused env keys
+### TC-CONFIG-ENV-AND-LAYOUT-004 (L1/L2): No unused env keys
 
 Given:
 - runtime ключи перечислены в [`.env.example`](.env.example:1)
@@ -79,7 +100,7 @@ When:
 Then:
 - каждый ключ из [`.env.example`](.env.example:1) используется в коде, или явно помечен optional и задокументирован
 
-### TC-101 (L2): Entrypoint runs via runtime package
+### TC-CONFIG-ENV-AND-LAYOUT-101 (L2): Entrypoint runs via runtime package
 
 Given:
 - runtime package расположен в [`llm_agent_platform/`](llm_agent_platform:1)
@@ -90,7 +111,7 @@ When:
 Then:
 - приложение поднимается и регистрирует blueprints
 
-### TC-102 (L2): Unit tests still pass with current layout
+### TC-CONFIG-ENV-AND-LAYOUT-102 (L2): Unit tests still pass with current layout
 
 Given:
 - runtime использует текущий package layout [`llm_agent_platform/`](llm_agent_platform:1)
@@ -105,13 +126,13 @@ Then:
 
 | Requirement | Test Case | Level |
 |---|---|---|
-| US-001 | TC-001 | L2 |
-| US-002 | TC-002 | L2 |
-| US-003 | TC-003 | L2 |
-| NFR-001 | TC-003 | L2 |
-| NFR-003 | TC-001, TC-002 | L2 |
-| US-102 | TC-101, TC-003 | L2 |
-| NFR-101 | TC-102 | L2 |
+| US-001 | TC-CONFIG-ENV-AND-LAYOUT-001 | L2 |
+| US-002 | TC-CONFIG-ENV-AND-LAYOUT-002 | L2 |
+| US-003 | TC-CONFIG-ENV-AND-LAYOUT-003 | L2 |
+| NFR-001 | TC-CONFIG-ENV-AND-LAYOUT-003 | L2 |
+| NFR-003 | TC-CONFIG-ENV-AND-LAYOUT-001, TC-CONFIG-ENV-AND-LAYOUT-002 | L2 |
+| US-102 | TC-CONFIG-ENV-AND-LAYOUT-101, TC-CONFIG-ENV-AND-LAYOUT-003 | L2 |
+| NFR-101 | TC-CONFIG-ENV-AND-LAYOUT-102 | L2 |
 
 ## Verification Command
 

@@ -1,5 +1,23 @@
 # Suite: OpenAI stream/non-stream contract
 
+## Suite ID
+- `TS-OPENAI-CONTRACT`
+
+## Documentation roots
+- `docs/testing/test-map.md`
+- `docs/testing/traceability.md`
+- `docs/testing/suites/openai-contract.md`
+
+## Implementation roots
+- `llm_agent_platform/tests/test_openai_contract.py`
+- `llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
+
+## Search anchors
+- `TS-OPENAI-CONTRACT`
+- `test_openai_contract.py`
+- `test_openai_chatgpt_runtime.py`
+- `openai-chatgpt`
+
 ## Scope
 - Проверка ответа provider-scoped `/chat/completions` в non-stream формате.
 - Проверка SSE потока с `stream_options.include_usage=true`.
@@ -16,6 +34,9 @@
 
 ## Requirement Traceability
 - Requirement: стабильный provider-centric OpenAI-compatible контракт.
+- Rollout metadata:
+  - suite anchor: `TS-OPENAI-CONTRACT`
+  - future case anchors: `TC-OPENAI-CONTRACT-...`
 - Canonical references:
   - Архитектура pipeline: [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1)
   - Нормативные схемы ошибок: [`docs/contracts/api/openai/errors/429-error.schema.json`](docs/contracts/api/openai/errors/429-error.schema.json:1)
