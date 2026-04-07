@@ -13,14 +13,20 @@ Provider-centric платформа для LLM-агентов и developer tools
 - Contracts: [`docs/contracts/`](docs/contracts:1)
 - Тестовый контур и suites: [`docs/testing/test-map.md`](docs/testing/test-map.md:1)
 
-## Навигация по проекту
+## Как читать контекст
 
+- Durable project context: [`project/index.md`](project/index.md:1)
 - Границы репозиториев и nested repos: [`project/gitContext.md`](project/gitContext.md:1)
 - Технический стек и environment context: [`project/techContext.md`](project/techContext.md:1)
+- Concrete loading order и ownership split: [`project/entry-points.md`](project/entry-points.md:1)
+- Coding conventions: [`project/codeStyle.md`](project/codeStyle.md:1)
 - Активные задачи текущей итерации: [`tasks_descriptions/tasks_map.md`](tasks_descriptions/tasks_map.md:1)
+
+Если scope задачи уходит в autonomous nested project, переключайся на его local context. Это особенно важно для [`sot_layers/hyper-graph/`](sot_layers/hyper-graph:1), у которого есть собственный `AGENTS.md` и более новый layered canon.
 
 ## Рабочие правила
 
 - `docs/` — Source of Truth для реализованной архитектуры.
-- `tasks_descriptions/` хранит operational context задач, но не канон архитектуры.
+- `project/` хранит durable repository context, но не канон архитектуры.
+- `tasks_descriptions/` хранит operational context задач и по смыслу является transitional execution layer до будущего `operational_scope/`.
 - Если работа затрагивает nested repo, Git-операции нужно запускать из его корня; см. [`project/gitContext.md`](project/gitContext.md:1).
