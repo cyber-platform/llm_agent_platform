@@ -44,4 +44,4 @@
 
 - [`docs/architecture/admin-monitoring-read-model.md`](docs/architecture/admin-monitoring-read-model.md:1)
 - [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
-- [`tasks_descriptions/plans/040-admin-surface-auth-and-rbac-hardening.md`](tasks_descriptions/plans/040-admin-surface-auth-and-rbac-hardening.md:1)
+- [`operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md`](operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md:1)

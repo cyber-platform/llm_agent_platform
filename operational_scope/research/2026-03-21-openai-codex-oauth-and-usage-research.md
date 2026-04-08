@@ -4,7 +4,7 @@ Status: draft for discussion
 
 ## Scope
 
-Исследование выполнено как вход для runtime-задачи [`tasks_descriptions/tasks/016-gpt-integration.md`](tasks_descriptions/tasks/016-gpt-integration.md:1) в рамках завершённого research этапа по reference behavior [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1).
+Исследование выполнено как вход для runtime-задачи [`operational_scope/tasks/016-gpt-integration.md`](operational_scope/tasks/016-gpt-integration.md:1) в рамках завершённого research этапа по reference behavior [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1).
 
 Цель — понять, какие части upstream reference из [`externel_projects/kilocode/src/integrations/openai-codex/oauth.ts`](externel_projects/kilocode/src/integrations/openai-codex/oauth.ts:1), [`externel_projects/kilocode/src/api/providers/openai-codex.ts`](externel_projects/kilocode/src/api/providers/openai-codex.ts:1) и [`externel_projects/kilocode/src/integrations/openai-codex/rate-limits.ts`](externel_projects/kilocode/src/integrations/openai-codex/rate-limits.ts:1) можно переносить почти буквально в наш runtime, а какие части требуют адаптации под provider-centric границы из [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:21).
 
@@ -170,7 +170,7 @@ Historical note: ранний generic contract для usage limits был зам
 
 Следствие:
 
-- runtime task [`tasks_descriptions/tasks/016-gpt-integration.md`](tasks_descriptions/tasks/016-gpt-integration.md:1) должен проектировать отдельный chat backend contract для приватного Codex-like surface
+- runtime task [`operational_scope/tasks/016-gpt-integration.md`](operational_scope/tasks/016-gpt-integration.md:1) должен проектировать отдельный chat backend contract для приватного Codex-like surface
 - model catalog не должен зависеть от live discovery
 - возможный refresh catalog может быть только future enhancement после отдельной верификации upstream surface
 
@@ -574,13 +574,13 @@ Reference из [`externel_projects/kilocode/src/integrations/openai-codex/rate-l
 1. Решить, оставляем ли [`account_id`](docs/contracts/state/openai-chatgpt-oauth-state.schema.json:22) обязательным или переводим в optional field.
 2. Historical follow-up resolved later: canonical usage windows были зафиксированы как `short_window` и `long_window` в [`docs/contracts/state/openai-chatgpt-usage-windows.schema.json`](docs/contracts/state/openai-chatgpt-usage-windows.schema.json:1).
 3. Зафиксировать, что runtime adapter для `openai-chatgpt` использует отдельный backend contract и набор headers, независимый от discovery surface.
-4. Зафиксировать forced refresh retry как runtime invariant для задачи [`tasks_descriptions/tasks/016-gpt-integration.md`](tasks_descriptions/tasks/016-gpt-integration.md:1).
+4. Зафиксировать forced refresh retry как runtime invariant для задачи [`operational_scope/tasks/016-gpt-integration.md`](operational_scope/tasks/016-gpt-integration.md:1).
 
 ## Discussion checkpoint
 
 Этот документ намеренно совмещает факты исследования и архитектурный анализ. После согласования выводов отсюда можно:
 
-- обновить [`tasks_descriptions/tasks/016-gpt-integration.md`](tasks_descriptions/tasks/016-gpt-integration.md:1)
+- обновить [`operational_scope/tasks/016-gpt-integration.md`](operational_scope/tasks/016-gpt-integration.md:1)
 - синхронизировать provider-specific канон в [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
 - при необходимости подготовить follow-up на уточнение contract semantics
 

@@ -21,6 +21,9 @@ externel_projects
 # Logs
 logs/
 
+# Temporary review and agent-generated reports
+tmp/
+
 # Nested Git repositories
 .kilocode/
 tools/repo-archiver/

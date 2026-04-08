@@ -65,7 +65,7 @@ def test_returns_429_when_quota_exhausted():
 ## Работа с документацией и кодом
 
 - Если изменение затрагивает public behavior, contracts или long-lived architecture, сначала обновляй relevant `docs/` artifacts или делай это в том же change set.
-- Temporary plans, research и execution notes должны жить в `tasks_descriptions/`, а не в `docs/`.
+- Temporary plans, research и execution notes должны жить в `operational_scope/`, а не в `docs/`.
 - Не дублируй glossary-like definitions в code-adjacent docs; используй канонические термины и архитектурные документы проекта.
 
 ## Тесты и качество

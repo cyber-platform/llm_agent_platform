@@ -27,7 +27,7 @@
    - `docs/providers/openai-chatgpt.md`
    - `docs/contracts/`
    - `docs/testing/test-map.md`
-7. `tasks_descriptions/tasks_map.md` только когда нужен execution context текущей итерации.
+7. `operational_scope/tasks_map.md` только когда нужен execution context текущей итерации.
 8. `.kilo/` artifacts только когда нужен Kilo-specific behavior или runtime/config layer.
 
 Если temporary execution artifact конфликтует с `docs/`, следуй `docs/`.
@@ -68,9 +68,9 @@
 - testing documentation;
 - другими long-lived engineering decisions.
 
-### `tasks_descriptions/`
+### `operational_scope/`
 
-`tasks_descriptions/` владеет временным execution context:
+`operational_scope/` владеет временным execution context:
 - tasks;
 - plans;
 - research;
@@ -104,7 +104,7 @@
 ## Current root gaps
 
 - У root проекта пока нет `docs/index.md`.
-- У root проекта пока нет `operational_scope/`; execution layer все еще materialized как `tasks_descriptions/`.
+- Execution layer root проекта теперь materialized как `operational_scope/`.
 - Поэтому route выше честно отражает current reality, а не future target state.
 
 ## Связанные файлы
@@ -117,4 +117,4 @@
 - `docs/vision.md`
 - `docs/providers/README.md`
 - `docs/testing/test-map.md`
-- `tasks_descriptions/tasks_map.md`
+- `operational_scope/tasks_map.md`

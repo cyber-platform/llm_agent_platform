@@ -41,4 +41,4 @@
 - Next Step: Подготовить coverage matrix и структуру suite для recovery smoke в основном проекте.
 - Blockers: none
 - Contract Changes: none
-- Verification: Наличие задачи [`tasks_descriptions/tasks/038-recovery-archive-smoke-for-repo-archiver.md`](tasks_descriptions/tasks/038-recovery-archive-smoke-for-repo-archiver.md:1)
+- Verification: Наличие задачи [`operational_scope/tasks/038-recovery-archive-smoke-for-repo-archiver.md`](operational_scope/tasks/038-recovery-archive-smoke-for-repo-archiver.md:1)

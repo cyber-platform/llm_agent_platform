@@ -21,14 +21,14 @@
 
 - `docs/` — engineering Source of Truth для архитектуры, contracts, provider behavior и testing documentation.
 - `project/` — durable repository context, а не архитектурный канон.
-- `tasks_descriptions/` — текущий execution layer проекта; по смыслу это transitional equivalent будущего `operational_scope/`.
+- `operational_scope/` — текущий execution layer проекта.
 - `.kilo/` — project-specific Kilo runtime/config layer.
 
 ## Current migration note
 
 - Root project пока отстает от более нового layered canon, который уже materialized в `sot_layers/hyper-graph/`.
 - На текущем этапе у root проекта еще нет `docs/index.md` и `operational_scope/`.
-- Пока migration не завершена, navigation идет через `AGENTS.md`, `project/`, канонические entry points в `docs/` и `tasks_descriptions/tasks_map.md`.
+- Пока migration не завершена, navigation идет через `AGENTS.md`, `project/`, канонические entry points в `docs/` и `operational_scope/tasks_map.md`.
 
 ## Связанные файлы
 
@@ -37,4 +37,4 @@
 - `project/techContext.md`
 - `project/entry-points.md`
 - `project/codeStyle.md`
-- `tasks_descriptions/tasks_map.md`
+- `operational_scope/tasks_map.md`

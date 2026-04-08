@@ -1,7 +1,7 @@
 # Task: Migrate Qwen storage/state/secrets naming to kebab-case
 
 ## Контекст
-- Источник: follow-up после реализации [`tasks_descriptions/tasks/016-gpt-integration.md`](tasks_descriptions/tasks/016-gpt-integration.md:1) и унификации storage naming для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1)
+- Источник: follow-up после реализации [`operational_scope/tasks/016-gpt-integration.md`](operational_scope/tasks/016-gpt-integration.md:1) и унификации storage naming для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1)
 - Связанные артефакты: [`llm_agent_platform/services/credentials_paths.py`](llm_agent_platform/services/credentials_paths.py:7), [`llm_agent_platform/services/account_state_store.py`](llm_agent_platform/services/account_state_store.py:39), [`llm_agent_platform/services/account_router.py`](llm_agent_platform/services/account_router.py:614), [`docs/configuration/env-files.md`](docs/configuration/env-files.md:1), [`docs/configuration/provider-accounts-config.md`](docs/configuration/provider-accounts-config.md:1), [`docs/auth.md`](docs/auth.md:1), [`docs/examples/qwen_accounts_config.example.json`](docs/examples/qwen_accounts_config.example.json:1)
 
 ## Architecture Context References

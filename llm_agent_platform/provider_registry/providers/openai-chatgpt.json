@@ -9,7 +9,7 @@
     "metadata": {
       "oauth_state_path": "openai-chatgpt/auth/oauth-account.json",
       "usage_state_path": "openai-chatgpt/usage/limits.json",
-      "research_dependency_task": "tasks_descriptions/tasks/031-openai-codex-oauth-and-usage-research.md"
+      "research_dependency_task": "operational_scope/tasks/031-openai-codex-oauth-and-usage-research.md"
     }
   },
   "transport": {

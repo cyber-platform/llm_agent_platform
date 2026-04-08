@@ -227,7 +227,7 @@ No-auth admin surface допустима только как local single-user P
 
 Это не baseline для shared dev, multi-user или production-like deployment. При первом выходе за этот контекст вопрос auth/RBAC должен вернуться в отдельный Stage 2 цикл.
 
-Future hardening вынесен в [`tasks_descriptions/plans/040-admin-surface-auth-and-rbac-hardening.md`](tasks_descriptions/plans/040-admin-surface-auth-and-rbac-hardening.md:1).
+Future hardening вынесен в [`operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md`](operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md:1).
 
 ## Связанные документы
 

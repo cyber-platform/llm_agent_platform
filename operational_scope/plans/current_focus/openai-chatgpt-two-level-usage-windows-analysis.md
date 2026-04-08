@@ -44,5 +44,5 @@
 
 Future-only направления вынесены из current focus:
 
-- auth/RBAC hardening: [`tasks_descriptions/plans/040-admin-surface-auth-and-rbac-hardening.md`](tasks_descriptions/plans/040-admin-surface-auth-and-rbac-hardening.md:1)
-- monitoring UI evolution: [`tasks_descriptions/ideas/041-monitoring-ui-future-evolution.md`](tasks_descriptions/ideas/041-monitoring-ui-future-evolution.md:1)
+- auth/RBAC hardening: [`operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md`](operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md:1)
+- monitoring UI evolution: [`operational_scope/ideas/041-monitoring-ui-future-evolution.md`](operational_scope/ideas/041-monitoring-ui-future-evolution.md:1)

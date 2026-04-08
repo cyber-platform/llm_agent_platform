@@ -49,7 +49,7 @@
 - Далее пользователь может вручную переименовывать/копировать его в именованные аккаунты (например, `secrets/qwen_code/accounts/lisa.json`, `secrets/qwen_code/accounts/petr.json`) и указывать их в `secrets/qwen_code/accounts_config.json`.
 - В credentials также сохраняется `client_id` (runtime refresh прокси использует именно его).
 
-Текущий storage namespace для Qwen остаётся `qwen_code`; отдельная полная миграция в kebab-case вынесена в [`tasks_descriptions/tasks/033-qwen-storage-kebab-case-migration.md`](tasks_descriptions/tasks/033-qwen-storage-kebab-case-migration.md:1).
+Текущий storage namespace для Qwen остаётся `qwen_code`; отдельная полная миграция в kebab-case вынесена в [`operational_scope/tasks/033-qwen-storage-kebab-case-migration.md`](operational_scope/tasks/033-qwen-storage-kebab-case-migration.md:1).
 
 ### Шаги
 1. Запустите OAuth device-flow скрипт:
@@ -215,7 +215,7 @@ Provider-specific канон:
 
 Для текущего monitoring PoC admin surface допустима без auth только в local single-user boundary.
 
-Это временное допущение для operator-facing PoC и не считается baseline для shared dev or prod. Future hardening вынесен в [`tasks_descriptions/plans/040-admin-surface-auth-and-rbac-hardening.md`](tasks_descriptions/plans/040-admin-surface-auth-and-rbac-hardening.md:1).
+Это временное допущение для operator-facing PoC и не считается baseline для shared dev or prod. Future hardening вынесен в [`operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md`](operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md:1).
 
 ### Path resolution ports
 
