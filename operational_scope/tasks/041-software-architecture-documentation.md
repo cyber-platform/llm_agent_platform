@@ -106,9 +106,9 @@
 
 ## Remaining work
 
-1. Завершить terminology cleanup по remaining provider docs и related support docs.
-2. Решить, нужен ли отдельный focused document для `user service` / `users DB` boundary.
-3. Расширять и поддерживать drift register по мере закрытия gaps.
+1. Добить terminology cleanup в secondary support docs и non-entry artifacts, где еще может оставаться старый `provider` vocabulary.
+2. Решить, нужен ли отдельный focused document или explicit `not in scope` decision для `user service` / `users DB` boundary.
+3. Поддерживать и постепенно закрывать записи в [`docs/architecture/drift-register.md`](../../docs/architecture/drift-register.md).
 
 ## Definition of Done
 
@@ -120,8 +120,8 @@
 
 ## Execution Status
 
-- Current State: созданы и частично согласованы `system-overview.md`, `container-view.md`, `component-view.md`, `component-map.md`, `package-map.md`, `runtime-flows.md`, `drift-register.md`, `web-ui.md`, `rbac.md`, `rbac-roles.md`, terminology layer в `docs/terms/`; основной terminology cleanup по `docs/architecture/`, `docs/providers/`, `docs/auth.md` и ключевым `docs/testing/` entry points выполнен; `sot_layers/hyper-graph/docs/terms/` и reusable terms-management assets приведены к новой structure.
-- Next Step: добить terminology cleanup в remaining support docs и non-entry testing/provider artifacts, затем постепенно закрывать или уточнять drift entries.
+- Current State: собран navigable architecture set (`Context`, `Container`, `Component`, `flows`, `packages`, `terms`, `drift register`); `runtime-flows.md` усилен диаграммами; taxonomy для `LLM API protocol`, `LLM provider`, `abstract provider`, `provider implementation`, `hydrate`, `persist` зафиксирована; основной terminology cleanup по `docs/architecture/`, `docs/providers/`, `docs/auth.md` и key `docs/testing/` entry points выполнен; `sot_layers/hyper-graph/docs/terms/` и reusable terms-management assets приведены к новой structure.
+- Next Step: добить terminology cleanup в secondary support docs и non-entry artifacts, затем использовать drift register как основной список архитектурных gaps для closure.
 - Blockers: none.
 - Contract Changes: present.
 - Verification: docs updated by direct file inspection; no command-based verification was run.
@@ -138,7 +138,8 @@
 - `package-map.md` перегруппирован вокруг components вместо layer-first представления в [`docs/architecture/package-map.md`](../../docs/architecture/package-map.md).
 - `runtime-flows.md` усилен flow-диаграммами и связкой с терминами `hydrate` / `persist` в [`docs/architecture/runtime-flows.md`](../../docs/architecture/runtime-flows.md).
 - Зафиксирована taxonomy для `LLM API protocol` и разделены `OpenAI API`, `OpenAI-compatible API` и `provider implementation` в [`docs/terms/project/terms-map.md`](../../docs/terms/project/terms-map.md).
-- Основной terminology cleanup по `docs/architecture/` проведен: внешний `LLM provider`, внутренний `abstract provider` и `provider implementation` больше не смешиваются в ключевых architecture entry points.
+- Добавлены common термины `hydrate` и `persist` в [`docs/terms/project/terms-map.md`](../../docs/terms/project/terms-map.md) и привязаны к flow docs.
+- Основной terminology cleanup проведен по `docs/architecture/`, `docs/providers/`, `docs/auth.md` и key `docs/testing/` entry points: внешний `LLM provider`, внутренний `abstract provider` и `provider implementation` больше не смешиваются в основных navigation documents.
 - Добавлен initial drift register в [`docs/architecture/drift-register.md`](../../docs/architecture/drift-register.md) с зафиксированными gaps между architecture, tests и current materialization.
 - `Web UI` вынесен в focused document [`docs/architecture/web-ui.md`](../../docs/architecture/web-ui.md).
 - `RBAC` и роли вынесены в [`docs/architecture/rbac.md`](../../docs/architecture/rbac.md) и [`docs/architecture/rbac-roles.md`](../../docs/architecture/rbac-roles.md).
@@ -147,11 +148,11 @@
 
 ### Immediate fix first
 
-- Ближайший шаг смещается с `C4 Component` уровня на terminology cleanup и drift register.
+- Ближайший шаг смещается с построения новых core architecture views на cleanup secondary docs и закрытие drift entries.
 
 ### Pending work
 
-- remaining terminology cleanup for support docs and non-entry testing/provider artifacts
+- remaining terminology cleanup for secondary support docs and non-entry artifacts
 - decision on `user service` / `users DB` boundary
 - drift register maintenance and closure
 
