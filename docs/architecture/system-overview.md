@@ -12,7 +12,7 @@
 
 Платформа предоставляет:
 
-- provider-scoped OpenAI-compatible API через `/<provider_name>/v1/*` и `/<provider_name>/<group_name>/v1/*`;
+- provider-scoped [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md) через `/<provider_name>/v1/*` и `/<provider_name>/<group_name>/v1/*`;
 - provider-local catalogs, auth и quota semantics;
 - единый runtime path для request routing, account rotation, streaming normalization и error shaping;
 - contracts, provider pages и tests как канонический evidence layer.
@@ -25,7 +25,7 @@
 
 Внутри него живут:
 
-- provider-scoped OpenAI API routes;
+- provider-scoped [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md) routes;
 - native provider routes для Gemini;
 - parity relay routes;
 - provider registry, auth, quota router, runtime state persistence и provider integrations.
@@ -44,7 +44,7 @@ flowchart LR
 
 Подписи на диаграмме:
 
-- `LLM agent or developer tool` — внешний клиент, который использует публичный OpenAI-compatible contract платформы.
+- `LLM agent or developer tool` — внешний клиент, который использует публичный [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md) платформы.
 - `llm_agent_platform runtime` — основной runtime process этого репозитория.
 - `OAuth bootstrap scripts` — локальные scripts, которые получают и обновляют user credentials вне runtime process.
 - `Secrets storage` — пользовательские credentials и provider accounts-config.
@@ -68,7 +68,7 @@ flowchart LR
 - Groups живут внутри provider namespace и изолируют account state.
 - Runtime работает по in-memory-first модели; persisted state нужен для restore after restart и audit trail.
 - Credentials, declarative config и mutable runtime state являются разными границами хранения и ответственности.
-- Публичный OpenAI-compatible contract должен оставаться стабильным, даже если provider-internal semantics богаче.
+- Публичный [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md) должен оставаться стабильным, даже если `provider implementation` адаптирует его к более богатому vendor-specific upstream protocol.
 
 Ключевые документы rationale:
 
@@ -84,7 +84,8 @@ flowchart LR
 
 - container view: [`container-view.md`](./container-view.md)
 - layers: [`layers.md`](./layers.md)
-- components: [`component-map.md`](./component-map.md)
+- `C4 Component`: [`component-view.md`](./component-view.md)
+- component-to-code map: [`component-map.md`](./component-map.md)
 - runtime interactions: [`runtime-flows.md`](./runtime-flows.md)
 - packages: [`package-map.md`](./package-map.md)
 - detailed pipeline view: [`openai-chat-completions-pipeline.md`](./openai-chat-completions-pipeline.md)

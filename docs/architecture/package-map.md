@@ -2,33 +2,25 @@
 
 ## Назначение
 
-Этот документ связывает logical components и layers с реальными Python packages и key modules.
+Этот документ связывает runtime components с реальными Python packages и key modules.
 
 Он является основной package-level точкой навигации для planning, code reading и impact analysis.
 
-## Runtime package map
+## Component-oriented package map
 
-| Layer | Component | Primary package or module | Key modules | Notes |
-| --- | --- | --- | --- | --- |
-| Runtime shell | App bootstrap | [`llm_agent_platform/__main__.py`](llm_agent_platform/__main__.py:1) | app creation, blueprint registration | Flask runtime entrypoint |
-| API surface | OpenAI-compatible surface | [`llm_agent_platform/api/openai/`](llm_agent_platform/api/openai:1) | `routes.py`, `pipeline.py`, `types.py`, `transform.py`, `streaming.py`, `response_shaper.py` | Main public provider-scoped API path |
-| API surface | Native Gemini surface | [`llm_agent_platform/api/gemini/`](llm_agent_platform/api/gemini:1) | `routes.py` | Provider-native route namespace |
-| API surface | Parity relay | [`llm_agent_platform/api/parity/`](llm_agent_platform/api/parity:1) | `routes.py` | Capture-relay and parity tooling surface |
-| Provider integration | Provider adapters | [`llm_agent_platform/api/openai/providers/`](llm_agent_platform/api/openai/providers:1) | `base.py`, `gemini_cli.py`, `qwen_code.py`, `google_vertex.py`, `openai_chatgpt.py` | Encapsulates provider transport and runtime auth use |
-| Provider integration | Execution strategies | [`llm_agent_platform/api/openai/strategies/`](llm_agent_platform/api/openai/strategies:1) | `base.py`, `registry.py`, `direct.py`, `rotate_on_429_rounding.py` | Encapsulates execution policy over providers |
-| Auth | Runtime auth and OAuth refresh | [`llm_agent_platform/auth/`](llm_agent_platform/auth:1) | `credentials.py`, `qwen_oauth.py`, `openai_chatgpt_oauth.py` | Provider-specific auth semantics live here |
-| Runtime services | Provider registry and catalogs | [`llm_agent_platform/services/provider_registry.py`](llm_agent_platform/services/provider_registry.py:1) | registry loading, descriptor validation, catalog resolution | Uses declarative data from [`llm_agent_platform/provider_registry/`](llm_agent_platform/provider_registry:1) |
-| Runtime services | Quota account router | [`llm_agent_platform/services/account_router.py`](llm_agent_platform/services/account_router.py:1) | account selection, cooldown, exhausted state, group isolation | Cross-provider quota runtime service |
-| Runtime services | State path resolution | [`llm_agent_platform/services/runtime_state_paths.py`](llm_agent_platform/services/runtime_state_paths.py:1) | account/group usage paths | Runtime mutable state addressing |
-| Runtime services | Credentials path resolution | [`llm_agent_platform/services/credentials_paths.py`](llm_agent_platform/services/credentials_paths.py:1) | credentials locator helpers | Separates secrets paths from runtime state paths |
-| Runtime services | Provider usage limits | [`llm_agent_platform/services/provider_usage_limits.py`](llm_agent_platform/services/provider_usage_limits.py:1) | monitoring-only usage snapshot adapters | Current implementation materialized for `openai-chatgpt` |
-| Runtime services | Quota transport helpers | [`llm_agent_platform/services/quota_transport.py`](llm_agent_platform/services/quota_transport.py:1) | provider-specific 429 classification helpers | Shared by strategies/providers |
-| Infrastructure | HTTP transport primitive | [`llm_agent_platform/services/http_pool.py`](llm_agent_platform/services/http_pool.py:1) | singleton `httpx.Client` | Shared network client |
-| Infrastructure | Persisted state writer | [`llm_agent_platform/services/account_state_store.py`](llm_agent_platform/services/account_state_store.py:1) | account state, group snapshot, async writer | In-memory-first runtime persistence boundary |
-| Infrastructure | Env configuration | [`llm_agent_platform/config.py`](llm_agent_platform/config.py:1) | runtime env loading | Global runtime configuration boundary |
-| Shared core | Common helpers | [`llm_agent_platform/core/`](llm_agent_platform/core:1) | `logging.py`, `models.py`, `utils.py` | Shared utility layer |
-| Declarative data | Provider descriptors | [`llm_agent_platform/provider_registry/`](llm_agent_platform/provider_registry:1) | `registry.json`, `providers/*.json` | Declarative provider metadata and bootstrap catalogs |
-| Evidence | Runtime tests | [`llm_agent_platform/tests/`](llm_agent_platform/tests:1) | contract, routing, quota, provider tests | Executable architecture evidence |
+| Component | Primary packages or modules | Key modules | Notes |
+| --- | --- | --- | --- |
+| Runtime shell | [`llm_agent_platform/__main__.py`](llm_agent_platform/__main__.py:1) | app creation, blueprint registration | Flask runtime entrypoint |
+| API surfaces | [`llm_agent_platform/api/openai/`](llm_agent_platform/api/openai:1), [`llm_agent_platform/api/gemini/`](llm_agent_platform/api/gemini:1), [`llm_agent_platform/api/parity/`](llm_agent_platform/api/parity:1) | `routes.py` in each surface | HTTP entrypoints and boundary adaptation |
+| OpenAI pipeline orchestration | [`llm_agent_platform/api/openai/pipeline.py`](llm_agent_platform/api/openai/pipeline.py:1), [`llm_agent_platform/api/openai/types.py`](llm_agent_platform/api/openai/types.py:1), [`llm_agent_platform/api/openai/transform.py`](llm_agent_platform/api/openai/transform.py:1), [`llm_agent_platform/api/openai/streaming.py`](llm_agent_platform/api/openai/streaming.py:1), [`llm_agent_platform/api/openai/response_shaper.py`](llm_agent_platform/api/openai/response_shaper.py:1) | request context, streaming, response shaping | Main OpenAI-compatible execution path |
+| Provider integrations | [`llm_agent_platform/api/openai/providers/`](llm_agent_platform/api/openai/providers:1) | `base.py`, `gemini_cli.py`, `qwen_code.py`, `google_vertex.py`, `openai_chatgpt.py` | Provider-specific transport and normalization |
+| Execution strategy layer | [`llm_agent_platform/api/openai/strategies/`](llm_agent_platform/api/openai/strategies:1) | `base.py`, `registry.py`, `direct.py`, `rotate_on_429_rounding.py` | Execution policy over provider adapters |
+| Provider registry and catalogs | [`llm_agent_platform/services/provider_registry.py`](llm_agent_platform/services/provider_registry.py:1), [`llm_agent_platform/provider_registry/`](llm_agent_platform/provider_registry:1) | registry loading, descriptor validation, catalog resolution | Declarative provider metadata and bootstrap catalogs |
+| Quota and account state runtime | [`llm_agent_platform/services/account_router.py`](llm_agent_platform/services/account_router.py:1), [`llm_agent_platform/services/account_state_store.py`](llm_agent_platform/services/account_state_store.py:1), [`llm_agent_platform/services/runtime_state_paths.py`](llm_agent_platform/services/runtime_state_paths.py:1) | account selection, cooldown, exhausted state, async writer | In-memory-first state with persisted snapshots |
+| Runtime services | [`llm_agent_platform/services/credentials_paths.py`](llm_agent_platform/services/credentials_paths.py:1), [`llm_agent_platform/services/provider_usage_limits.py`](llm_agent_platform/services/provider_usage_limits.py:1), [`llm_agent_platform/services/quota_transport.py`](llm_agent_platform/services/quota_transport.py:1) | state-path helpers, usage adapters, semantic `429` helpers | Shared runtime ports used across providers and strategies |
+| Auth runtime | [`llm_agent_platform/auth/`](llm_agent_platform/auth:1) | `credentials.py`, `qwen_oauth.py`, `openai_chatgpt_oauth.py` | Provider-specific auth semantics |
+| Shared infrastructure and core | [`llm_agent_platform/config.py`](llm_agent_platform/config.py:1), [`llm_agent_platform/services/http_pool.py`](llm_agent_platform/services/http_pool.py:1), [`llm_agent_platform/core/`](llm_agent_platform/core:1) | env loading, singleton `httpx.Client`, logging, models, utils | Shared base with no upward runtime dependencies |
+| Evidence and verification | [`llm_agent_platform/tests/`](llm_agent_platform/tests:1) | contract, routing, quota, provider tests | Executable architecture evidence, not runtime component |
 
 ## Package reading heuristics
 
@@ -65,8 +57,18 @@
 2. relevant provider adapter
 3. [`docs/auth.md`](docs/auth.md:1)
 
+### Для component-level impact analysis
+
+Начинать с:
+
+1. [`component-view.md`](./component-view.md)
+2. [`component-map.md`](./component-map.md)
+3. строки этого package map для затронутого component
+4. [`traceability-map.md`](./traceability-map.md)
+
 ## Related documents
 
 - Layer model: [`docs/architecture/layers.md`](docs/architecture/layers.md:1)
-- Logical component map: [`docs/architecture/component-map.md`](docs/architecture/component-map.md:1)
+- `C4 Component`: [`docs/architecture/component-view.md`](docs/architecture/component-view.md:1)
+- Code-oriented component map: [`docs/architecture/component-map.md`](docs/architecture/component-map.md:1)
 - Runtime interactions: [`docs/architecture/runtime-flows.md`](docs/architecture/runtime-flows.md:1)

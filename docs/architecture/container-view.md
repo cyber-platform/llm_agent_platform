@@ -14,7 +14,7 @@
 - внутри boundary показываются runtime и delivery containers;
 - внешние provider systems и storage показываются как external dependencies.
 
-Более глубокий уровень детализации вынесен в [`component-map.md`](./component-map.md), [`runtime-flows.md`](./runtime-flows.md) и [`package-map.md`](./package-map.md).
+Более глубокий уровень детализации вынесен в [`component-view.md`](./component-view.md), [`component-map.md`](./component-map.md), [`runtime-flows.md`](./runtime-flows.md) и [`package-map.md`](./package-map.md).
 
 ## C4 Container diagram
 
@@ -43,7 +43,7 @@ flowchart LR
   - provider-scoped OpenAI-compatible API;
   - native provider routes;
   - auth/runtime/quota/provider orchestration.
-- Primary implementation: [`llm_agent_platform/__main__.py`](../../llm_agent_platform/__main__.py), [`component-map.md`](./component-map.md)
+- Primary implementation: [`llm_agent_platform/__main__.py`](../../llm_agent_platform/__main__.py), [`component-view.md`](./component-view.md)
 - Status: materialized in code.
 
 ### OAuth bootstrap scripts
@@ -105,6 +105,7 @@ flowchart LR
 ## Related documents
 
 - `C4 Context`: [`system-overview.md`](./system-overview.md)
-- `C4 Component`: [`component-map.md`](./component-map.md)
+- `C4 Component`: [`component-view.md`](./component-view.md)
+- component-to-code map: [`component-map.md`](./component-map.md)
 - runtime interactions: [`runtime-flows.md`](./runtime-flows.md)
 - package mapping: [`package-map.md`](./package-map.md)

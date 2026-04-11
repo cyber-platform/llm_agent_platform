@@ -6,7 +6,7 @@
 
 Он дополняет component map и package map sequence-style представлениями.
 
-## 1. Provider-scoped OpenAI request flow
+## 1. Provider-scoped OpenAI-compatible request flow
 
 ### Scope
 
@@ -20,9 +20,9 @@
 3. Pipeline строит `ChatRequestContext`, резолвит provider namespace, group scope и model visibility.
 4. Pipeline выбирает runtime provider adapter из [`llm_agent_platform/api/openai/providers/`](llm_agent_platform/api/openai/providers:1).
 5. Pipeline выбирает execution strategy из [`llm_agent_platform/api/openai/strategies/`](llm_agent_platform/api/openai/strategies:1).
-6. Strategy вызывает provider adapter для upstream execution.
+6. Strategy вызывает `provider implementation` для upstream execution.
 7. Stream path использует [`llm_agent_platform/api/openai/streaming.py`](llm_agent_platform/api/openai/streaming.py:1); non-stream path использует [`llm_agent_platform/api/openai/response_shaper.py`](llm_agent_platform/api/openai/response_shaper.py:1).
-8. Route layer возвращает OpenAI-compatible response boundary.
+8. Route layer возвращает `OpenAI-compatible API` response boundary.
 
 ### Evidence
 
@@ -62,9 +62,9 @@
 
 1. Pipeline resolves provider adapter [`llm_agent_platform/api/openai/providers/openai_chatgpt.py`](llm_agent_platform/api/openai/providers/openai_chatgpt.py:1).
 2. Adapter loads runtime OAuth state via [`llm_agent_platform/auth/openai_chatgpt_oauth.py`](llm_agent_platform/auth/openai_chatgpt_oauth.py:1).
-3. Adapter executes request against private backend surface.
+3. Adapter executes request against private backend surface как конкретная `provider implementation` для `openai-chatgpt`.
 4. If upstream returns `401` or `403`, adapter performs one forced refresh retry and repeats request once.
-5. On success adapter normalizes response into OpenAI-compatible shape.
+5. On success adapter normalizes response into `OpenAI-compatible API` shape.
 6. Monitoring-only usage snapshot path writes normalized state into `STATE_DIR` through [`llm_agent_platform/services/runtime_state_paths.py`](llm_agent_platform/services/runtime_state_paths.py:1) or the dedicated usage adapter [`llm_agent_platform/services/provider_usage_limits.py`](llm_agent_platform/services/provider_usage_limits.py:1).
 
 ### Evidence

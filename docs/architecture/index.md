@@ -31,6 +31,7 @@
 
 ### Найти компонент и связанный Python package
 
+- Component view: [`docs/architecture/component-view.md`](docs/architecture/component-view.md:1)
 - Component map: [`docs/architecture/component-map.md`](docs/architecture/component-map.md:1)
 - Package map: [`docs/architecture/package-map.md`](docs/architecture/package-map.md:1)
 
@@ -53,10 +54,11 @@
 
 1. Начать с [`docs/architecture/system-overview.md`](docs/architecture/system-overview.md:1), чтобы восстановить high-level picture.
 2. Перейти в [`docs/architecture/layers.md`](docs/architecture/layers.md:1), чтобы понять слой и допустимые зависимости.
-3. Перейти в [`docs/architecture/component-map.md`](docs/architecture/component-map.md:1), чтобы найти owning component.
-4. Перейти в [`docs/architecture/package-map.md`](docs/architecture/package-map.md:1), чтобы найти конкретные Python packages и key modules.
-5. Проверить relevant runtime path в [`docs/architecture/runtime-flows.md`](docs/architecture/runtime-flows.md:1).
-6. Проверить contracts, provider pages и tests через [`docs/architecture/traceability-map.md`](docs/architecture/traceability-map.md:1).
+3. Перейти в [`docs/architecture/component-view.md`](docs/architecture/component-view.md:1), чтобы понять `C4 Component` границы.
+4. Перейти в [`docs/architecture/component-map.md`](docs/architecture/component-map.md:1), чтобы найти owning component в коде.
+5. Перейти в [`docs/architecture/package-map.md`](docs/architecture/package-map.md:1), чтобы найти конкретные Python packages и key modules.
+6. Проверить relevant runtime path в [`docs/architecture/runtime-flows.md`](docs/architecture/runtime-flows.md:1).
+7. Проверить contracts, provider pages и tests через [`docs/architecture/traceability-map.md`](docs/architecture/traceability-map.md:1).
 
 ## Related documents
 

@@ -2,141 +2,52 @@
 
 ## Назначение
 
-Этот документ даёт logical component view платформы.
+Этот документ даёт code-oriented карту компонентов платформы.
 
 Он отвечает на вопросы:
 
-- какие крупные runtime components существуют;
-- за что отвечает каждый component;
-- как component связан с другими components;
-- в какие Python packages нужно идти для детального code reading.
+- где в коде materialized каждый runtime component;
+- в какие Python packages и модули идти для детального code reading;
+- какой focused document использовать, если нужен не кодовый, а архитектурный zoom.
 
-Для layer model см. [`docs/architecture/layers.md`](docs/architecture/layers.md:1).
+Для layer model см. [`layers.md`](./layers.md).
 
-Для package-level mapping см. [`docs/architecture/package-map.md`](docs/architecture/package-map.md:1).
+Для `C4 Component` view см. [`component-view.md`](./component-view.md).
+
+Для package-level mapping см. [`package-map.md`](./package-map.md).
+
+## Component-to-code map
+
+| Component | Primary code | Куда идти дальше | Focused architecture docs |
+| --- | --- | --- | --- |
+| Runtime shell | [`llm_agent_platform/__main__.py`](../../llm_agent_platform/__main__.py) | app factory, blueprint registration | [`container-view.md`](./container-view.md) |
+| API surfaces | [`llm_agent_platform/api/openai/`](../../llm_agent_platform/api/openai), [`llm_agent_platform/api/gemini/`](../../llm_agent_platform/api/gemini), [`llm_agent_platform/api/parity/`](../../llm_agent_platform/api/parity) | `routes.py`, boundary request handling | [`runtime-flows.md`](./runtime-flows.md) |
+| OpenAI pipeline orchestration | [`llm_agent_platform/api/openai/pipeline.py`](../../llm_agent_platform/api/openai/pipeline.py), [`llm_agent_platform/api/openai/types.py`](../../llm_agent_platform/api/openai/types.py), [`llm_agent_platform/api/openai/streaming.py`](../../llm_agent_platform/api/openai/streaming.py), [`llm_agent_platform/api/openai/response_shaper.py`](../../llm_agent_platform/api/openai/response_shaper.py) | context build, stream and non-stream path | [`openai-chat-completions-pipeline.md`](./openai-chat-completions-pipeline.md) |
+| Provider integrations | [`llm_agent_platform/api/openai/providers/`](../../llm_agent_platform/api/openai/providers) | provider adapters and normalization | [`../providers/README.md`](../providers/README.md) |
+| Execution strategy layer | [`llm_agent_platform/api/openai/strategies/`](../../llm_agent_platform/api/openai/strategies) | direct execution, retries, semantic `429` handling | [`quota-account-rotation-groups-and-models.md`](./quota-account-rotation-groups-and-models.md) |
+| Provider registry and catalogs | [`llm_agent_platform/services/provider_registry.py`](../../llm_agent_platform/services/provider_registry.py), [`llm_agent_platform/provider_registry/`](../../llm_agent_platform/provider_registry) | provider descriptor loading, catalog resolution | [`../providers/README.md`](../providers/README.md) |
+| Quota and account state runtime | [`llm_agent_platform/services/account_router.py`](../../llm_agent_platform/services/account_router.py), [`llm_agent_platform/services/account_state_store.py`](../../llm_agent_platform/services/account_state_store.py), [`llm_agent_platform/services/runtime_state_paths.py`](../../llm_agent_platform/services/runtime_state_paths.py) | account pool state, group snapshots, async persistence | [`quota-group-state-snapshot-and-state-dir.md`](./quota-group-state-snapshot-and-state-dir.md) |
+| Runtime services | [`llm_agent_platform/services/provider_usage_limits.py`](../../llm_agent_platform/services/provider_usage_limits.py), [`llm_agent_platform/services/credentials_paths.py`](../../llm_agent_platform/services/credentials_paths.py), [`llm_agent_platform/services/quota_transport.py`](../../llm_agent_platform/services/quota_transport.py) | monitoring ports, state path helpers, quota helper ports | [`admin-monitoring-read-model.md`](./admin-monitoring-read-model.md) |
+| Auth runtime | [`llm_agent_platform/auth/`](../../llm_agent_platform/auth) | credentials discovery, provider-specific OAuth refresh | [`../auth.md`](../auth.md) |
+| Shared infrastructure and core | [`llm_agent_platform/config.py`](../../llm_agent_platform/config.py), [`llm_agent_platform/services/http_pool.py`](../../llm_agent_platform/services/http_pool.py), [`llm_agent_platform/core/`](../../llm_agent_platform/core) | env loading, HTTP client, shared helpers | [`layers.md`](./layers.md) |
 
 ## Workspace boundaries
 
-### Root runtime scope
-
 В scope этой карты входят:
 
-- runtime package [`llm_agent_platform/`](llm_agent_platform:1)
-- bootstrap scripts [`scripts/`](scripts:1)
-- canonical docs and contracts in [`docs/`](docs:1)
-
-### Reference upstreams
+- runtime package [`llm_agent_platform/`](../../llm_agent_platform)
+- bootstrap scripts [`scripts/`](../../scripts)
+- canonical docs and contracts in [`docs/`](../)
 
 Внешние nested repos не входят в runtime package map и рассматриваются как reference-only context:
 
-- [`qwen-code/`](qwen-code:1)
-- [`gemini-cli/`](gemini-cli:1)
-- [`kilocode/`](kilocode:1)
-
-## Logical components
-
-### 1. Runtime shell
-
-- Responsibility: process bootstrap, Flask app assembly, blueprint registration.
-- Primary code: [`llm_agent_platform/__main__.py`](llm_agent_platform/__main__.py:1)
-- Outbound links: API surfaces, auth initialization.
-
-### 2. OpenAI-compatible API surface
-
-- Responsibility: provider-scoped public HTTP contract for `/models` and `chat/completions`.
-- Primary code: [`llm_agent_platform/api/openai/`](llm_agent_platform/api/openai:1)
-- Outbound links: OpenAI pipeline, provider registry, execution strategies.
-
-### 3. Native provider API surfaces
-
-- Responsibility: provider-native route namespaces outside the common OpenAI surface.
-- Primary code:
-  - [`llm_agent_platform/api/gemini/`](llm_agent_platform/api/gemini:1)
-  - [`llm_agent_platform/api/parity/`](llm_agent_platform/api/parity:1)
-- Outbound links: auth, runtime services, transport helpers.
-
-### 4. OpenAI pipeline orchestration
-
-- Responsibility: request normalization, provider resolution, group/model validation, strategy resolution, stream/non-stream path composition.
-- Primary code:
-  - [`llm_agent_platform/api/openai/pipeline.py`](llm_agent_platform/api/openai/pipeline.py:1)
-  - [`llm_agent_platform/api/openai/types.py`](llm_agent_platform/api/openai/types.py:1)
-  - [`llm_agent_platform/api/openai/streaming.py`](llm_agent_platform/api/openai/streaming.py:1)
-  - [`llm_agent_platform/api/openai/response_shaper.py`](llm_agent_platform/api/openai/response_shaper.py:1)
-- Outbound links: provider integrations and runtime services.
-
-### 5. Provider integrations
-
-- Responsibility: provider-specific runtime adapters and transport normalization.
-- Primary code: [`llm_agent_platform/api/openai/providers/`](llm_agent_platform/api/openai/providers:1)
-- Outbound links: auth layer, HTTP transport, runtime services.
-
-### 6. Execution strategy layer
-
-- Responsibility: execution policy over provider adapters: direct execution, account selection, retry, rotation, semantic `429` handling.
-- Primary code: [`llm_agent_platform/api/openai/strategies/`](llm_agent_platform/api/openai/strategies:1)
-- Outbound links: provider integrations, account router, quota transport helpers.
-
-### 7. Provider registry and declarative catalogs
-
-- Responsibility: runtime resolution of provider descriptors, route names, bootstrap catalogs and provider metadata.
-- Primary code:
-  - [`llm_agent_platform/services/provider_registry.py`](llm_agent_platform/services/provider_registry.py:1)
-  - [`llm_agent_platform/provider_registry/`](llm_agent_platform/provider_registry:1)
-- Outbound links: pipeline, provider pages, contracts.
-
-### 8. Auth runtime
-
-- Responsibility: auth availability checks, runtime token refresh, provider-specific OAuth state handling.
-- Primary code: [`llm_agent_platform/auth/`](llm_agent_platform/auth:1)
-- Outbound links: provider integrations, bootstrap scripts, config.
-
-### 9. Quota and account state runtime
-
-- Responsibility: account routing, group isolation, cooldown/exhausted semantics, persisted account state, group snapshots.
-- Primary code:
-  - [`llm_agent_platform/services/account_router.py`](llm_agent_platform/services/account_router.py:1)
-  - [`llm_agent_platform/services/account_state_store.py`](llm_agent_platform/services/account_state_store.py:1)
-  - [`llm_agent_platform/services/runtime_state_paths.py`](llm_agent_platform/services/runtime_state_paths.py:1)
-  - [`llm_agent_platform/services/credentials_paths.py`](llm_agent_platform/services/credentials_paths.py:1)
-- Outbound links: strategies, provider adapters, monitoring artifacts.
-
-### 10. Monitoring and provider usage adapters
-
-- Responsibility: provider-specific monitoring-only usage snapshots and future admin read-model support boundary.
-- Primary code: [`llm_agent_platform/services/provider_usage_limits.py`](llm_agent_platform/services/provider_usage_limits.py:1)
-- Canonical boundary docs:
-  - [`docs/architecture/admin-monitoring-read-model.md`](docs/architecture/admin-monitoring-read-model.md:1)
-  - [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
-
-### 11. Shared infrastructure and core
-
-- Responsibility: env config, shared HTTP client, logging and common helpers.
-- Primary code:
-  - [`llm_agent_platform/config.py`](llm_agent_platform/config.py:1)
-  - [`llm_agent_platform/services/http_pool.py`](llm_agent_platform/services/http_pool.py:1)
-  - [`llm_agent_platform/core/`](llm_agent_platform/core:1)
-
-## Interaction summary
-
-```mermaid
-flowchart TD
-  Shell[Runtime shell] --> API[API surfaces]
-  API --> Pipeline[OpenAI pipeline]
-  API --> Native[Native provider surfaces]
-  Pipeline --> Registry[Provider registry]
-  Pipeline --> Strategy[Execution strategies]
-  Strategy --> Providers[Provider integrations]
-  Strategy --> Router[Quota and account state runtime]
-  Providers --> Auth[Auth runtime]
-  Providers --> Infra[Infrastructure and core]
-  Router --> Infra
-  Registry --> Contracts[Contracts and provider descriptors]
-```
+- [`qwen-code/`](../../qwen-code)
+- [`gemini-cli/`](../../gemini-cli)
+- [`kilocode/`](../../kilocode)
 
 ## Related documents
 
-- Architecture entrypoint: [`docs/architecture/index.md`](docs/architecture/index.md:1)
-- System overview: [`docs/architecture/system-overview.md`](docs/architecture/system-overview.md:1)
-- Package map: [`docs/architecture/package-map.md`](docs/architecture/package-map.md:1)
-- Runtime flows: [`docs/architecture/runtime-flows.md`](docs/architecture/runtime-flows.md:1)
+- architecture entrypoint: [`index.md`](./index.md)
+- `C4 Component`: [`component-view.md`](./component-view.md)
+- package-level traceability: [`package-map.md`](./package-map.md)
+- runtime scenarios: [`runtime-flows.md`](./runtime-flows.md)
