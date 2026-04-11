@@ -59,6 +59,7 @@
 - [`docs/architecture/layers.md`](../../docs/architecture/layers.md)
 - [`docs/architecture/package-map.md`](../../docs/architecture/package-map.md)
 - [`docs/architecture/runtime-flows.md`](../../docs/architecture/runtime-flows.md)
+- [`docs/architecture/drift-register.md`](../../docs/architecture/drift-register.md)
 - [`docs/architecture/web-ui.md`](../../docs/architecture/web-ui.md)
 - [`docs/architecture/rbac.md`](../../docs/architecture/rbac.md)
 - [`docs/architecture/rbac-roles.md`](../../docs/architecture/rbac-roles.md)
@@ -107,7 +108,7 @@
 
 1. Завершить terminology cleanup по remaining provider docs и related support docs.
 2. Решить, нужен ли отдельный focused document для `user service` / `users DB` boundary.
-3. Сформировать drift register по расхождениям code vs docs/contracts.
+3. Расширять и поддерживать drift register по мере закрытия gaps.
 
 ## Definition of Done
 
@@ -119,8 +120,8 @@
 
 ## Execution Status
 
-- Current State: созданы и частично согласованы `system-overview.md`, `container-view.md`, `component-view.md`, `component-map.md`, `package-map.md`, `runtime-flows.md`, `web-ui.md`, `rbac.md`, `rbac-roles.md`, terminology layer в `docs/terms/`; основной terminology cleanup по `docs/architecture/`, `docs/providers/`, `docs/auth.md` и ключевым `docs/testing/` entry points выполнен; `sot_layers/hyper-graph/docs/terms/` и reusable terms-management assets приведены к новой structure.
-- Next Step: добить terminology cleanup в remaining support docs и non-entry testing/provider artifacts, затем зафиксировать drift register.
+- Current State: созданы и частично согласованы `system-overview.md`, `container-view.md`, `component-view.md`, `component-map.md`, `package-map.md`, `runtime-flows.md`, `drift-register.md`, `web-ui.md`, `rbac.md`, `rbac-roles.md`, terminology layer в `docs/terms/`; основной terminology cleanup по `docs/architecture/`, `docs/providers/`, `docs/auth.md` и ключевым `docs/testing/` entry points выполнен; `sot_layers/hyper-graph/docs/terms/` и reusable terms-management assets приведены к новой structure.
+- Next Step: добить terminology cleanup в remaining support docs и non-entry testing/provider artifacts, затем постепенно закрывать или уточнять drift entries.
 - Blockers: none.
 - Contract Changes: present.
 - Verification: docs updated by direct file inspection; no command-based verification was run.
@@ -138,6 +139,7 @@
 - `runtime-flows.md` усилен flow-диаграммами и связкой с терминами `hydrate` / `persist` в [`docs/architecture/runtime-flows.md`](../../docs/architecture/runtime-flows.md).
 - Зафиксирована taxonomy для `LLM API protocol` и разделены `OpenAI API`, `OpenAI-compatible API` и `provider implementation` в [`docs/terms/project/terms-map.md`](../../docs/terms/project/terms-map.md).
 - Основной terminology cleanup по `docs/architecture/` проведен: внешний `LLM provider`, внутренний `abstract provider` и `provider implementation` больше не смешиваются в ключевых architecture entry points.
+- Добавлен initial drift register в [`docs/architecture/drift-register.md`](../../docs/architecture/drift-register.md) с зафиксированными gaps между architecture, tests и current materialization.
 - `Web UI` вынесен в focused document [`docs/architecture/web-ui.md`](../../docs/architecture/web-ui.md).
 - `RBAC` и роли вынесены в [`docs/architecture/rbac.md`](../../docs/architecture/rbac.md) и [`docs/architecture/rbac-roles.md`](../../docs/architecture/rbac-roles.md).
 - Терминология проекта оформлена в [`docs/terms/index.md`](../../docs/terms/index.md), [`docs/terms/project/terms-map.md`](../../docs/terms/project/terms-map.md) и detail pages в [`docs/terms/project/terms/`](../../docs/terms/project/terms).
@@ -151,7 +153,7 @@
 
 - remaining terminology cleanup for support docs and non-entry testing/provider artifacts
 - decision on `user service` / `users DB` boundary
-- drift register
+- drift register maintenance and closure
 
 ### Commands to run
 

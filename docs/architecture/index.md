@@ -44,6 +44,7 @@
 ### Понять трассируемость изменений
 
 - Traceability map: [`docs/architecture/traceability-map.md`](docs/architecture/traceability-map.md:1)
+- Drift register: [`docs/architecture/drift-register.md`](docs/architecture/drift-register.md:1)
 - Contracts: [`docs/contracts/`](docs/contracts:1)
 - Test map: [`docs/testing/test-map.md`](docs/testing/test-map.md:1)
 - ADRs: [`docs/adr/`](docs/adr:1)
