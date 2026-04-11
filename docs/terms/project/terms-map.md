@@ -18,11 +18,13 @@
 
 | Термин | Краткое определение | Детальная страница |
 | --- | --- | --- |
+| LLM API protocol | Общий термин для стандарта API-взаимодействия с LLM: request/response format, streaming semantics, tool-calling envelope и error boundary. | [`llm-api-protocol`](./terms/llm-api-protocol.md) |
+| OpenAI-compatible API | Основной public [`LLM API protocol`](./terms/llm-api-protocol.md) платформы, совместимый с `OpenAI API`, но не равный vendor-specific `OpenAI API`. | [`openai-compatible-api`](./terms/openai-compatible-api.md) |
 | RBAC | Модель авторизации, в которой доступ к страницам, действиям и операциям определяется ролью пользователя. | [`rbac`](./terms/rbac.md) |
 | LLM Vendor | Компания или внешний владелец LLM-платформ и model access surfaces. Один `LLM Vendor` может предоставлять несколько разных `LLM provider`. | [`llm-vendor`](./terms/llm-vendor.md) |
 | LLM provider | Внешняя система доступа к LLM-моделям со своим catalog, auth-mechanism, quota semantics и usage policy. | [`llm-provider`](./terms/llm-provider.md) |
 | abstract provider | Внутренняя абстрактная сущность платформы, представляющая интеграцию с конкретным `LLM provider`. | [`abstract-provider`](./terms/abstract-provider.md) |
-| provider implementation | Конкретная реализация `abstract provider` в коде платформы для общения с конкретным `LLM provider`. | [`provider-implementation`](./terms/provider-implementation.md) |
+| provider implementation | Конкретная реализация `abstract provider` в коде платформы, которая адаптирует platform public protocol к vendor-specific upstream API конкретного `LLM provider`. | [`provider-implementation`](./terms/provider-implementation.md) |
 
 ## Политика обновления
 

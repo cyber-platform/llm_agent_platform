@@ -19,9 +19,12 @@
 
 В `llm_agent_platform` `LLM provider` является внешней system boundary, с которой взаимодействует платформа через внутренние `abstract provider` и их `provider implementation`.
 
+`LLM provider` не равен `LLM API protocol`: один provider может предоставлять свой vendor-specific API, а платформа может обращаться к нему через внутреннюю protocol adaptation.
+
 ## Связанные документы
 
 - [`terms-map.md`](../terms-map.md)
 - [`llm-vendor`](./llm-vendor.md)
 - [`abstract-provider`](./abstract-provider.md)
 - [`provider-implementation`](./provider-implementation.md)
+- [`llm-api-protocol`](./llm-api-protocol.md)
