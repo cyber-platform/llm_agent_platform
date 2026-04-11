@@ -17,6 +17,7 @@
 - System overview: [`docs/architecture/system-overview.md`](docs/architecture/system-overview.md:1)
 - Container view: [`docs/architecture/container-view.md`](docs/architecture/container-view.md:1)
 - Web UI: [`docs/architecture/web-ui.md`](docs/architecture/web-ui.md:1)
+- OpenAI ChatGPT demo PoC freeze: [`docs/architecture/poc-openai-chatgpt-demo.md`](docs/architecture/poc-openai-chatgpt-demo.md:1)
 
 ### Понять слои и правила зависимостей
 

@@ -17,6 +17,12 @@
 
 Маршруты входят в `LLM provider`-scoped contract из [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:1).
 
+Для fast demo PoC поверх этих маршрутов фиксируется дополнительный machine-auth boundary:
+
+- public OpenAI-compatible endpoint принимает только platform API key;
+- один platform API key привязан ровно к одной provider-local group;
+- invalid key должен приводить к OpenAI-style `401` с `type=authentication_error` и `code=invalid_api_key`.
+
 ## Catalog strategy
 
 Текущий канон для [`openai-chatgpt`](llm_agent_platform/provider_registry/providers/openai-chatgpt.json:1):
@@ -227,6 +233,12 @@ No-auth admin surface допустима только как local single-user P
 
 Это не baseline для shared dev, multi-user или production-like deployment. При первом выходе за этот контекст вопрос auth/RBAC должен вернуться в отдельный Stage 2 цикл.
 
+Для demo PoC это означает:
+
+- admin API и operator Web UI допустимы без auth только в локальной/private delivery boundary;
+- internet exposure допускается только для machine-facing OpenAI-compatible surface;
+- platform API keys не используются как admin auth substitute.
+
 Future hardening вынесен в [`operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md`](operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md:1).
 
 ## Связанные документы
@@ -236,3 +248,4 @@ Future hardening вынесен в [`operational_scope/plans/040-admin-surface-a
 - Persisted state canon: [`docs/architecture/quota-group-state-snapshot-and-state-dir.md`](docs/architecture/quota-group-state-snapshot-and-state-dir.md:1)
 - Admin monitoring read-model: [`docs/architecture/admin-monitoring-read-model.md`](docs/architecture/admin-monitoring-read-model.md:1)
 - Monitoring/admin ADR: [`docs/adr/0021-account-centric-provider-monitoring-and-admin-read-model.md`](docs/adr/0021-account-centric-provider-monitoring-and-admin-read-model.md:1)
+- PoC freeze: [`docs/architecture/poc-openai-chatgpt-demo.md`](docs/architecture/poc-openai-chatgpt-demo.md:1)
