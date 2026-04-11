@@ -2,8 +2,6 @@
 
 ## Purpose
 
-Этот plan больше не является архитектурным SoT.
-
 Его задача — зафиксировать implementation sequence поверх уже обновлённого канона в `docs/`.
 
 ## Engineering SoT

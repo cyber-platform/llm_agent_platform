@@ -2,8 +2,6 @@
 
 ## Purpose
 
-Этот plan больше не хранит архитектурные решения.
-
 Он фиксирует implementation order для текущего pilot UI поверх канонического SoT в `docs/`.
 
 ## Engineering SoT
