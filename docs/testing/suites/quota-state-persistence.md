@@ -25,7 +25,7 @@
 В рамках suite тестируем:
 
 - новый persisted account state формат `account_state.json`
-- provider-specific account artifacts `usage_windows.json` и `request_usage.json`
+- `LLM provider`-specific account artifacts `usage_windows.json` и `request_usage.json`
 - новый layout под `STATE_DIR` (state на HDD)
 - восстановление in-memory состояния роутера при старте из файлов
 - `quota_scope: per_model | per_provider`
@@ -52,11 +52,11 @@ Non-scope:
 
 - REQ-STATE-DIR: state-файлы пишутся/читаются из `STATE_DIR`, secrets остаются в `secrets/`.
 - REQ-ACCOUNT-STATE-V1: единый файл `account_state.json` содержит `last_used_at`, `cooldown.last_cooldown_at`, `quota_exhausted.keys`.
-- REQ-USAGE-WINDOWS-V1: provider-specific monitoring snapshot хранится в `usage_windows.json` и пишет refresh metadata отдельно от request counters.
+- REQ-USAGE-WINDOWS-V1: `LLM provider`-specific monitoring snapshot хранится в `usage_windows.json` и пишет refresh metadata отдельно от request counters.
 - REQ-REQUEST-USAGE-V1: request-driven observability хранится в `request_usage.json` и не перетирает monitoring windows.
 - REQ-LAZY-HYDRATE: при первом доступе к `(provider_id, group_id)` runtime восстанавливает in-memory state из `STATE_DIR` (lazy hydrate = lazy restore persisted state) без обязательного глобального pre-scan.
 - REQ-COOLDOWN-RESTORE: cooldown переживает рестарт (восстанавливается из `last_cooldown_at`).
-- REQ-QUOTA-SCOPE: provider accounts-config поддерживает `quota_scope=per_model|per_provider`.
+- REQ-QUOTA-SCOPE: `LLM provider` accounts-config поддерживает `quota_scope=per_model|per_provider`.
 - REQ-PROVIDER-SENTINEL: для `per_provider` используется ключ `__provider__`.
 - REQ-GROUP-SNAPSHOT: пишется snapshot `quota_state.json` для `(provider_id, group_id)` и содержит только числа/доли.
 - REQ-ASYNC-WRITER: запись state на диск async, периодический flush.
@@ -89,7 +89,7 @@ Non-scope:
 
 ### REQ-USAGE-WINDOWS-V1 + REQ-REQUEST-USAGE-V1
 
-- TC-UPROV-1 (L1): Given provider monitoring refresh обновляет usage snapshot, When persisted payload materialized, Then `usage_windows.json` содержит два окна и refresh metadata.
+- TC-UPROV-1 (L1): Given `LLM provider` monitoring refresh обновляет usage snapshot, When persisted payload materialized, Then `usage_windows.json` содержит два окна и refresh metadata.
 - TC-UPROV-2 (L1): Given request-path usage update, When persisted payload materialized, Then `request_usage.json` обновляется отдельно и не затирает `usage_windows.json`.
 
 ### REQ-LAZY-HYDRATE

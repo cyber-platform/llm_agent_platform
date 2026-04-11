@@ -23,10 +23,10 @@
 ```mermaid
 flowchart LR
   Routes[API surfaces] --> Pipeline[OpenAI pipeline orchestration]
-  Routes --> Native[Native provider API surfaces]
-  Pipeline --> Registry[Provider registry and catalogs]
+  Routes --> Native[Provider-native API surfaces]
+  Pipeline --> Registry[Abstract provider registry and catalogs]
   Pipeline --> Strategy[Execution strategy layer]
-  Strategy --> Providers[Provider integrations]
+  Strategy --> Providers[Provider implementation integrations]
   Strategy --> State[Quota and account state runtime]
   Providers --> Auth[Auth runtime]
   Providers --> Infra[Shared infrastructure and core]
@@ -40,12 +40,12 @@ flowchart LR
 | Component | Role | Main dependencies | Status |
 | --- | --- | --- | --- |
 | Runtime shell | Собирает Flask app и регистрирует runtime routes. | API surfaces, auth runtime, shared infrastructure | materialized in code |
-| API surfaces | Держит provider-scoped [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md) и provider-native HTTP entrypoints. | OpenAI pipeline orchestration, runtime services | materialized in code |
-| OpenAI pipeline orchestration | Строит request context, валидирует provider/group/model scope и собирает response path. | Provider registry and catalogs, execution strategy layer | materialized in code |
-| Native provider API surfaces | Обслуживает route namespaces вне общего OpenAI surface. | Runtime services, auth runtime, shared infrastructure | materialized in code |
-| Provider registry and catalogs | Резолвит provider descriptors, route namespaces и provider-local catalogs. | Declarative provider registry data | materialized in code |
-| Execution strategy layer | Выбирает execution policy: direct path, retries, rotation, semantic `429` handling. | Provider integrations, quota and account state runtime | materialized in code |
-| Provider integrations | Инкапсулирует `provider implementation`: provider-specific transport, protocol adaptation и upstream response normalization. | Auth runtime, shared infrastructure and core | materialized in code |
+| API surfaces | Держит `LLM provider`-scoped [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md) и provider-native HTTP entrypoints. | OpenAI pipeline orchestration, runtime services | materialized in code |
+| OpenAI pipeline orchestration | Строит request context, валидирует `LLM provider`/group/model scope и собирает response path. | Abstract provider registry and catalogs, execution strategy layer | materialized in code |
+| Provider-native API surfaces | Обслуживает route namespaces вне общего OpenAI-compatible surface. | Runtime services, auth runtime, shared infrastructure | materialized in code |
+| Abstract provider registry and catalogs | Резолвит `abstract provider` descriptors, route namespaces и `LLM provider`-local catalogs. | Declarative provider registry data | materialized in code |
+| Execution strategy layer | Выбирает execution policy: direct path, retries, rotation, semantic `429` handling. | Provider implementation integrations, quota and account state runtime | materialized in code |
+| Provider implementation integrations | Инкапсулирует `provider implementation`: provider-native transport, protocol adaptation и upstream response normalization. | Auth runtime, shared infrastructure and core | materialized in code |
 | Quota and account state runtime | Управляет account selection, cooldown, exhausted state и persisted group/account snapshots. | Shared infrastructure and core | materialized in code |
 | Runtime services | Даёт общие runtime ports: monitoring adapters, state-path resolution, quota transport helpers. | Shared infrastructure and core | materialized in code |
 | Auth runtime | Управляет credentials discovery и runtime OAuth refresh. | Shared infrastructure and core | materialized in code |
@@ -54,10 +54,10 @@ flowchart LR
 ## Main interaction path
 
 1. `API surfaces` принимают HTTP request.
-2. `OpenAI pipeline orchestration` резолвит provider scope и execution path.
-3. `Provider registry and catalogs` подтверждает provider-local metadata и model visibility.
+2. `OpenAI pipeline orchestration` резолвит `LLM provider` scope и execution path.
+3. `Abstract provider registry and catalogs` подтверждает `LLM provider`-local metadata и model visibility.
 4. `Execution strategy layer` выбирает policy исполнения.
-5. `Provider integrations` выполняют upstream request с опорой на `Auth runtime` и `Shared infrastructure and core`, при необходимости адаптируя `OpenAI-compatible API` к vendor-specific upstream API.
+5. `Provider implementation integrations` выполняют upstream request с опорой на `Auth runtime` и `Shared infrastructure and core`, при необходимости адаптируя `OpenAI-compatible API` к vendor-specific upstream API.
 6. `Quota and account state runtime` и `Runtime services` обновляют runtime state и monitoring artifacts, когда это требуется сценарием.
 
 ## Distinction between implemented and planned

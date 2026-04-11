@@ -44,6 +44,7 @@
 - `RBAC` фиксируется как отдельная architectural policy, а не как container.
 - terminology для provider-centric модели разведена на `LLM Vendor`, `LLM provider`, `abstract provider`, `provider implementation`.
 - terminology для `LLM API protocol` зафиксирована через различие между `OpenAI API`, `OpenAI-compatible API` и vendor-specific APIs вроде `Google Gemini API`.
+- архитектурные docs проходят terminology cleanup, чтобы `provider`, `LLM provider`, `abstract provider` и `provider implementation` не смешивались.
 - `docs/terms/` переведён на reusable structure: `index.md -> <scope>/terms-map.md -> <scope>/terms/<term>.md`.
 
 ## Canonical documents to continue from
@@ -104,7 +105,7 @@
 
 ## Remaining work
 
-1. Пройтись по архитектурным документам и заменить неоднозначное `provider` на канонические термины там, где это важно.
+1. Завершить terminology cleanup по remaining provider docs и related support docs.
 2. Решить, нужен ли отдельный focused document для `user service` / `users DB` boundary.
 3. Сформировать drift register по расхождениям code vs docs/contracts.
 
@@ -118,8 +119,8 @@
 
 ## Execution Status
 
-- Current State: созданы и частично согласованы `system-overview.md`, `container-view.md`, `component-view.md`, `component-map.md`, `package-map.md`, `web-ui.md`, `rbac.md`, `rbac-roles.md`, terminology layer в `docs/terms/`; `sot_layers/hyper-graph/docs/terms/` и reusable terms-management assets приведены к новой structure.
-- Next Step: пройти terminology cleanup по ambiguous `provider` mentions, затем зафиксировать drift register.
+- Current State: созданы и частично согласованы `system-overview.md`, `container-view.md`, `component-view.md`, `component-map.md`, `package-map.md`, `runtime-flows.md`, `web-ui.md`, `rbac.md`, `rbac-roles.md`, terminology layer в `docs/terms/`; основной terminology cleanup по `docs/architecture/`, `docs/providers/`, `docs/auth.md` и ключевым `docs/testing/` entry points выполнен; `sot_layers/hyper-graph/docs/terms/` и reusable terms-management assets приведены к новой structure.
+- Next Step: добить terminology cleanup в remaining support docs и non-entry testing/provider artifacts, затем зафиксировать drift register.
 - Blockers: none.
 - Contract Changes: present.
 - Verification: docs updated by direct file inspection; no command-based verification was run.
@@ -134,7 +135,9 @@
 - Добавлен отдельный `C4 Component` документ в [`docs/architecture/component-view.md`](../../docs/architecture/component-view.md).
 - `component-map.md` переориентирован на code-oriented component navigation в [`docs/architecture/component-map.md`](../../docs/architecture/component-map.md).
 - `package-map.md` перегруппирован вокруг components вместо layer-first представления в [`docs/architecture/package-map.md`](../../docs/architecture/package-map.md).
+- `runtime-flows.md` усилен flow-диаграммами и связкой с терминами `hydrate` / `persist` в [`docs/architecture/runtime-flows.md`](../../docs/architecture/runtime-flows.md).
 - Зафиксирована taxonomy для `LLM API protocol` и разделены `OpenAI API`, `OpenAI-compatible API` и `provider implementation` в [`docs/terms/project/terms-map.md`](../../docs/terms/project/terms-map.md).
+- Основной terminology cleanup по `docs/architecture/` проведен: внешний `LLM provider`, внутренний `abstract provider` и `provider implementation` больше не смешиваются в ключевых architecture entry points.
 - `Web UI` вынесен в focused document [`docs/architecture/web-ui.md`](../../docs/architecture/web-ui.md).
 - `RBAC` и роли вынесены в [`docs/architecture/rbac.md`](../../docs/architecture/rbac.md) и [`docs/architecture/rbac-roles.md`](../../docs/architecture/rbac-roles.md).
 - Терминология проекта оформлена в [`docs/terms/index.md`](../../docs/terms/index.md), [`docs/terms/project/terms-map.md`](../../docs/terms/project/terms-map.md) и detail pages в [`docs/terms/project/terms/`](../../docs/terms/project/terms).
@@ -146,7 +149,7 @@
 
 ### Pending work
 
-- terminology cleanup for `provider` mentions
+- remaining terminology cleanup for support docs and non-entry testing/provider artifacts
 - decision on `user service` / `users DB` boundary
 - drift register
 

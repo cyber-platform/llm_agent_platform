@@ -20,6 +20,8 @@
 | --- | --- | --- |
 | LLM API protocol | Общий термин для стандарта API-взаимодействия с LLM: request/response format, streaming semantics, tool-calling envelope и error boundary. | [`llm-api-protocol`](./terms/llm-api-protocol.md) |
 | OpenAI-compatible API | Основной public [`LLM API protocol`](./terms/llm-api-protocol.md) платформы, совместимый с `OpenAI API`, но не равный vendor-specific `OpenAI API`. | [`openai-compatible-api`](./terms/openai-compatible-api.md) |
+| hydrate | Восстановить in-memory state из persisted state. | [`hydrate`](./terms/hydrate.md) |
+| persist | Сохранить runtime state из памяти в устойчивое хранилище. | [`persist`](./terms/persist.md) |
 | RBAC | Модель авторизации, в которой доступ к страницам, действиям и операциям определяется ролью пользователя. | [`rbac`](./terms/rbac.md) |
 | LLM Vendor | Компания или внешний владелец LLM-платформ и model access surfaces. Один `LLM Vendor` может предоставлять несколько разных `LLM provider`. | [`llm-vendor`](./terms/llm-vendor.md) |
 | LLM provider | Внешняя система доступа к LLM-моделям со своим catalog, auth-mechanism, quota semantics и usage policy. | [`llm-provider`](./terms/llm-provider.md) |

@@ -1,4 +1,4 @@
-# Suite: Unified quota account rotation (random + by-N + provider-local groups + provider-scoped models)
+# Suite: Unified quota account rotation (random + by-N + LLM provider-local groups + LLM provider-scoped models)
 
 ## Suite ID
 - `TS-QUOTA-ACCOUNT-ROTATION`
@@ -31,8 +31,8 @@
 - Random-order в `rounding` (опция `rotation_policy.random_order`).
 - Rotate-after-N-successes в `rounding` (опция `rotation_policy.rotate_after_n_successes`).
 - Группы аккаунтов, изоляция state/счётчиков по ключу `(provider, group_id)`.
-- Provider-local groups через `/<provider_name>/<group_id>/v1/*`.
-- Provider-scoped `GET /<provider_name>/v1/models` и `GET /<provider_name>/<group_id>/v1/models`.
+- `LLM provider`-local groups через `/<provider_name>/<group_id>/v1/*`.
+- `LLM provider`-scoped `GET /<provider_name>/v1/models` и `GET /<provider_name>/<group_id>/v1/models`.
 - All-cooldown fast-fail: `429` с message вида `all accounts on cooldown please wait <seconds>`.
 
 ## Contract References
@@ -55,7 +55,7 @@
 
 ### Source links
 - Канонический архитектурный документ: [`docs/architecture/quota-account-rotation-groups-and-models.md`](docs/architecture/quota-account-rotation-groups-and-models.md:1)
-- ADR по provider-centric routing: [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:1)
+- ADR по `LLM provider`-centric routing: [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:1)
 - Реализация: [`llm_agent_platform/services/account_router.py`](llm_agent_platform/services/account_router.py:1)
 
 ## Risk Register (test-focused)
@@ -68,7 +68,7 @@
 ## Test Levels (L1–L4)
 - L1 Unit: чистая логика роутера (изменения в [`llm_agent_platform/services/account_router.py`](llm_agent_platform/services/account_router.py:1)), без Flask.
 - L2 Contract: структура OpenAI-compatible ответов в части status/message для 429 сценариев (через Flask client в контрактных тестах).
-- L3 Integration: маршрутизация Flask и provider-scoped group-aware endpoints, без реальных upstream вызовов (моки провайдеров/роутера).
+- L3 Integration: маршрутизация Flask и `LLM provider`-scoped group-aware endpoints, без реальных upstream вызовов (моки провайдеров/роутера).
 - L4 E2E: реальные upstream провайдеры (out of scope для этой suite).
 
 ## Test Cases (Given/When/Then)
@@ -84,9 +84,9 @@
 ### REQ-GRP-ISO (group isolation)
 - TC-GRP-1 (L1): Given две группы `g1` и `g2` с разными пулами, When в `g1` происходит switch (429 или by-N), Then state `g2` не изменяется (ожидаем key state `(provider, group_id)`).
 
-### REQ-MODELS-GROUP (provider-scoped group-aware `/models`)
+### REQ-MODELS-GROUP (`LLM provider`-scoped group-aware `/models`)
 - TC-MODELS-1 (L3): Given accounts-config с `groups.g1.models=[m1]`, `groups.g2.models=[m2]`, When `GET /gemini-cli/g1/v1/models`, Then только `m1`; When `GET /gemini-cli/g2/v1/models`, Then только `m2`.
-- TC-MODELS-2 (L3): Given `groups` отсутствует, When `GET /gemini-cli/v1/models`, Then используется default group выбранного provider.
+- TC-MODELS-2 (L3): Given `groups` отсутствует, When `GET /gemini-cli/v1/models`, Then используется default group выбранного `LLM provider`.
 
 ### REQ-COOLDOWN-WAIT (all-cooldown please wait)
 - TC-CD-1 (L1): Given все аккаунты на cooldown с разными `cooldown_until`, When `select_account()` не может выбрать, Then ошибка содержит `wait_seconds = min(cooldown_until) - now` (округление/ceil фиксируется в тесте).

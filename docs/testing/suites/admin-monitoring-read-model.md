@@ -19,15 +19,15 @@
 
 ## Scope
 
-- Проверка динамического provider list для admin monitoring shell.
-- Проверка provider-specific page contract для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1).
+- Проверка динамического `LLM provider` list для admin monitoring shell.
+- Проверка `LLM provider`-specific page contract для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1).
 - Проверка того, что UI читает backend admin read-model, а не state files напрямую.
-- Проверка provider-specific columns, drawer sections и session-scoped `Activate` semantics.
+- Проверка `LLM provider`-specific columns, drawer sections и session-scoped `Activate` semantics.
 - Проверка local single-user PoC security boundary для текущего pilot scope.
 
 ## Requirement Traceability
 
-- Requirement: admin monitoring surface строится поверх contract-first read-model и provider-specific pages.
+- Requirement: admin monitoring surface строится поверх contract-first read-model и `LLM provider`-specific pages.
 - Rollout metadata:
   - suite anchor: `TS-ADMIN-MONITORING-READ-MODEL`
   - future case anchors: `TC-ADMIN-MONITORING-READ-MODEL-...`

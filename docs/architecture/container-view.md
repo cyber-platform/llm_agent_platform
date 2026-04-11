@@ -12,7 +12,7 @@
 
 - `llm_agent_platform` рассматривается как system boundary;
 - внутри boundary показываются runtime и delivery containers;
-- внешние provider systems и storage показываются как external dependencies.
+- внешние `LLM provider` systems и storage показываются как external dependencies.
 
 Более глубокий уровень детализации вынесен в [`component-view.md`](./component-view.md), [`component-map.md`](./component-map.md), [`runtime-flows.md`](./runtime-flows.md) и [`package-map.md`](./package-map.md).
 
@@ -31,7 +31,7 @@ flowchart LR
   Bootstrap --> Secrets[Secrets storage]
   Runtime --> Secrets
   Runtime --> State[STATE_DIR storage]
-  Runtime --> Provider[Provider]
+  Runtime --> Provider[LLM provider]
 ```
 
 ## Containers inside the system boundary
@@ -40,9 +40,9 @@ flowchart LR
 
 - Role: основной runtime process платформы.
 - Responsibilities:
-  - provider-scoped OpenAI-compatible API;
-  - native provider routes;
-  - auth/runtime/quota/provider orchestration.
+  - provider-scoped [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md);
+  - provider-native routes;
+  - auth/runtime/quota orchestration вокруг `abstract provider` и `provider implementation`.
 - Primary implementation: [`llm_agent_platform/__main__.py`](../../llm_agent_platform/__main__.py), [`component-view.md`](./component-view.md)
 - Status: materialized in code.
 
@@ -68,9 +68,9 @@ flowchart LR
 
 ## External systems and storage
 
-### Provider
+### LLM provider
 
-- Role: внешняя provider system boundary для upstream LLM integrations.
+- Role: внешняя [`LLM provider`](../terms/project/terms/llm-provider.md) system boundary для upstream LLM integrations.
 - Includes:
   - `openai-chatgpt`
   - `gemini-cli`
@@ -79,7 +79,7 @@ flowchart LR
 
 ### Secrets storage
 
-- Role: provider accounts-config и user credentials storage.
+- Role: accounts-config для `LLM provider` и user credentials storage.
 - Used by:
   - `Runtime API process`
   - `OAuth bootstrap scripts`
@@ -94,7 +94,7 @@ flowchart LR
 
 - `End user or administrator` использует `Web UI` для human-facing access к платформе.
 - `Operator or developer` использует `OAuth bootstrap scripts` для подготовки credentials.
-- `Runtime API process` читает `Secrets storage`, использует `STATE_DIR storage` и обращается к `Provider`.
+- `Runtime API process` читает `Secrets storage`, использует `STATE_DIR storage` и обращается к внешнему `LLM provider`.
 
 ## Status notes
 

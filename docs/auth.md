@@ -1,15 +1,15 @@
 # 🔐 Руководство по авторизации
 
-Платформа поддерживает несколько provider-specific контуров авторизации:
+Платформа поддерживает несколько `LLM provider`-specific контуров авторизации:
 - Gemini OAuth quota (Google Cloud Code / `gemini-cli` совместимый поток).
 - Qwen OAuth quota (device flow).
 - OpenAI ChatGPT OAuth runtime (Authorization Code + PKCE).
 
 Также опционально поддерживается Vertex AI через сервисный аккаунт.
 
-Общее устройство платформы описано в [`docs/architecture/component-map.md`](docs/architecture/component-map.md:1), а provider-specific особенности должны выноситься на отдельные страницы в [`docs/providers/`](docs/providers:1).
+Общее устройство платформы описано в [`docs/architecture/component-map.md`](docs/architecture/component-map.md:1), а `LLM provider`-specific особенности должны выноситься на отдельные страницы в [`docs/providers/`](docs/providers:1).
 
-Актуальный список providers и их readiness/status сводится в [`docs/providers/README.md`](docs/providers/README.md:1).
+Актуальный список `LLM provider` и их readiness/status сводится в [`docs/providers/README.md`](docs/providers/README.md:1).
 
 Для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1) в текущем каноне фиксируется static catalog baseline и OAuth/runtime boundary без live discovery.
 
@@ -71,12 +71,12 @@
 
 ## 3) Конфиги ротации аккаунтов (single/rounding)
 
-Источник политики ротации — только provider-конфиги:
+Источник политики ротации — только `LLM provider`-конфиги:
 - `secrets/gemini-cli/accounts_config.json`
 - `secrets/qwen_code/accounts_config.json`
 - `secrets/openai-chatgpt/accounts_config.json`
 
-Канонический общий документ по всем provider-agnostic параметрам accounts-config:
+Канонический общий документ по всем `LLM provider`-agnostic параметрам accounts-config:
 - [`docs/configuration/provider-accounts-config.md`](docs/configuration/provider-accounts-config.md:1)
 
 Примеры структуры вынесены в отдельные файлы:
@@ -87,7 +87,7 @@
 Для Qwen в `accounts.<name>` достаточно `credentials_path`; поле `project_id` не требуется.
 
 ### Persisted runtime state (last_used + quota_exhausted)
-Runtime state не хранится в provider-config.
+Runtime state не хранится в `LLM provider`-config.
 
 С 2026-03-18 вводится отдельный runtime state контур, чтобы:
 
@@ -126,9 +126,9 @@ Layout:
 Важно:
 
 - чистый `select_account()` не должен обновлять `last_used_at`; это поле меняется на успешном request-path;
-- если provider не объявляет `groups`, runtime использует дефолтную логическую группу `g0`.
+- если `LLM provider` не объявляет `groups`, runtime использует дефолтную логическую группу `g0`.
 
-`quota_state.json` (per provider-group snapshot) — файл мониторинга для администратора (только числа/доли).
+`quota_state.json` (per `LLM provider`-group snapshot) — файл мониторинга для администратора (только числа/доли).
 
 Контракты:
 
@@ -161,14 +161,14 @@ Qwen refresh выполняется:
 - `GET /openai-chatgpt/v1/models` и `POST /openai-chatgpt/v1/chat/completions` уже обслуживаются runtime implementation.
 - Для каталога используется static bootstrap catalog без live discovery.
 - Bootstrap script реализован в [`scripts/get_openai-chatgpt_credentials.py`](scripts/get_openai-chatgpt_credentials.py:1).
-- Runtime adapter использует private backend surface и общий provider accounts-config contract для `single` и `rounding`.
+- `provider implementation` использует private backend surface и общий `LLM provider` accounts-config contract для `single` и `rounding`.
 - Usage adapter вынесен в monitoring-only контур [`llm_agent_platform/services/provider_usage_limits.py`](llm_agent_platform/services/provider_usage_limits.py:1).
 
 ### Что создаётся
 - Базовый файл OAuth по умолчанию: `secrets/openai-chatgpt/accounts/user_credentials.json`.
 - Далее пользователь может переименовать или скопировать его в именованные account-файлы и сослаться на них через `OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH`.
 
-Provider-specific канон:
+`LLM provider`-specific канон:
 - [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
 
 ### Runtime state foundation
@@ -204,12 +204,12 @@ Provider-specific канон:
 
 - user OAuth credentials в `secrets/<provider_id>/...` — это пользовательские credentials;
 - общий quota state живёт только в [`STATE_DIR`](llm_agent_platform/config.py:30) по общему канону [`account_state.json`](docs/contracts/state/account-state.schema.json:1) и [`quota_state.json`](docs/contracts/state/group-quota-state.schema.json:1);
-- provider-specific usage snapshot, если provider умеет отдавать usage/limits данные, тоже живёт только в [`STATE_DIR`](llm_agent_platform/config.py:30).
+- `LLM provider`-specific usage snapshot, если `LLM provider` умеет отдавать usage/limits данные, тоже живёт только в [`STATE_DIR`](llm_agent_platform/config.py:30).
 
 Следствие:
 
-- provider-specific monitoring snapshot не должен перетирать `access_token`, `refresh_token` и другой OAuth material в `secrets/`;
-- provider-specific mutable state и monitoring state должны быть структурно отделены от пользовательских credentials.
+- `LLM provider`-specific monitoring snapshot не должен перетирать `access_token`, `refresh_token` и другой OAuth material в `secrets/`;
+- `LLM provider`-specific mutable state и monitoring state должны быть структурно отделены от пользовательских credentials.
 
 ### Current admin monitoring boundary
 
@@ -219,14 +219,14 @@ Provider-specific канон:
 
 ### Path resolution ports
 
-Чтобы эта граница не размазывалась по provider adapters, path-resolution должен быть разделён на два платформенных направления:
+Чтобы эта граница не размазывалась по `provider implementation`, path-resolution должен быть разделён на два платформенных направления:
 
 - credentials locator port — отвечает только за ссылки на user credentials в `secrets/`;
-- runtime state paths port — отвечает только за mutable state в [`STATE_DIR`](llm_agent_platform/config.py:30), включая platform router/quota state и provider monitoring snapshots.
+- runtime state paths port — отвечает только за mutable state в [`STATE_DIR`](llm_agent_platform/config.py:30), включая platform router/quota state и `LLM provider` monitoring snapshots.
 
-Это означает, что provider adapters и usage-monitoring не должны сами вычислять пути строковыми `replace(...)`, а должны опираться на общие платформенные path-resolver компоненты.
+Это означает, что `provider implementation` и usage-monitoring не должны сами вычислять пути строковыми `replace(...)`, а должны опираться на общие платформенные path-resolver компоненты.
 
-Runtime invariant для provider:
+Runtime invariant для `LLM provider`:
 - `one forced refresh retry on auth failure`
 
 ### Что запускать
@@ -236,9 +236,9 @@ Runtime invariant для provider:
    uv run python scripts/get_openai-chatgpt_credentials.py
    ```
 2. Указать файл аккаунта в `OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH`.
-3. Для single mode достаточно одного аккаунта с `credentials_path`; для rounding provider использует тот же общий quota contour, что и остальные providers.
+3. Для single mode достаточно одного аккаунта с `credentials_path`; для rounding `LLM provider` использует тот же общий quota contour, что и остальные `LLM provider`.
 
-Пример provider accounts-config:
+Пример `LLM provider` accounts-config:
 - [`docs/examples/openai_chatgpt_accounts_config.example.json`](docs/examples/openai_chatgpt_accounts_config.example.json:1)
 
 ---
@@ -274,7 +274,7 @@ Runtime invariant для provider:
 
 ## Важное
 - Legacy-путь `USER_CREDS_PATH` больше не используется.
-- Для Gemini quota multi-account `project_id` задаётся на уровне аккаунта в provider-config.
+- Для Gemini quota multi-account `project_id` задаётся на уровне аккаунта в `LLM provider`-config.
 
 Важно: disjoint groups — каждый аккаунт может быть только в одной группе (обязательная валидация).
 
@@ -282,8 +282,8 @@ Runtime invariant для provider:
 
 ## Поведение платформы при наличии/отсутствии авторизации
 
-- `GET /<provider_name>/v1/models` и `GET /<provider_name>/<group_id>/v1/models` работают внутри выбранного provider namespace.
-- Если provider поддерживает groups, список моделей для named group фильтруется по `groups.<group_id>.models` данного provider.
-- Если groups не заданы, используется default group выбранного provider.
+- `GET /<provider_name>/v1/models` и `GET /<provider_name>/<group_id>/v1/models` работают внутри выбранного `LLM provider` namespace.
+- Если `LLM provider` поддерживает groups, список моделей для named group фильтруется по `groups.<group_id>.models` данного `LLM provider`.
+- Если groups не заданы, используется default group выбранного `LLM provider`.
 
 - При старте прокси выполняется fail-fast проверка: если не найден ни один валидный источник авторизации (Gemini quota / Qwen quota / Vertex), контейнер завершается с ошибкой и пишет диагностику в логи.

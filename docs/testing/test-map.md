@@ -1,7 +1,7 @@
 # Test Map
 
 ## Overview
-- Контур покрывает provider-centric OpenAI-compatible контракт, quota-runtime поведение и provider-specific boundaries.
+- Контур покрывает `LLM provider`-centric OpenAI-compatible контракт, quota-runtime поведение и `LLM provider`-specific boundaries.
 - Целевая трассировка: `requirement -> suite -> test case -> test implementation`.
 - Текущее состояние rollout: suite-level `TS-*` идентификаторы уже каноничны; test-case-level `TC-*` вводятся постепенно по мере обновления suites и test code.
 
@@ -15,13 +15,13 @@
 ## Suites
 | Suite ID | Suite Page | Scope | Implementation roots | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| `TS-OPENAI-CONTRACT` | [`openai-contract.md`](docs/testing/suites/openai-contract.md) | OpenAI stream/non-stream contract, provider-scoped routes, `openai-chatgpt` runtime adapter and streamed error mapping | [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1), [`llm_agent_platform/tests/test_openai_chatgpt_runtime.py`](llm_agent_platform/tests/test_openai_chatgpt_runtime.py:1) | active |
-| `TS-PROXY-ROUTES` | [`proxy-routes.md`](docs/testing/suites/proxy-routes.md) | Provider-scoped routing, group-aware routes, native Gemini proxy and parity relay coverage | [`llm_agent_platform/tests/test_refactor_p2_routes.py`](llm_agent_platform/tests/test_refactor_p2_routes.py:1) | active |
-| `TS-PROVIDER-CATALOGS` | [`provider-catalogs.md`](docs/testing/suites/provider-catalogs.md) | Provider-local catalogs and static bootstrap catalog boundaries | [`llm_agent_platform/tests/test_provider_catalogs.py`](llm_agent_platform/tests/test_provider_catalogs.py:1) | active |
+| `TS-OPENAI-CONTRACT` | [`openai-contract.md`](docs/testing/suites/openai-contract.md) | OpenAI stream/non-stream contract, `LLM provider`-scoped routes, `openai-chatgpt` provider implementation and streamed error mapping | [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1), [`llm_agent_platform/tests/test_openai_chatgpt_runtime.py`](llm_agent_platform/tests/test_openai_chatgpt_runtime.py:1) | active |
+| `TS-PROXY-ROUTES` | [`proxy-routes.md`](docs/testing/suites/proxy-routes.md) | `LLM provider`-scoped routing, group-aware routes, native Gemini proxy and parity relay coverage | [`llm_agent_platform/tests/test_refactor_p2_routes.py`](llm_agent_platform/tests/test_refactor_p2_routes.py:1) | active |
+| `TS-PROVIDER-CATALOGS` | [`provider-catalogs.md`](docs/testing/suites/provider-catalogs.md) | `LLM provider`-local catalogs and static bootstrap catalog boundaries | [`llm_agent_platform/tests/test_provider_catalogs.py`](llm_agent_platform/tests/test_provider_catalogs.py:1) | active |
 | `TS-QUOTA-PARITY` | [`quota-parity.md`](docs/testing/suites/quota-parity.md) | Quota transport parity with `gemini-cli` payload and stream shape | [`llm_agent_platform/tests/test_quota_transport_parity.py`](llm_agent_platform/tests/test_quota_transport_parity.py:1) | active |
-| `TS-QUOTA-ACCOUNT-ROTATION` | [`quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md) | Unified quota rotation, group isolation, provider-scoped models and cooldown fast-fail behavior | [`llm_agent_platform/tests/test_quota_account_router.py`](llm_agent_platform/tests/test_quota_account_router.py:1), [`llm_agent_platform/tests/test_refactor_p2_routes.py`](llm_agent_platform/tests/test_refactor_p2_routes.py:1), [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1) | active |
-| `TS-QUOTA-STATE-PERSISTENCE` | [`quota-state-persistence.md`](docs/testing/suites/quota-state-persistence.md) | Persisted quota state, `STATE_DIR`, provider-specific artifacts, group snapshot and async writer | [`llm_agent_platform/tests/test_quota_account_router.py`](llm_agent_platform/tests/test_quota_account_router.py:1) | active |
-| `TS-ADMIN-MONITORING-READ-MODEL` | [`admin-monitoring-read-model.md`](docs/testing/suites/admin-monitoring-read-model.md) | Dynamic provider list, provider-specific monitoring page and backend read-model boundary | planned `llm_agent_platform/tests/test_admin_monitoring_read_model.py` | planned |
+| `TS-QUOTA-ACCOUNT-ROTATION` | [`quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md) | Unified quota rotation, group isolation, `LLM provider`-scoped models and cooldown fast-fail behavior | [`llm_agent_platform/tests/test_quota_account_router.py`](llm_agent_platform/tests/test_quota_account_router.py:1), [`llm_agent_platform/tests/test_refactor_p2_routes.py`](llm_agent_platform/tests/test_refactor_p2_routes.py:1), [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1) | active |
+| `TS-QUOTA-STATE-PERSISTENCE` | [`quota-state-persistence.md`](docs/testing/suites/quota-state-persistence.md) | Persisted quota state, `STATE_DIR`, `LLM provider`-specific artifacts, group snapshot and async writer | [`llm_agent_platform/tests/test_quota_account_router.py`](llm_agent_platform/tests/test_quota_account_router.py:1) | active |
+| `TS-ADMIN-MONITORING-READ-MODEL` | [`admin-monitoring-read-model.md`](docs/testing/suites/admin-monitoring-read-model.md) | Dynamic `LLM provider` list, `LLM provider`-specific monitoring page and backend read-model boundary | planned `llm_agent_platform/tests/test_admin_monitoring_read_model.py` | planned |
 | `TS-CONFIG-ENV-AND-LAYOUT` | [`config-env-and-layout.md`](docs/testing/suites/config-env-and-layout.md) | Env split, runtime package layout and verification command alignment | manual + smoke scripts | planned |
 
 ## Runbook

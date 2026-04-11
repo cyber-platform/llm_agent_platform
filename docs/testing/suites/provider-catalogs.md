@@ -1,4 +1,4 @@
-# Suite: Provider-local catalogs
+# Suite: LLM provider-local catalogs
 
 ## Suite ID
 - `TS-PROVIDER-CATALOGS`
@@ -14,16 +14,16 @@
 ## Search anchors
 - `TS-PROVIDER-CATALOGS`
 - `test_provider_catalogs.py`
-- `provider-local catalogs`
+- `LLM provider-local catalogs`
 - `openai-chatgpt`
 
 ## Scope
 - Проверка `bootstrap catalog` для static providers.
-- Проверка provider-local model lists без route hardcode.
+- Проверка `LLM provider`-local model lists без route hardcode.
 - Проверка static catalog baseline для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1).
 
 ## Requirement Traceability
-- Requirement: provider-local catalog strategy по [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:60).
+- Requirement: `LLM provider`-local catalog strategy по [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:60).
 - Rollout metadata:
   - suite anchor: `TS-PROVIDER-CATALOGS`
   - future case anchors: `TC-PROVIDER-CATALOGS-...`

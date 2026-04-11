@@ -23,7 +23,7 @@
 
 ### 3. Application and pipeline layer
 
-- Назначение: orchestration request path, context building, provider selection, strategy selection, response path composition.
+- Назначение: orchestration request path, `LLM provider` selection, strategy selection, context building и response path composition.
 - Primary code:
   - [`llm_agent_platform/api/openai/pipeline.py`](llm_agent_platform/api/openai/pipeline.py:1)
   - [`llm_agent_platform/api/openai/types.py`](llm_agent_platform/api/openai/types.py:1)
@@ -33,14 +33,14 @@
 
 ### 4. Provider integration layer
 
-- Назначение: provider-specific transport/auth/runtime adapters и execution policies поверх adapters.
+- Назначение: `provider implementation`, provider-native transport/auth/runtime adapters и execution policies поверх них.
 - Primary code:
   - [`llm_agent_platform/api/openai/providers/`](llm_agent_platform/api/openai/providers:1)
   - [`llm_agent_platform/api/openai/strategies/`](llm_agent_platform/api/openai/strategies:1)
 
 ### 5. Runtime services layer
 
-- Назначение: provider registry, account routing, runtime state paths, provider monitoring ports, quota transport helpers.
+- Назначение: `abstract provider` registry, account routing, runtime state paths, `LLM provider` monitoring ports, quota transport helpers.
 - Primary code:
   - [`llm_agent_platform/services/provider_registry.py`](llm_agent_platform/services/provider_registry.py:1)
   - [`llm_agent_platform/services/account_router.py`](llm_agent_platform/services/account_router.py:1)
@@ -51,7 +51,7 @@
 
 ### 6. Auth layer
 
-- Назначение: credentials discovery, runtime OAuth refresh, provider-specific auth state handling.
+- Назначение: credentials discovery, runtime OAuth refresh, `LLM provider`-specific auth state handling.
 - Primary code:
   - [`llm_agent_platform/auth/credentials.py`](llm_agent_platform/auth/credentials.py:1)
   - [`llm_agent_platform/auth/qwen_oauth.py`](llm_agent_platform/auth/qwen_oauth.py:1)
@@ -68,7 +68,7 @@
 
 ### 8. SoT and evidence layer
 
-- Назначение: canonical docs, contracts, provider pages, ADRs and tests.
+- Назначение: canonical docs, contracts, `LLM provider` pages, ADRs and tests.
 - Primary locations:
   - [`docs/`](docs:1)
   - [`llm_agent_platform/tests/`](llm_agent_platform/tests:1)
@@ -91,7 +91,7 @@
 
 Если новая логика меняет HTTP contract, начинать нужно с API surface и pipeline layers.
 
-Если новая логика меняет provider behavior, начинать нужно с provider integration layer и provider page.
+Если новая логика меняет `LLM provider` behavior, начинать нужно с provider integration layer и `LLM provider` page.
 
 Если новая логика меняет selection, cooldown, quota или state restore, начинать нужно с runtime services layer.
 

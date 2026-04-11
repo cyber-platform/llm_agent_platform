@@ -8,14 +8,14 @@
 
 ## System context
 
-`llm_agent_platform` — provider-centric runtime слой для LLM-агентов и developer tools.
+`llm_agent_platform` — `LLM provider`-centric runtime слой для LLM-агентов и developer tools.
 
 Платформа предоставляет:
 
-- provider-scoped [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md) через `/<provider_name>/v1/*` и `/<provider_name>/<group_name>/v1/*`;
-- provider-local catalogs, auth и quota semantics;
+- `LLM provider`-scoped [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md) через `/<provider_name>/v1/*` и `/<provider_name>/<group_name>/v1/*`;
+- `LLM provider`-local catalogs, auth и quota semantics;
 - единый runtime path для request routing, account rotation, streaming normalization и error shaping;
-- contracts, provider pages и tests как канонический evidence layer.
+- contracts, `LLM provider` pages и tests как канонический evidence layer.
 
 Общий product canon: [`docs/vision.md`](docs/vision.md:1)
 
@@ -25,10 +25,10 @@
 
 Внутри него живут:
 
-- provider-scoped [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md) routes;
-- native provider routes для Gemini;
+- `LLM provider`-scoped [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md) routes;
+- provider-native routes для Gemini;
 - parity relay routes;
-- provider registry, auth, quota router, runtime state persistence и provider integrations.
+- `abstract provider` registry, auth, quota router, runtime state persistence и `provider implementation` integrations.
 
 ## External systems and storage
 
@@ -38,7 +38,7 @@ flowchart LR
   OAuth[OAuth bootstrap scripts] --> Secrets[Secrets storage]
   App --> Secrets
   App --> State[STATE_DIR storage]
-  App --> Provider[Provider]
+  App --> Provider[LLM provider]
   Docs[Docs contracts ADR tests] -. SoT and evidence .-> App
 ```
 
@@ -47,12 +47,12 @@ flowchart LR
 - `LLM agent or developer tool` — внешний клиент, который использует публичный [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md) платформы.
 - `llm_agent_platform runtime` — основной runtime process этого репозитория.
 - `OAuth bootstrap scripts` — локальные scripts, которые получают и обновляют user credentials вне runtime process.
-- `Secrets storage` — пользовательские credentials и provider accounts-config.
+- `Secrets storage` — пользовательские credentials и `LLM provider` accounts-config.
 - `STATE_DIR storage` — mutable runtime state и monitoring artifacts.
-- `Provider` — внешняя provider system boundary, к которой обращается платформа.
+- `LLM provider` — внешняя [`LLM provider`](../terms/project/terms/llm-provider.md) system boundary, к которой обращается платформа.
 - `Docs contracts ADR tests` — канонический Source of Truth и evidence layer, который определяет rules, contracts и verification.
 
-В scope текущего runtime `Provider` включает следующие внешние integrations:
+В scope текущего runtime `LLM provider` включает следующие внешние integrations:
 
 - `openai-chatgpt`
 - `gemini-cli`
@@ -63,9 +63,9 @@ flowchart LR
 
 ## Архитектурные драйверы
 
-- Provider является основной runtime-сущностью; `model_id` живут в provider-local catalog.
-- Route namespace выбирает provider; `model_id` никогда не должен неявно выбирать provider.
-- Groups живут внутри provider namespace и изолируют account state.
+- `LLM provider` является основной runtime-сущностью; `model_id` живут в `LLM provider`-local catalog.
+- Route namespace выбирает `LLM provider`; `model_id` никогда не должен неявно выбирать `LLM provider`.
+- Groups живут внутри `LLM provider` namespace и изолируют account state.
 - Runtime работает по in-memory-first модели; persisted state нужен для restore after restart и audit trail.
 - Credentials, declarative config и mutable runtime state являются разными границами хранения и ответственности.
 - Публичный [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md) должен оставаться стабильным, даже если `provider implementation` адаптирует его к более богатому vendor-specific upstream protocol.
@@ -92,6 +92,6 @@ flowchart LR
 
 ## Status notes
 
-- OpenAI pipeline, provider-centric routing, registry, auth, quota router и state persistence materialized в runtime code.
+- OpenAI pipeline, `LLM provider`-centric routing, `abstract provider` registry, auth, quota router и state persistence materialized в runtime code.
 - Admin monitoring read-model канонизирован архитектурно, но root runtime admin API materialized не полностью.
-- Provider-specific details должны уточняться на страницах в [`docs/providers/`](docs/providers:1).
+- `LLM provider`-specific details должны уточняться на страницах в [`docs/providers/`](docs/providers:1).

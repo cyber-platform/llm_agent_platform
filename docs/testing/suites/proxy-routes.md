@@ -19,14 +19,14 @@
 
 ## Scope
 - Smoke-проверка импорта приложения и регистрации blueprint-маршрутов.
-- Endpoint-тесты `/<provider_name>/v1/models` и `/<provider_name>/<group_name>/v1/models` для provider-scoped контракта списка моделей.
+- Endpoint-тесты `/<provider_name>/v1/models` и `/<provider_name>/<group_name>/v1/models` для `LLM provider`-scoped контракта списка моделей.
 - Endpoint-тесты `/<provider_name>/v1/chat/completions` и `/<provider_name>/<group_name>/v1/chat/completions`.
 - Тесты native Gemini proxy (`/v1/models/<model>:generateContent`, `/v1/models/<model>:streamGenerateContent`) в quota-контуре.
 - Тесты parity relay (`/parity-relay/<path>`) для non-stream и stream проксирования.
-- Негативные кейсы unknown provider и unknown group внутри provider namespace.
+- Негативные кейсы unknown `LLM provider` и unknown group внутри `LLM provider` namespace.
 
 ## Requirement Traceability
-- Requirement: provider-scoped routing и provider-local groups по [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:23).
+- Requirement: `LLM provider`-scoped routing и `LLM provider`-local groups по [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:23).
 - Rollout metadata:
   - suite anchor: `TS-PROXY-ROUTES`
   - future case anchors: `TC-PROXY-ROUTES-...`
