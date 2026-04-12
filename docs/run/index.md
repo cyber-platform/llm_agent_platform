@@ -1,6 +1,6 @@
 # Run scenarios
 
-Этот раздел собирает сценарии запуска сервиса.
+Этот раздел собирает сценарии локального запуска platform stack и его текущих service boundaries.
 
 Доступные сценарии:
 
@@ -9,5 +9,5 @@
 
 Текущий канон проекта:
 
-- основным рабочим сценарием является dev-run через Docker с bind-mount локального кода
+- основным рабочим сценарием является dev-run platform stack через Docker с bind-mount локального кода
 - production run пока не введён, страница [`docs/run/prod.md`](docs/run/prod.md:1) зарезервирована под future deployment model

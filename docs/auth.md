@@ -9,7 +9,7 @@
 
 Общее устройство платформы описано в [`docs/architecture/component-map.md`](docs/architecture/component-map.md:1), а `LLM provider`-specific особенности должны выноситься на отдельные страницы в [`docs/providers/`](docs/providers:1).
 
-Актуальный список `LLM provider` и их readiness/status сводится в [`docs/providers/README.md`](docs/providers/README.md:1).
+Актуальный список `LLM provider` и их readiness/status сводится в [`docs/providers/index.md`](docs/providers/index.md:1).
 
 Для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1) в текущем каноне фиксируется static catalog baseline и OAuth/runtime boundary без live discovery.
 

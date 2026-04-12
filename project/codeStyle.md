@@ -80,6 +80,6 @@ def test_returns_429_when_quota_exhausted():
 - `project/entry-points.md`
 - `docs/testing/traceability.md`
 - `docs/testing/test-map.md`
-- `docs/providers/README.md`
+- `docs/providers/index.md`
 - `docs/providers/openai-chatgpt.md`
 - `docs/contracts/`

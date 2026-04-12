@@ -23,7 +23,7 @@
    - `docs/vision.md`
    - `docs/architecture/component-map.md`
    - `docs/architecture/openai-chat-completions-pipeline.md`
-   - `docs/providers/README.md`
+   - `docs/providers/index.md`
    - `docs/providers/openai-chatgpt.md`
    - `docs/contracts/`
    - `docs/testing/test-map.md`
@@ -115,6 +115,6 @@
 - `project/techContext.md`
 - `project/codeStyle.md`
 - `docs/vision.md`
-- `docs/providers/README.md`
+- `docs/providers/index.md`
 - `docs/testing/test-map.md`
 - `operational_scope/tasks_map.md`

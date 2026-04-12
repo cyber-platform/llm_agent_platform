@@ -47,9 +47,9 @@
 
 - Traceability map: [`docs/architecture/traceability-map.md`](docs/architecture/traceability-map.md:1)
 - Drift register: [`docs/architecture/drift-register.md`](docs/architecture/drift-register.md:1)
-- Contracts: [`docs/contracts/`](docs/contracts:1)
-- Test map: [`docs/testing/test-map.md`](docs/testing/test-map.md:1)
-- ADRs: [`docs/adr/`](docs/adr:1)
+- Contracts: [`docs/contracts/index.md`](docs/contracts/index.md:1)
+- Testing: [`docs/testing/index.md`](docs/testing/index.md:1)
+- ADRs: [`docs/adr/index.md`](docs/adr/index.md:1)
 
 ## Как использовать этот набор документов
 
@@ -65,6 +65,6 @@
 
 ## Related documents
 
-- Provider matrix: [`docs/providers/README.md`](docs/providers/README.md:1)
+- Provider matrix: [`docs/providers/index.md`](docs/providers/index.md:1)
 - Auth overview: [`docs/auth.md`](docs/auth.md:1)
-- Env and runtime layout: [`docs/configuration/env-files.md`](docs/configuration/env-files.md:1)
+- Env and runtime layout: [`docs/configuration/index.md`](docs/configuration/index.md:1)

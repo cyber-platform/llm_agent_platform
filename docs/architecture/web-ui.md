@@ -2,11 +2,11 @@
 
 ## Назначение
 
-Этот документ фиксирует `Web UI` как отдельный human-facing container платформы.
+Этот документ фиксирует target `Web UI` как отдельный human-facing container платформы и отделяет его от current local-only `Frontend service` PoC slice.
 
 ## Role
 
-`Web UI` является единым human-facing web container поверх runtime API.
+Target `Web UI` является единым human-facing web container поверх backend API.
 
 ## Responsibilities
 
@@ -71,11 +71,11 @@
 
 Для этой PoC boundary зафиксировано:
 
-- frontend живёт как отдельный local-only service/container;
-- frontend читает только backend admin API;
-- frontend не публикуется наружу;
+- `Frontend service` живёт как отдельный local-only service/container;
+- `Frontend service` читает только backend admin API;
+- `Frontend service` не публикуется наружу;
 - same-origin interaction обеспечивается через frontend-owned proxy layer;
-- frontend runtime config хранится отдельно от backend service config и `.env` secrets layer.
+- runtime config `Frontend service` хранится отдельно от backend service config и `.env` secrets layer.
 
 Этот slice не отменяет target-архитектуру full `Web UI`, но является допустимым промежуточным delivery boundary для PoC.
 
@@ -88,7 +88,7 @@
 
 ## Status notes
 
-- `Web UI` materialized в текущем PoC как local-only operator-facing frontend service в [`services/frontend/`](services/frontend:1).
+- Target `Web UI` пока materialized только частично: current local-only `Frontend service` в [`services/frontend/`](services/frontend:1) покрывает operator-facing PoC slice.
 - Текущая реализация покрывает `openai-chatgpt` operator page, live refresh banner/status flow, account activation и API key management.
 - `LLM provider`-specific pages и dynamic `LLM provider` navigation остаются частью target architecture и должны оставаться согласованными с backend contracts при дальнейшем multi-provider расширении.
 

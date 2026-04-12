@@ -2,7 +2,7 @@
 
 ## Назначение
 
-Этот документ фиксирует `C4 Component` уровень для основного container `Runtime API process`.
+Этот документ фиксирует `C4 Component` уровень для основного container `Backend service`.
 
 Он отвечает на вопрос, из каких внутренних крупных runtime components состоит основной process и как между ними проходит основной request path.
 
@@ -10,11 +10,11 @@
 
 ## Scope
 
-В scope этого view входят только внутренние components container `Runtime API process`.
+В scope этого view входят только внутренние components container `Backend service`.
 
 Вне scope:
 
-- `Web UI` как отдельный container в [`web-ui.md`](./web-ui.md);
+- current `Frontend service` / target `Web UI` boundary как отдельный container в [`web-ui.md`](./web-ui.md);
 - `OAuth bootstrap scripts` как отдельный operational container в [`container-view.md`](./container-view.md);
 - внешние `LLM provider` systems из [`terms-map.md`](../terms/project/terms-map.md).
 
@@ -62,8 +62,8 @@ flowchart LR
 
 ## Distinction between implemented and planned
 
-- Этот view описывает только materialized internal components `Runtime API process`.
-- `Web UI` остается отдельным container, а admin-facing read models materialized внутри `Runtime API process` как runtime services boundary.
+- Этот view описывает только materialized internal components `Backend service`.
+- `Frontend service` остается отдельным container, а admin-facing read models materialized внутри `Backend service` как runtime services boundary.
 - `user service` как отдельный boundary пока не канонизирован и остается open question, а не частью текущего component model.
 
 ## Related documents

@@ -21,7 +21,7 @@
 4. **Единый архитектурный канон и contracts**
    - Общая архитектура фиксируется в [`docs/architecture/`](docs/architecture:1).
    - Contracts фиксируются в [`docs/contracts/`](docs/contracts:1).
-   - Provider-specific особенности документируются отдельно в [`docs/providers/`](docs/providers:1) и индексируются в [`docs/providers/README.md`](docs/providers/README.md:1).
+   - Provider-specific особенности документируются отдельно в [`docs/providers/`](docs/providers:1) и индексируются в [`docs/providers/index.md`](docs/providers/index.md:1).
 
 5. **Платформа для эволюции provider-specific runtime adapters**
    - Общий OpenAI-compatible surface остается стабильным.
@@ -87,10 +87,10 @@ docker-compose up -d --build
 - [Видение проекта](./docs/vision.md)
 - [Настройка авторизации](./docs/auth.md)
 - [Установка и развертывание](./docs/setup.md)
-- [Сценарии запуска](./docs/run/README.md)
+- [Сценарии запуска](./docs/run/index.md)
 - [Использование платформы](./docs/usage.md)
 - [Карта компонентов](./docs/architecture/component-map.md)
-- [Каталог провайдеров](./docs/providers/README.md)
+- [Каталог провайдеров](./docs/providers/index.md)
 - [Provider: `openai-chatgpt`](./docs/providers/openai-chatgpt.md)
 
 ---

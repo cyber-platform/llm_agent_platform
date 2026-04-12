@@ -67,7 +67,7 @@
 ### Канонические supporting docs
 
 - [`docs/vision.md`](../../docs/vision.md)
-- [`docs/providers/README.md`](../../docs/providers/README.md)
+- [`docs/providers/index.md`](../../docs/providers/index.md)
 - [`docs/providers/openai-chatgpt.md`](../../docs/providers/openai-chatgpt.md)
 - [`docs/auth.md`](../../docs/auth.md)
 - [`docs/configuration/provider-accounts-config.md`](../../docs/configuration/provider-accounts-config.md)

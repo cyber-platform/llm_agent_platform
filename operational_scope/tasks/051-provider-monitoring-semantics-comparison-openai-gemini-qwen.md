@@ -30,7 +30,7 @@ Platform-wide monitoring runtime нельзя safely обобщить без с�
 - [`operational_scope/tasks/049-platform-monitoring-runtime-sot-and-memory-first-read-model.md`](./049-platform-monitoring-runtime-sot-and-memory-first-read-model.md)
 - [`operational_scope/tasks/050-generalized-monitoring-dimensions-contract-design.md`](./050-generalized-monitoring-dimensions-contract-design.md)
 - [`docs/providers/openai-chatgpt.md`](../../docs/providers/openai-chatgpt.md)
-- [`docs/providers/README.md`](../../docs/providers/README.md)
+- [`docs/providers/index.md`](../../docs/providers/index.md)
 
 ## Dependencies
 

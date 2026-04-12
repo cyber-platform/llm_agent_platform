@@ -47,7 +47,7 @@
 
 Provider-specific особенности каталогов должны быть описаны на отдельных страницах в [`docs/providers/`](docs/providers:1).
 
-Актуальный список providers и их catalog/runtime status сводится в [`docs/providers/README.md`](docs/providers/README.md:1).
+Актуальный список providers и их catalog/runtime status сводится в [`docs/providers/index.md`](docs/providers/index.md:1).
 
 ### Ротация quota-аккаунтов
 Для quota-based providers поддерживаются режимы `single` и `rounding`.
@@ -75,7 +75,7 @@ Quota groups:
 Важно: `model_quota_resets` теперь задаёт **период восстановления квоты** (формат `DD:HH:MM`), см. [`docs/architecture/quota-reset-periods-and-account-state.md`](docs/architecture/quota-reset-periods-and-account-state.md:1).
 
 ### Provider-specific страницы
-- [`docs/providers/README.md`](docs/providers/README.md:1)
+- [`docs/providers/index.md`](docs/providers/index.md:1)
 - [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
 
 ---

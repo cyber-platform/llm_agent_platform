@@ -23,6 +23,7 @@
 | hydrate | Восстановить in-memory state из persisted state. | [`hydrate`](./terms/hydrate.md) |
 | persist | Сохранить runtime state из памяти в устойчивое хранилище. | [`persist`](./terms/persist.md) |
 | RBAC | Модель авторизации, в которой доступ к страницам, действиям и операциям определяется ролью пользователя. | [`rbac`](./terms/rbac.md) |
+| HSM | Внешний stack management tool, через который в проекте управляются service lifecycle, mode switching и синхронизация состава стека. | [`hsm`](./terms/hsm.md) |
 | LLM Vendor | Компания или внешний владелец LLM-платформ и model access surfaces. Один `LLM Vendor` может предоставлять несколько разных `LLM provider`. | [`llm-vendor`](./terms/llm-vendor.md) |
 | LLM provider | Внешняя система доступа к LLM-моделям со своим catalog, auth-mechanism, quota semantics и usage policy. | [`llm-provider`](./terms/llm-provider.md) |
 | abstract provider | Внутренняя абстрактная сущность платформы, представляющая интеграцию с конкретным `LLM provider`. | [`abstract-provider`](./terms/abstract-provider.md) |

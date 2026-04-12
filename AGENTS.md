@@ -9,7 +9,7 @@ Provider-centric платформа для LLM-агентов и developer tools
 ## Канонические источники
 
 - Продуктовый и архитектурный канон: [`docs/vision.md`](docs/vision.md:1), [`docs/architecture/component-map.md`](docs/architecture/component-map.md:1), [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1)
-- Матрица providers и provider-specific behavior: [`docs/providers/README.md`](docs/providers/README.md:1), [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
+- Матрица providers и provider-specific behavior: [`docs/providers/index.md`](docs/providers/index.md:1), [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
 - Contracts: [`docs/contracts/`](docs/contracts:1)
 - Тестовый контур и suites: [`docs/testing/test-map.md`](docs/testing/test-map.md:1)
 
