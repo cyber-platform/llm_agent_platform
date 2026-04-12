@@ -154,7 +154,43 @@
 ## Initial status
 
 - Current State: completed.
-- Next Step: optional `git init` и remote publishing внутри `services/backend/` после отдельного repository bootstrap.
-- Blockers: initial git initialization и remote publishing остаются ручным follow-up вне текущего workspace scope.
+- Next Step: follow-up изменения должны идти уже в соответствующих repo boundaries (`./` для system assembly и `./services/backend/` / `./services/frontend/` для service-local changes).
+- Blockers: нет обязательных blockers для закрытия задачи; remote publishing и дальнейшая история коммитов уже вынесены в отдельные repo contexts.
 - Contract Changes: no public API contract changes; repo boundary и local run commands обновлены.
-- Verification: root `docker-compose.yml` обновлен под `services/backend/`; backend smoke commands перенесены в `services/backend`; compileall и selected unit tests выполнены из нового backend root.
+- Verification: root `docker-compose.yml` обновлен под `services/backend/`; backend smoke commands перенесены в `services/backend`; compileall и selected unit tests выполнены из нового backend root; assembled stack перепроверен через `docker compose config`; frontend nginx proxy переведен с `model-proxy` на `backend`; локальные bind-mount директории переименованы в `/data/backend_state` и `/data/backend_logs`; после пересборки `frontend` контейнер стартует без upstream error.
+
+## Что materialized
+
+- Создан service-local boundary `services/backend/` как новый backend repo root.
+- В `services/backend/` перенесены runtime package `llm_agent_platform/`, backend tests, `scripts/`, `Dockerfile`, `pyproject.toml`, `uv.lock`, `.env.example`, `.dockerignore`, `.python-version` и service-local docs/ignore artifacts.
+- Добавлен минимальный backend-local entry point: [`services/backend/README.md`](../../services/backend/README.md).
+- Root repo сохранен как system assembly layer: `docs/`, `project/`, `operational_scope/`, root `docker-compose.yml` и service references остаются в root boundary.
+
+## Какие root artifacts обновлены
+
+- [`docker-compose.yml`](../../docker-compose.yml) переведен на новый backend service root `./services/backend`.
+- Compose service переименован из `model-proxy` в `backend`.
+- Bind mounts для backend runtime указывают на `./services/backend/llm_agent_platform`, `./services/backend/pyproject.toml` и `./services/backend/uv.lock`.
+- HDD bind mounts переименованы и синхронизированы с файловой системой: `/data/backend_state` и `/data/backend_logs`.
+- Frontend reverse-proxy в [`services/frontend/nginx.conf`](../../services/frontend/nginx.conf) переведен с upstream `model-proxy:4000` на `backend:4000`.
+
+## Какие docs и navigation обновлены
+
+- Обновлены system-level boundary/navigation docs: [`docs/services/index.md`](../../docs/services/index.md), [`docs/architecture/system-overview.md`](../../docs/architecture/system-overview.md), [`docs/architecture/container-view.md`](../../docs/architecture/container-view.md), [`docs/architecture/component-map.md`](../../docs/architecture/component-map.md), [`project/gitContext.md`](../../project/gitContext.md).
+- Обновлены run/setup/auth/testing references под новый backend root: [`docs/run/dev.md`](../../docs/run/dev.md), [`docs/setup.md`](../../docs/setup.md), [`docs/auth.md`](../../docs/auth.md), [`docs/testing/test-map.md`](../../docs/testing/test-map.md) и связанные suite/ADR/architecture pages.
+- Root task index уже отражает завершение задачи в [`operational_scope/tasks_map.md`](../tasks_map.md).
+
+## Verification trail
+
+- `cd services/backend && uv run python -m compileall llm_agent_platform`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_provider_catalogs.py llm_agent_platform/tests/test_admin_api_keys.py`
+- `docker compose config`
+- `docker compose up -d --build frontend`
+- `docker compose logs frontend --no-color`
+
+## Итоговое состояние
+
+- `Backend service` выделен в отдельный repository boundary и уже живет в `services/backend/`.
+- Root repo больше не является owner-местом backend implementation, а выполняет роль assembled system repo.
+- `frontend -> backend` topology сохранена и перепроверена после rename service name.
+- Задача считается полностью выполненной.

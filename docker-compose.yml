@@ -1,8 +1,8 @@
 services:
-  model-proxy:
+  backend:
     build:
       context: ./services/backend
-    container_name: model-proxy
+    container_name: backend
     ports:
       - "127.0.0.1:4000:4000"
     volumes:
@@ -16,9 +16,9 @@ services:
       # service_account.json - для Vertex (Credits)
       - ./secrets:/app/secrets:rw
       # Монтируем runtime state директорию (HDD для частых перезаписей)
-      - /data/model_proxy_state:/app/state:rw
+      - /data/backend_state:/app/state:rw
       # Монтируем директорию для логов (HDD для снижения нагрузки на SSD)
-      - /data/model_proxy_logs:/app/logs:rw
+      - /data/backend_logs:/app/logs:rw
     environment:
       # Переменные из .env файла
       VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID}
@@ -55,7 +55,7 @@ services:
       context: ./services/frontend
     container_name: openai-chatgpt-poc-frontend
     depends_on:
-      - model-proxy
+      - backend
     ports:
       - "127.0.0.1:4173:80"
     volumes:

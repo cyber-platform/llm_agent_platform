@@ -39,7 +39,7 @@ docker compose up -d --build
 Если изменился только код в [`services/backend/llm_agent_platform/`](services/backend/llm_agent_platform:1), достаточно:
 
 ```bash
-docker compose restart model-proxy
+docker compose restart backend
 ```
 
 ## Что именно смонтировано
