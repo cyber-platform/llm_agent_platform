@@ -46,6 +46,14 @@ Provider page является provider-specific read-model boundary.
 Контракт текущего provider page:
 
 - [`docs/contracts/api/admin/monitoring/openai-chatgpt-accounts-page.schema.json`](docs/contracts/api/admin/monitoring/openai-chatgpt-accounts-page.schema.json:1)
+- [`docs/contracts/api/admin/monitoring/openai-chatgpt-activate-account-response.schema.json`](docs/contracts/api/admin/monitoring/openai-chatgpt-activate-account-response.schema.json:1)
+
+Для текущего PoC key-management intentionally вынесен в отдельный admin API contract set:
+
+- [`docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-create-request.schema.json`](docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-create-request.schema.json:1)
+- [`docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-create-response.schema.json`](docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-create-response.schema.json:1)
+- [`docs/contracts/api/admin/api-keys/openai-chatgpt-api-keys-list.schema.json`](docs/contracts/api/admin/api-keys/openai-chatgpt-api-keys-list.schema.json:1)
+- [`docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-revoke-response.schema.json`](docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-revoke-response.schema.json:1)
 
 ## Read path
 

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://model-proxy.local/contracts/api/openai/errors/401-invalid-api-key-error.schema.json",
+  "title": "OpenAICompatible401InvalidApiKeyError",
+  "description": "Contract for OpenAI-style 401 authentication errors returned when a platform API key is missing, invalid, revoked, or out of scope.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "error"
+  ],
+  "properties": {
+    "error": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "message",
+        "type",
+        "code"
+      ],
+      "properties": {
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "const": "authentication_error"
+        },
+        "code": {
+          "type": "string",
+          "const": "invalid_api_key"
+        }
+      }
+    }
+  }
+}

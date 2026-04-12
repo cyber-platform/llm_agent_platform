@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://model-proxy.local/contracts/api/admin/api-keys/openai-chatgpt-api-key-create-request.schema.json",
+  "title": "OpenAIChatGPTAdminApiKeyCreateRequest",
+  "description": "Admin API request for generating a new platform API key scoped to one openai-chatgpt group.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "group_id",
+    "label"
+  ],
+  "properties": {
+    "group_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

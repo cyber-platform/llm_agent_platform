@@ -23,6 +23,10 @@
 - один platform API key привязан ровно к одной provider-local group;
 - invalid key должен приводить к OpenAI-style `401` с `type=authentication_error` и `code=invalid_api_key`.
 
+Формальный error contract для этого случая:
+
+- [`docs/contracts/api/openai/errors/401-invalid-api-key-error.schema.json`](docs/contracts/api/openai/errors/401-invalid-api-key-error.schema.json:1)
+
 ## Catalog strategy
 
 Текущий канон для [`openai-chatgpt`](llm_agent_platform/provider_registry/providers/openai-chatgpt.json:1):

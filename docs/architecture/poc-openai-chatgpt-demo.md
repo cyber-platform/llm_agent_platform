@@ -168,6 +168,8 @@ React frontend (локальный operator UI)
 
 Freeze на уровне route shape означает, что реализация еще может уточнить payload details, но не должна менять основную HTTP resource model без возврата к этому документу.
 
+Payload contracts для PoC дополнительно фиксируются отдельными schema files в `docs/contracts/`.
+
 ## Frontend screen contract
 
 UI PoC требует одну provider-focused page для `openai-chatgpt` со следующими частями:
@@ -191,14 +193,13 @@ Frontend может разбивать загрузку данных на нес
 - runtime state и secrets остаются разделенными;
 - future hardening не должен переиспользовать platform API keys как admin auth.
 
-## White spots, сознательно оставленные вне freeze
+## Остаточные implementation decisions вне архитектурного freeze
 
-Это уже не блокеры для архитектурного freeze PoC, но реализация все еще потребует конкретизации:
+Архитектурные contracts PoC уже зафиксированы. Ниже остаются только implementation-level решения:
 
-- точные JSON payload schemas для admin API key CRUD endpoints;
-- точная JSON payload shape для provider page, если она будет собираться из нескольких endpoints;
-- local frontend/backend dev proxy или `CORS` arrangement;
-- конкретный способ internet exposure на Ubuntu 24.04.
+- конкретный local frontend/backend dev proxy setup;
+- конкретный способ internet exposure на Ubuntu 24.04;
+- frontend component tree и UI composition details.
 
 ## Что уже готово к implementation handoff
 
@@ -213,6 +214,13 @@ Frontend может разбивать загрузку данных на нес
 
 ## Связанные документы
 
+- [`docs/contracts/api/openai/errors/401-invalid-api-key-error.schema.json`](docs/contracts/api/openai/errors/401-invalid-api-key-error.schema.json:1)
+- [`docs/contracts/config/openai-chatgpt-api-key-registry.schema.json`](docs/contracts/config/openai-chatgpt-api-key-registry.schema.json:1)
+- [`docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-create-request.schema.json`](docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-create-request.schema.json:1)
+- [`docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-create-response.schema.json`](docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-create-response.schema.json:1)
+- [`docs/contracts/api/admin/api-keys/openai-chatgpt-api-keys-list.schema.json`](docs/contracts/api/admin/api-keys/openai-chatgpt-api-keys-list.schema.json:1)
+- [`docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-revoke-response.schema.json`](docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-revoke-response.schema.json:1)
+- [`docs/contracts/api/admin/monitoring/openai-chatgpt-activate-account-response.schema.json`](docs/contracts/api/admin/monitoring/openai-chatgpt-activate-account-response.schema.json:1)
 - [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1)
 - [`docs/architecture/admin-monitoring-read-model.md`](docs/architecture/admin-monitoring-read-model.md:1)
 - [`docs/architecture/web-ui.md`](docs/architecture/web-ui.md:1)
