@@ -24,6 +24,7 @@
 | `TS-ADMIN-API-KEYS` | [`admin-api-keys.md`](docs/testing/suites/admin-api-keys.md) | Provider-scoped API key registry, hash-only storage and admin CRUD for `openai-chatgpt` platform keys | [`llm_agent_platform/tests/test_admin_api_keys.py`](llm_agent_platform/tests/test_admin_api_keys.py:1) | active |
 | `TS-ADMIN-MONITORING-READ-MODEL` | [`admin-monitoring-read-model.md`](docs/testing/suites/admin-monitoring-read-model.md) | Dynamic `LLM provider` list, `LLM provider`-specific monitoring page and backend read-model boundary | [`llm_agent_platform/tests/test_admin_monitoring_read_model.py`](llm_agent_platform/tests/test_admin_monitoring_read_model.py:1) | active |
 | `TS-ADMIN-MONITORING-REFRESH` | [`admin-monitoring-refresh.md`](docs/testing/suites/admin-monitoring-refresh.md) | Provider-wide monitoring refresh manager, manual refresh endpoints and operator progress contract for `openai-chatgpt` | [`llm_agent_platform/tests/test_admin_monitoring_refresh.py`](llm_agent_platform/tests/test_admin_monitoring_refresh.py:1) | active |
+| `TS-OPENAI-CHATGPT-POC-SMOKE` | [`openai-chatgpt-poc-smoke.md`](docs/testing/suites/openai-chatgpt-poc-smoke.md) | Final PoC smoke contour across key lifecycle, monitoring payload compatibility and checked-in local/public delivery boundary | [`llm_agent_platform/tests/test_openai_chatgpt_poc_smoke.py`](llm_agent_platform/tests/test_openai_chatgpt_poc_smoke.py:1), `services/frontend` build smoke | active |
 | `TS-CONFIG-ENV-AND-LAYOUT` | [`config-env-and-layout.md`](docs/testing/suites/config-env-and-layout.md) | Env split, runtime package layout and verification command alignment | manual + smoke scripts | planned |
 
 ## Runbook
@@ -34,6 +35,8 @@
 - Целевая проверка admin monitoring read-model: `uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_read_model.py`
 - Целевая проверка admin monitoring refresh: `uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_refresh.py`
 - Целевая runtime-проверка `openai-chatgpt`: `uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
+- Финальный PoC smoke contour: `uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_poc_smoke.py`
+- Frontend build smoke для текущего PoC: `npm run build` (из `services/frontend`)
 
 ## Related Files
 - `docs/testing/traceability.md`
