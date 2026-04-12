@@ -3,7 +3,7 @@ services:
     build: .
     container_name: model-proxy
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     volumes:
       # Dev-режим: runtime-код всегда берётся с хоста, без baked-in snapshot в image
       - ./llm_agent_platform:/app/llm_agent_platform:rw
@@ -47,4 +47,16 @@ services:
       HTTP_MAX_KEEPALIVE_CONNECTIONS: ${HTTP_MAX_KEEPALIVE_CONNECTIONS:-20}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_DIR: /app/logs
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./services/frontend
+    container_name: openai-chatgpt-poc-frontend
+    depends_on:
+      - model-proxy
+    ports:
+      - "127.0.0.1:4173:80"
+    volumes:
+      - ./services/frontend/public/runtime-config.json:/usr/share/nginx/html/runtime-config.json:ro
     restart: unless-stopped

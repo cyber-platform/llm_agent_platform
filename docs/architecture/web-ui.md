@@ -65,6 +65,27 @@
 - [`rbac.md`](./rbac.md)
 - [`rbac-roles.md`](./rbac-roles.md)
 
+## PoC operator UI slice
+
+Текущий `openai-chatgpt` PoC materialize-ит не полный target `Web UI`, а отдельный operator-facing delivery slice.
+
+Для этой PoC boundary зафиксировано:
+
+- frontend живёт как отдельный local-only service/container;
+- frontend читает только backend admin API;
+- frontend не публикуется наружу;
+- same-origin interaction обеспечивается через frontend-owned proxy layer;
+- frontend runtime config хранится отдельно от backend service config и `.env` secrets layer.
+
+Этот slice не отменяет target-архитектуру full `Web UI`, но является допустимым промежуточным delivery boundary для PoC.
+
+Для current operator UX monitoring refresh используется backend-owned refresh subsystem с short polling status flow, а не browser callback/push model.
+
+Текущие PoC contracts для этого flow:
+
+- [`docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-start-response.schema.json`](docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-start-response.schema.json:1)
+- [`docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-status.schema.json`](docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-status.schema.json:1)
+
 ## Status notes
 
 - `Web UI` пока зафиксирован как target container.
@@ -74,5 +95,6 @@
 
 - container boundary: [`container-view.md`](./container-view.md)
 - admin monitoring boundary: [`admin-monitoring-read-model.md`](./admin-monitoring-read-model.md)
+- admin monitoring refresh: [`admin-monitoring-refresh-subsystem.md`](./admin-monitoring-refresh-subsystem.md)
 - `RBAC`: [`rbac.md`](./rbac.md)
 - `RBAC Roles`: [`rbac-roles.md`](./rbac-roles.md)

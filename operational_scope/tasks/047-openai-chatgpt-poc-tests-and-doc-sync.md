@@ -30,7 +30,9 @@
 
 - [`docs/testing/test-map.md`](../../docs/testing/test-map.md)
 - [`docs/testing/suites/admin-monitoring-read-model.md`](../../docs/testing/suites/admin-monitoring-read-model.md)
-- [`docs/architecture/poc-openai-chatgpt-demo.md`](../../docs/architecture/poc-openai-chatgpt-demo.md)
+- [`docs/architecture/admin-monitoring-read-model.md`](../../docs/architecture/admin-monitoring-read-model.md)
+- [`docs/architecture/admin-monitoring-refresh-subsystem.md`](../../docs/architecture/admin-monitoring-refresh-subsystem.md)
+- [`docs/providers/openai-chatgpt.md`](../../docs/providers/openai-chatgpt.md)
 
 ## Dependencies
 

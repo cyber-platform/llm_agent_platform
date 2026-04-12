@@ -28,3 +28,4 @@ tmp/
 tools/repo-archiver/
 .kilo/
 sot_layers/hyper-graph/
+services/frontend/

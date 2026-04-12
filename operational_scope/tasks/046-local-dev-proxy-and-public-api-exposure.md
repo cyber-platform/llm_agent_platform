@@ -31,7 +31,8 @@
 
 ## Canonical references
 
-- [`docs/architecture/poc-openai-chatgpt-demo.md`](../../docs/architecture/poc-openai-chatgpt-demo.md)
+- [`docs/architecture/web-ui.md`](../../docs/architecture/web-ui.md)
+- [`docs/providers/openai-chatgpt.md`](../../docs/providers/openai-chatgpt.md)
 - [`docker-compose.yml`](../../docker-compose.yml)
 - [`docs/configuration/env-files.md`](../../docs/configuration/env-files.md)
 

@@ -219,6 +219,23 @@ Internal/admin-only taxonomy может быть богаче и включат�
 - table columns, monitoring windows и drawer sections могут отличаться у разных `LLM provider`;
 - для текущего этапа единственный `LLM provider` page в UI — [`openai-chatgpt`](llm_agent_platform/provider_registry/providers/openai-chatgpt.json:1).
 
+## Monitoring refresh semantics
+
+Для текущего PoC live monitoring refresh строится поверх общей [`admin monitoring refresh subsystem`](docs/architecture/admin-monitoring-refresh-subsystem.md:1).
+
+Provider-specific правила для [`openai-chatgpt`](llm_agent_platform/provider_registry/providers/openai-chatgpt.json:1):
+
+- refresh обновляет только provider-specific monitoring usage state;
+- request-driven observability state остаётся request-driven и не перезапрашивается refresh subsystem;
+- background poller refreshes whole provider;
+- manual operator refresh тоже refreshes whole provider;
+- provider page должна различать `routing truth` и `monitoring freshness`.
+
+Provider-specific refresh contracts:
+
+- [`docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-start-response.schema.json`](docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-start-response.schema.json:1)
+- [`docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-status.schema.json`](docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-status.schema.json:1)
+
 ## `Activate` semantics
 
 `Activate` входит в pilot scope только как session-scoped in-memory preferred-account override.
@@ -251,5 +268,8 @@ Future hardening вынесен в [`operational_scope/plans/040-admin-surface-a
 - Общий pipeline: [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1)
 - Persisted state canon: [`docs/architecture/quota-group-state-snapshot-and-state-dir.md`](docs/architecture/quota-group-state-snapshot-and-state-dir.md:1)
 - Admin monitoring read-model: [`docs/architecture/admin-monitoring-read-model.md`](docs/architecture/admin-monitoring-read-model.md:1)
+- Admin monitoring refresh subsystem: [`docs/architecture/admin-monitoring-refresh-subsystem.md`](docs/architecture/admin-monitoring-refresh-subsystem.md:1)
+- Service behavior config: [`docs/configuration/service-behavior-config.md`](docs/configuration/service-behavior-config.md:1)
 - Monitoring/admin ADR: [`docs/adr/0021-account-centric-provider-monitoring-and-admin-read-model.md`](docs/adr/0021-account-centric-provider-monitoring-and-admin-read-model.md:1)
-- PoC freeze: [`docs/architecture/poc-openai-chatgpt-demo.md`](docs/architecture/poc-openai-chatgpt-demo.md:1)
+- Live refresh ADR: [`docs/adr/0022-admin-monitoring-live-refresh-subsystem.md`](docs/adr/0022-admin-monitoring-live-refresh-subsystem.md:1)
+- Live refresh ADR: [`docs/adr/0022-admin-monitoring-live-refresh-subsystem.md`](docs/adr/0022-admin-monitoring-live-refresh-subsystem.md:1)

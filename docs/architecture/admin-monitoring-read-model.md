@@ -2,23 +2,25 @@
 
 ## Назначение
 
-Этот документ фиксирует общий архитектурный boundary для admin monitoring surface.
+Этот документ фиксирует общий архитектурный boundary для admin monitoring surface и provider-specific monitoring pages.
 
 Он описывает не provider-specific бизнес-семантику, а платформенные правила для:
 
 - provider list;
 - provider-specific monitoring pages;
 - provider-specific drawers;
-- live read path между runtime и UI.
+- live read path между runtime и UI;
+- разграничение routing truth и monitoring freshness.
 
 ## Core principles
 
 1. Admin UI читает только backend admin API.
 2. Frontend не читает persisted state files напрямую.
-3. Backend admin API строит read-model из in-memory runtime state и in-memory monitoring snapshots.
+3. Backend admin API строит read-model из runtime state и backend-owned monitoring snapshots.
 4. Persisted files нужны для restore after restart и audit trail, но не для live UI delivery path.
 5. Provider list и navigation являются общими.
 6. Provider page, columns и drawer являются provider-specific.
+7. Routing truth и monitoring freshness materialize-ятся отдельно.
 
 ## Provider list
 
@@ -63,6 +65,8 @@ Provider page является provider-specific read-model boundary.
 runtime in-memory state -> backend admin read-model -> frontend UI
 ```
 
+Для live monitoring refresh backend может временно использовать persisted artifacts как restore/input layer, но frontend delivery source остаётся только backend admin read-model.
+
 Неканонический и запрещённый path:
 
 ```text
@@ -76,8 +80,42 @@ Persisted files могут временно отставать от in-memory st
 Это допустимо, потому что:
 
 - persisted files не являются live UI source;
-- admin read-model строится из in-memory state;
+- admin read-model строится из runtime state и backend-owned refresh pipeline;
 - group snapshots и provider-specific monitoring files остаются persistence artifacts, а не delivery transport.
+
+## Routing truth vs monitoring freshness
+
+Provider page не должна смешивать routing block state и freshness monitoring snapshots.
+
+Canonical distinction:
+
+- routing truth показывает, доступен ли account для selection/runtime use сейчас;
+- monitoring freshness показывает, насколько свеж provider-specific usage snapshot.
+
+Это означает, что account может быть:
+
+- `quota_blocked` в routing layer;
+- одновременно `stale` или `refreshing` в monitoring layer.
+
+Frontend обязан показывать оба слоя без попытки свести их к одному status field.
+
+## Refresh interaction model
+
+Live monitoring refresh является backend-owned responsibility.
+
+Canonical rules:
+
+- frontend не вызывает upstream monitoring adapter напрямую;
+- backend поддерживает background refresh для provider monitoring snapshots;
+- operator-triggered refresh выполняется через отдельный admin action boundary;
+- during manual refresh frontend short-polls refresh status endpoint и временно останавливает обычный page polling.
+
+Подробности execution model и status lifecycle описаны в [`docs/architecture/admin-monitoring-refresh-subsystem.md`](docs/architecture/admin-monitoring-refresh-subsystem.md:1).
+
+Текущие refresh endpoint contracts:
+
+- [`docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-start-response.schema.json`](docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-start-response.schema.json:1)
+- [`docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-status.schema.json`](docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-status.schema.json:1)
 
 ## Current security boundary
 
@@ -88,5 +126,6 @@ Persisted files могут временно отставать от in-memory st
 ## Related documents
 
 - [`docs/architecture/quota-group-state-snapshot-and-state-dir.md`](docs/architecture/quota-group-state-snapshot-and-state-dir.md:1)
+- [`docs/architecture/admin-monitoring-refresh-subsystem.md`](docs/architecture/admin-monitoring-refresh-subsystem.md:1)
 - [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
 - [`docs/adr/0021-account-centric-provider-monitoring-and-admin-read-model.md`](docs/adr/0021-account-centric-provider-monitoring-and-admin-read-model.md:1)

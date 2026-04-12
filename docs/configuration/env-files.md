@@ -3,6 +3,7 @@
 Связанные решения:
 
 - [`ADR 0015`](docs/adr/0015-env-separation-runtime-vs-oauth-bootstrap.md:1)
+- [`docs/configuration/service-behavior-config.md`](docs/configuration/service-behavior-config.md:1)
 
 ## 1) Контуры и ответственность
 

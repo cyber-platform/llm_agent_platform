@@ -29,8 +29,8 @@ Error contract при missing / invalid / revoked / out-of-scope key уже за
 
 ## Canonical references
 
-- [`docs/architecture/poc-openai-chatgpt-demo.md`](../../docs/architecture/poc-openai-chatgpt-demo.md)
 - [`docs/contracts/api/openai/errors/401-invalid-api-key-error.schema.json`](../../docs/contracts/api/openai/errors/401-invalid-api-key-error.schema.json)
+- [`docs/architecture/openai-chat-completions-pipeline.md`](../../docs/architecture/openai-chat-completions-pipeline.md)
 - [`docs/providers/openai-chatgpt.md`](../../docs/providers/openai-chatgpt.md)
 - [`llm_agent_platform/api/openai/routes.py`](../../llm_agent_platform/api/openai/routes.py)
 
@@ -56,6 +56,36 @@ Error contract при missing / invalid / revoked / out-of-scope key уже за
 
 ## Execution Status
 
-- Current State: запланирована.
-- Next Step: встроить auth guard после materialization key registry.
-- Blockers: зависит от task 042.
+- Current State: выполнена.
+- Next Step: использовать guard как baseline для task 046 и финального PoC smoke/documentation sync в task 047.
+- Blockers: none.
+
+## Implementation Summary
+
+- Добавлен ранний public auth guard в [`llm_agent_platform/api/openai/auth_guard.py`](../../llm_agent_platform/api/openai/auth_guard.py:1) для `openai-chatgpt` routes.
+- Guard резолвит provider/group через существующий route pipeline boundary, извлекает Bearer token из `Authorization` header и валидирует platform API key через [`OpenAIChatGPTApiKeyRegistryService`](../../llm_agent_platform/services/openai_chatgpt_api_keys.py:50).
+- Для route без явного `group_id` используется resolved default-group semantics из route resolver, поэтому key scope проверяется против фактической provider-local group.
+- Missing header, malformed bearer token, revoked key и out-of-scope key сведены к одному внешнему OpenAI-style `401` payload с `error.type=authentication_error` и `error.code=invalid_api_key`.
+- Admin routes не изменялись и не используют platform API keys как auth substitute.
+
+## Touched Files
+
+- [`llm_agent_platform/api/openai/auth_guard.py`](../../llm_agent_platform/api/openai/auth_guard.py:1)
+- [`llm_agent_platform/api/openai/routes.py`](../../llm_agent_platform/api/openai/routes.py:1)
+- [`llm_agent_platform/tests/test_openai_chatgpt_runtime.py`](../../llm_agent_platform/tests/test_openai_chatgpt_runtime.py:1)
+- [`llm_agent_platform/tests/test_refactor_p2_routes.py`](../../llm_agent_platform/tests/test_refactor_p2_routes.py:1)
+- [`docs/testing/suites/openai-contract.md`](../../docs/testing/suites/openai-contract.md:1)
+- [`docs/testing/suites/proxy-routes.md`](../../docs/testing/suites/proxy-routes.md:1)
+
+## Verification Performed
+
+- `uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
+- `uv run python -m unittest llm_agent_platform/tests/test_refactor_p2_routes.py`
+- `uv run python -m unittest llm_agent_platform/tests/test_admin_api_keys.py`
+- `uv run python -m compileall llm_agent_platform`
+
+## Delivered Coverage
+
+- Happy-path authorization for public `models` and `chat/completions` with valid group-scoped platform API key.
+- Negative auth scenarios for missing token, malformed bearer token, revoked key and out-of-scope key.
+- Regression coverage confirming valid key does not break existing `openai-chatgpt` runtime pipeline behavior.

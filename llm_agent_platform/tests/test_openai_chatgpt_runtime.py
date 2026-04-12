@@ -7,6 +7,9 @@ from unittest.mock import patch
 
 from llm_agent_platform.__main__ import app
 from llm_agent_platform.config import OPENAI_CHATGPT_ORIGINATOR
+from llm_agent_platform.services.openai_chatgpt_api_keys import (
+    OpenAIChatGPTApiKeyRegistryService,
+)
 from llm_agent_platform.services.provider_usage_limits import (
     OpenAIChatGptUsageLimitsAdapter,
 )
@@ -112,7 +115,9 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
         )
 
     @staticmethod
-    def _openai_accounts_config(credentials_path: str, *, mode: str = "single") -> dict:
+    def _openai_accounts_config(
+        credentials_path: str, *, mode: str = "single", include_team_b: bool = False
+    ) -> dict:
         payload = {
             "mode": mode,
             "active_account": "acct-1",
@@ -137,10 +142,20 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
         if mode == "rounding":
             payload["accounts"]["acct-2"] = {"credentials_path": credentials_path}
             payload["groups"]["team-a"]["accounts"] = ["acct-1", "acct-2"]
+        if include_team_b:
+            if mode != "rounding":
+                payload["accounts"]["acct-2"] = {"credentials_path": credentials_path}
+            else:
+                payload["groups"]["team-a"]["accounts"] = ["acct-1"]
+            payload["groups"]["team-b"] = {
+                "accounts": ["acct-2"],
+                "models": ["gpt-5.4-mini"],
+            }
         return payload
 
     @contextmanager
     def _patched_paths(self, tmp_dir: Path, openai_config_path: Path):
+        registry_path = tmp_dir / "openai-chatgpt" / "api-keys" / "registry.json"
         with (
             patch("llm_agent_platform.services.account_router.STATE_DIR", str(tmp_dir)),
             patch(
@@ -159,8 +174,20 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                 "llm_agent_platform.auth.credentials.OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH",
                 str(openai_config_path),
             ),
+            patch(
+                "llm_agent_platform.config.OPENAI_CHATGPT_API_KEYS_REGISTRY_PATH",
+                str(registry_path),
+            ),
+            patch(
+                "llm_agent_platform.services.openai_chatgpt_api_keys.OPENAI_CHATGPT_API_KEYS_REGISTRY_PATH",
+                str(registry_path),
+            ),
         ):
             yield
+
+    @staticmethod
+    def _auth_headers(raw_api_key: str) -> dict[str, str]:
+        return {"Authorization": f"Bearer {raw_api_key}"}
 
     @staticmethod
     def _sse_json_events(payload: str) -> list[dict]:
@@ -227,12 +254,16 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                     return_value=fake_client,
                 ),
             ):
+                api_key = OpenAIChatGPTApiKeyRegistryService().create_key(
+                    group_id="team-a", label="runtime-test"
+                )["raw_api_key"]
                 response = self.client.post(
                     "/openai-chatgpt/v1/chat/completions",
                     json={
                         "model": "gpt-5.4",
                         "messages": [{"role": "user", "content": "hello"}],
                     },
+                    headers=self._auth_headers(api_key),
                 )
 
             body = json.loads(response.data.decode("utf-8"))
@@ -325,12 +356,16 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                     },
                 ) as mock_refresh,
             ):
+                api_key = OpenAIChatGPTApiKeyRegistryService().create_key(
+                    group_id="team-a", label="refresh-test"
+                )["raw_api_key"]
                 response = self.client.post(
                     "/openai-chatgpt/v1/chat/completions",
                     json={
                         "model": "gpt-5.4",
                         "messages": [{"role": "user", "content": "refresh me"}],
                     },
+                    headers=self._auth_headers(api_key),
                 )
 
             body = json.loads(response.data.decode("utf-8"))
@@ -387,6 +422,9 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                     return_value=fake_client,
                 ),
             ):
+                api_key = OpenAIChatGPTApiKeyRegistryService().create_key(
+                    group_id="team-a", label="stream-test"
+                )["raw_api_key"]
                 response = self.client.post(
                     "/openai-chatgpt/v1/chat/completions",
                     json={
@@ -395,6 +433,7 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                         "stream": True,
                         "stream_options": {"include_usage": True},
                     },
+                    headers=self._auth_headers(api_key),
                 )
                 payload = response.data.decode("utf-8")
             usage_state = json.loads(
@@ -454,6 +493,9 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                     return_value=fake_client,
                 ),
             ):
+                api_key = OpenAIChatGPTApiKeyRegistryService().create_key(
+                    group_id="team-a", label="stream-error-test"
+                )["raw_api_key"]
                 response = self.client.post(
                     "/openai-chatgpt/v1/chat/completions",
                     json={
@@ -461,6 +503,7 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                         "messages": [{"role": "user", "content": "stream please"}],
                         "stream": True,
                     },
+                    headers=self._auth_headers(api_key),
                 )
                 payload = response.data.decode("utf-8")
 
@@ -510,6 +553,9 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                     return_value=fake_client,
                 ),
             ):
+                api_key = OpenAIChatGPTApiKeyRegistryService().create_key(
+                    group_id="team-a", label="tool-call-test"
+                )["raw_api_key"]
                 response = self.client.post(
                     "/openai-chatgpt/v1/chat/completions",
                     json={
@@ -530,6 +576,7 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                             }
                         ],
                     },
+                    headers=self._auth_headers(api_key),
                 )
                 payload = response.data.decode("utf-8")
 
@@ -599,6 +646,9 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                     return_value=fake_client,
                 ),
             ):
+                api_key = OpenAIChatGPTApiKeyRegistryService().create_key(
+                    group_id="team-a", label="reasoning-test"
+                )["raw_api_key"]
                 response = self.client.post(
                     "/openai-chatgpt/v1/chat/completions",
                     json={
@@ -606,6 +656,7 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
                         "messages": [{"role": "user", "content": "think"}],
                         "stream": True,
                     },
+                    headers=self._auth_headers(api_key),
                 )
                 payload = response.data.decode("utf-8")
 
@@ -635,13 +686,126 @@ class OpenAIChatGPTRuntimeTests(unittest.TestCase):
             )
 
             with self._patched_paths(tmp_dir, accounts_config_path):
-                response = self.client.get("/openai-chatgpt/team-a/v1/models")
+                api_key = OpenAIChatGPTApiKeyRegistryService().create_key(
+                    group_id="team-a", label="models-test"
+                )["raw_api_key"]
+                response = self.client.get(
+                    "/openai-chatgpt/team-a/v1/models",
+                    headers=self._auth_headers(api_key),
+                )
 
         body = json.loads(response.data.decode("utf-8"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             {item["id"] for item in body["data"]}, {"gpt-5.4", "gpt-5.4-mini"}
         )
+
+    def test_public_models_route_rejects_missing_or_malformed_bearer_token(self):
+        with _tmp_state_dir() as tmp_dir:
+            creds_path = tmp_dir / "openai-chatgpt" / "auth" / "oauth-account.json"
+            accounts_config_path = tmp_dir / "openai_accounts_config.json"
+            self._write_json(
+                creds_path,
+                {
+                    "version": 1,
+                    "provider_id": "openai-chatgpt",
+                    "access_token": "token-123",
+                    "refresh_token": "refresh-123",
+                    "token_type": "Bearer",
+                    "expires_at": "2099-01-01T00:00:00Z",
+                },
+            )
+            self._write_json(
+                accounts_config_path, self._openai_accounts_config(str(creds_path))
+            )
+
+            with self._patched_paths(tmp_dir, accounts_config_path):
+                missing_response = self.client.get("/openai-chatgpt/v1/models")
+                malformed_response = self.client.get(
+                    "/openai-chatgpt/v1/models",
+                    headers={"Authorization": "Token not-bearer"},
+                )
+
+        missing_payload = json.loads(missing_response.data.decode("utf-8"))
+        malformed_payload = json.loads(malformed_response.data.decode("utf-8"))
+
+        self.assertEqual(missing_response.status_code, 401)
+        self.assertEqual(malformed_response.status_code, 401)
+        self.assertEqual(missing_payload["error"]["type"], "authentication_error")
+        self.assertEqual(missing_payload["error"]["code"], "invalid_api_key")
+        self.assertEqual(malformed_payload["error"]["type"], "authentication_error")
+        self.assertEqual(malformed_payload["error"]["code"], "invalid_api_key")
+
+    def test_public_routes_reject_revoked_or_out_of_scope_platform_key(self):
+        with _tmp_state_dir() as tmp_dir:
+            creds_path = tmp_dir / "openai-chatgpt" / "auth" / "oauth-account.json"
+            accounts_config_path = tmp_dir / "openai_accounts_config.json"
+            self._write_json(
+                creds_path,
+                {
+                    "version": 1,
+                    "provider_id": "openai-chatgpt",
+                    "access_token": "token-123",
+                    "refresh_token": "refresh-123",
+                    "token_type": "Bearer",
+                    "expires_at": "2099-01-01T00:00:00Z",
+                },
+            )
+            self._write_json(
+                accounts_config_path,
+                self._openai_accounts_config(
+                    str(creds_path), mode="rounding", include_team_b=True
+                ),
+            )
+
+            with self._patched_paths(tmp_dir, accounts_config_path):
+                service = OpenAIChatGPTApiKeyRegistryService()
+                team_a_key = service.create_key(group_id="team-a", label="team-a")[
+                    "raw_api_key"
+                ]
+                team_b_key = service.create_key(group_id="team-b", label="team-b")[
+                    "raw_api_key"
+                ]
+                revoked_key = service.create_key(group_id="team-a", label="revoked")[
+                    "raw_api_key"
+                ]
+                revoked_record = service.lookup_active_key(
+                    revoked_key, group_id="team-a"
+                )
+                if revoked_record is None:
+                    self.fail("revoked_record must not be None")
+                service.revoke_key(revoked_record["key_id"])
+
+                authorized_response = self.client.get(
+                    "/openai-chatgpt/v1/models",
+                    headers=self._auth_headers(team_a_key),
+                )
+                wrong_scope_response = self.client.get(
+                    "/openai-chatgpt/team-a/v1/models",
+                    headers=self._auth_headers(team_b_key),
+                )
+                revoked_response = self.client.post(
+                    "/openai-chatgpt/v1/chat/completions",
+                    json={
+                        "model": "gpt-5.4",
+                        "messages": [{"role": "user", "content": "hello"}],
+                    },
+                    headers=self._auth_headers(revoked_key),
+                )
+
+        authorized_payload = json.loads(authorized_response.data.decode("utf-8"))
+        wrong_scope_payload = json.loads(wrong_scope_response.data.decode("utf-8"))
+        revoked_payload = json.loads(revoked_response.data.decode("utf-8"))
+
+        self.assertEqual(authorized_response.status_code, 200)
+        self.assertEqual(
+            {item["id"] for item in authorized_payload["data"]},
+            {"gpt-5.4", "gpt-5.4-mini"},
+        )
+        self.assertEqual(wrong_scope_response.status_code, 401)
+        self.assertEqual(revoked_response.status_code, 401)
+        self.assertEqual(wrong_scope_payload["error"]["code"], "invalid_api_key")
+        self.assertEqual(revoked_payload["error"]["code"], "invalid_api_key")
 
     def test_usage_adapter_normalizes_wham_windows(self):
         with _tmp_state_dir() as tmp_dir:

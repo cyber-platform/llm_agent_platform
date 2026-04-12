@@ -20,6 +20,7 @@
 ## Scope
 - Smoke-проверка импорта приложения и регистрации blueprint-маршрутов.
 - Endpoint-тесты `/<provider_name>/v1/models` и `/<provider_name>/<group_name>/v1/models` для `LLM provider`-scoped контракта списка моделей.
+- Smoke coverage для `openai-chatgpt` учитывает его PoC auth boundary: public `models` route должен проходить только с valid Bearer platform API key.
 - Endpoint-тесты `/<provider_name>/v1/chat/completions` и `/<provider_name>/<group_name>/v1/chat/completions`.
 - Тесты native Gemini proxy (`/v1/models/<model>:generateContent`, `/v1/models/<model>:streamGenerateContent`) в quota-контуре.
 - Тесты parity relay (`/parity-relay/<path>`) для non-stream и stream проксирования.

@@ -59,7 +59,12 @@
         },
         "status": {
           "type": "string",
-          "minLength": 1
+          "enum": [
+            "fresh",
+            "stale",
+            "refreshing",
+            "error"
+          ]
         },
         "last_error": {
           "type": [
@@ -159,7 +164,12 @@
         },
         "status": {
           "type": "string",
-          "minLength": 1
+          "enum": [
+            "ready",
+            "cooldown",
+            "quota_blocked",
+            "blocked"
+          ]
         },
         "short_window": {
           "$ref": "#/$defs/window"
@@ -202,6 +212,50 @@
           "type": "string",
           "minLength": 1
         },
+        "refresh": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "processed_accounts",
+            "total_accounts",
+            "successful_accounts",
+            "failed_accounts"
+          ],
+          "properties": {
+            "refresh_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "idle",
+                "queued",
+                "running",
+                "completed",
+                "completed_with_errors",
+                "error"
+              ]
+            },
+            "processed_accounts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total_accounts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "successful_accounts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed_accounts": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
         "accounts": {
           "type": "array",
           "items": {
@@ -226,7 +280,8 @@
       "required": [
         "supports_activate",
         "supports_drawer",
-        "supports_usage_windows"
+        "supports_usage_windows",
+        "supports_manual_refresh"
       ],
       "properties": {
         "supports_activate": {
@@ -236,6 +291,9 @@
           "type": "boolean"
         },
         "supports_usage_windows": {
+          "type": "boolean"
+        },
+        "supports_manual_refresh": {
           "type": "boolean"
         }
       }

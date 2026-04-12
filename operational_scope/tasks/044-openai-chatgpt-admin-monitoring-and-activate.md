@@ -29,8 +29,8 @@ Monitoring contracts и `Activate` response contract уже зафиксиров
 
 ## Canonical references
 
-- [`docs/architecture/poc-openai-chatgpt-demo.md`](../../docs/architecture/poc-openai-chatgpt-demo.md)
 - [`docs/architecture/admin-monitoring-read-model.md`](../../docs/architecture/admin-monitoring-read-model.md)
+- [`docs/architecture/admin-monitoring-refresh-subsystem.md`](../../docs/architecture/admin-monitoring-refresh-subsystem.md)
 - [`docs/contracts/api/admin/monitoring/providers-list.schema.json`](../../docs/contracts/api/admin/monitoring/providers-list.schema.json)
 - [`docs/contracts/api/admin/monitoring/openai-chatgpt-accounts-page.schema.json`](../../docs/contracts/api/admin/monitoring/openai-chatgpt-accounts-page.schema.json)
 - [`docs/contracts/api/admin/monitoring/openai-chatgpt-activate-account-response.schema.json`](../../docs/contracts/api/admin/monitoring/openai-chatgpt-activate-account-response.schema.json)
@@ -57,8 +57,20 @@ Monitoring contracts и `Activate` response contract уже зафиксиров
 - Restart-safe persistence для override не требуется.
 - Добавлены тесты suite `TS-ADMIN-MONITORING-READ-MODEL` и связанный test-map update.
 
+## Что реализовано
+
+- В `llm_agent_platform/api/admin/routes.py` materialized admin monitoring endpoints `GET /admin/monitoring/providers`, `GET /admin/monitoring/openai-chatgpt` и `POST /admin/monitoring/openai-chatgpt/groups/<group_id>/accounts/<account_name>/activate`.
+- В `llm_agent_platform/services/openai_chatgpt_admin_monitoring.py` добавлен provider-specific read-model builder для `openai-chatgpt`, который собирает provider page из provider config, router runtime state, `usage_windows` snapshots и `request_usage` snapshots.
+- В read-model добавлен fallback для legacy `limits.json`, чтобы backend мог materialize provider page даже при старом persisted layout, но canonical response остаётся совместимым с текущими admin contracts.
+- В `llm_agent_platform/services/account_router.py` добавлен process-global preferred-account override per `(provider_id, group_id)` и introspection API `describe_group(...)` / `get_preferred_account(...)` / `set_preferred_account(...)` для admin read-model.
+- Routing semantics сохранены: preferred override используется только если account доступен; cooldown и quota-exhausted safeguards по-прежнему блокируют выбор account и не bypass-ятся action `Activate`.
+- Для provider page backend выставляет `is_preferred_for_session`, `routing.state`, `block_reason`, `quota_blocked_until`, `drawer.raw_monitoring_payload`, `drawer.raw_request_usage_payload` и `drawer.raw_account_state_payload`.
+- В `llm_agent_platform/tests/test_admin_monitoring_read_model.py` добавлены test cases `TC-ADMIN-MONITORING-READ-MODEL-001..003` на provider list, provider page contract и `Activate` semantics без bypass cooldown.
+- В `docs/testing/suites/admin-monitoring-read-model.md` и `docs/testing/test-map.md` suite `TS-ADMIN-MONITORING-READ-MODEL` переведена из `planned` в `active`, добавлен target command `uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_read_model.py`.
+- Выполнена verification прогоном `uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_read_model.py`, `uv run python -m unittest llm_agent_platform/tests/test_admin_api_keys.py`, `uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_runtime.py` и `uv run python -m compileall llm_agent_platform`.
+
 ## Execution Status
 
-- Current State: запланирована.
-- Next Step: materialize admin blueprint и in-memory override store.
+- Current State: реализована.
+- Next Step: использовать backend contracts в `045-react-frontend-openai-chatgpt-poc-ui.md`.
 - Blockers: none.

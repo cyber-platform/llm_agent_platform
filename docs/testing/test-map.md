@@ -21,13 +21,18 @@
 | `TS-QUOTA-PARITY` | [`quota-parity.md`](docs/testing/suites/quota-parity.md) | Quota transport parity with `gemini-cli` payload and stream shape | [`llm_agent_platform/tests/test_quota_transport_parity.py`](llm_agent_platform/tests/test_quota_transport_parity.py:1) | active |
 | `TS-QUOTA-ACCOUNT-ROTATION` | [`quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md) | Unified quota rotation, group isolation, `LLM provider`-scoped models and cooldown fast-fail behavior | [`llm_agent_platform/tests/test_quota_account_router.py`](llm_agent_platform/tests/test_quota_account_router.py:1), [`llm_agent_platform/tests/test_refactor_p2_routes.py`](llm_agent_platform/tests/test_refactor_p2_routes.py:1), [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1) | active |
 | `TS-QUOTA-STATE-PERSISTENCE` | [`quota-state-persistence.md`](docs/testing/suites/quota-state-persistence.md) | Persisted quota state, `STATE_DIR`, `LLM provider`-specific artifacts, group snapshot and async writer | [`llm_agent_platform/tests/test_quota_account_router.py`](llm_agent_platform/tests/test_quota_account_router.py:1) | active |
-| `TS-ADMIN-MONITORING-READ-MODEL` | [`admin-monitoring-read-model.md`](docs/testing/suites/admin-monitoring-read-model.md) | Dynamic `LLM provider` list, `LLM provider`-specific monitoring page and backend read-model boundary | planned `llm_agent_platform/tests/test_admin_monitoring_read_model.py` | planned |
+| `TS-ADMIN-API-KEYS` | [`admin-api-keys.md`](docs/testing/suites/admin-api-keys.md) | Provider-scoped API key registry, hash-only storage and admin CRUD for `openai-chatgpt` platform keys | [`llm_agent_platform/tests/test_admin_api_keys.py`](llm_agent_platform/tests/test_admin_api_keys.py:1) | active |
+| `TS-ADMIN-MONITORING-READ-MODEL` | [`admin-monitoring-read-model.md`](docs/testing/suites/admin-monitoring-read-model.md) | Dynamic `LLM provider` list, `LLM provider`-specific monitoring page and backend read-model boundary | [`llm_agent_platform/tests/test_admin_monitoring_read_model.py`](llm_agent_platform/tests/test_admin_monitoring_read_model.py:1) | active |
+| `TS-ADMIN-MONITORING-REFRESH` | [`admin-monitoring-refresh.md`](docs/testing/suites/admin-monitoring-refresh.md) | Provider-wide monitoring refresh manager, manual refresh endpoints and operator progress contract for `openai-chatgpt` | [`llm_agent_platform/tests/test_admin_monitoring_refresh.py`](llm_agent_platform/tests/test_admin_monitoring_refresh.py:1) | active |
 | `TS-CONFIG-ENV-AND-LAYOUT` | [`config-env-and-layout.md`](docs/testing/suites/config-env-and-layout.md) | Env split, runtime package layout and verification command alignment | manual + smoke scripts | planned |
 
 ## Runbook
 - Запуск: `uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
 - Быстрая проверка синтаксиса: `uv run python -m compileall llm_agent_platform`
 - Тестовые артефакты: используются фиктивные файлы в `secrets_test/`
+- Целевая проверка admin API keys: `uv run python -m unittest llm_agent_platform/tests/test_admin_api_keys.py`
+- Целевая проверка admin monitoring read-model: `uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_read_model.py`
+- Целевая проверка admin monitoring refresh: `uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_refresh.py`
 - Целевая runtime-проверка `openai-chatgpt`: `uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
 
 ## Related Files

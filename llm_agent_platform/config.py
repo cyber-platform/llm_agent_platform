@@ -61,6 +61,14 @@ OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH = _env_str(
     "OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH",
     "secrets/openai-chatgpt/accounts_config.json",
 )
+OPENAI_CHATGPT_API_KEYS_REGISTRY_PATH = _env_str(
+    "OPENAI_CHATGPT_API_KEYS_REGISTRY_PATH",
+    "secrets/openai-chatgpt/api-keys/registry.json",
+)
+SERVICE_BEHAVIOR_CONFIG_PATH = _env_str(
+    "SERVICE_BEHAVIOR_CONFIG_PATH",
+    "service_behavior_config.yaml",
+)
 SERVICE_ACCOUNT_PATH = _env_str("SERVICE_ACCOUNT_PATH", "secrets/service_account.json")
 
 # --- Gemini CLI Emulation Constants ---
@@ -88,7 +96,9 @@ QWEN_DEFAULT_RESOURCE_URL = _env_str(
     "QWEN_DEFAULT_RESOURCE_URL",
     "https://dashscope.aliyuncs.com/compatible-mode",
 )
-QWEN_REFRESH_IDLE_THRESHOLD_SECONDS = _env_int("QWEN_REFRESH_IDLE_THRESHOLD_SECONDS", "180")
+QWEN_REFRESH_IDLE_THRESHOLD_SECONDS = _env_int(
+    "QWEN_REFRESH_IDLE_THRESHOLD_SECONDS", "180"
+)
 QWEN_QUOTA_MODELS = [
     model.strip()
     for model in _env_str("QWEN_QUOTA_MODELS", "qwen-coder-model-quota").split(",")

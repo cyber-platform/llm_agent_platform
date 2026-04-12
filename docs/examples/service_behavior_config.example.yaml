@@ -1,0 +1,10 @@
+monitoring:
+  background_poll_interval_seconds: 10
+  refresh_concurrency: 5
+  per_account_refresh_timeout_seconds: 10
+  refresh_run_timeout_seconds: 60
+  refresh_run_retention_seconds: 300
+
+frontend:
+  page_poll_interval_ms: 10000
+  manual_refresh_status_poll_interval_ms: 1000

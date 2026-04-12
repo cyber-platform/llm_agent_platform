@@ -8,8 +8,15 @@ from contextlib import contextmanager
 
 from llm_agent_platform.__main__ import app
 from llm_agent_platform.auth.credentials import AuthAvailability
-from llm_agent_platform.services.account_router import AllAccountsExhaustedError, GeminiAccount, SelectedAccount
+from llm_agent_platform.services.account_router import (
+    AllAccountsExhaustedError,
+    GeminiAccount,
+    SelectedAccount,
+)
 from llm_agent_platform.services.account_state_store import state_writer
+from llm_agent_platform.services.openai_chatgpt_api_keys import (
+    OpenAIChatGPTApiKeyRegistryService,
+)
 
 SECRETS_TEST_ROOT = Path("secrets_test")
 
@@ -25,7 +32,9 @@ def _secrets_test_dir():
 def _patched_state_dir(tmp_dir: Path):
     with (
         patch("llm_agent_platform.services.account_router.STATE_DIR", str(tmp_dir)),
-        patch("llm_agent_platform.services.account_state_store.STATE_DIR", str(tmp_dir)),
+        patch(
+            "llm_agent_platform.services.account_state_store.STATE_DIR", str(tmp_dir)
+        ),
     ):
         try:
             yield
@@ -62,7 +71,13 @@ class FakeResponse:
     ):
         self.status_code = status_code
         self._payload = payload
-        self.text = text if text is not None else (json.dumps(payload, ensure_ascii=False) if payload is not None else "")
+        self.text = (
+            text
+            if text is not None
+            else (
+                json.dumps(payload, ensure_ascii=False) if payload is not None else ""
+            )
+        )
         self.content = self.text.encode("utf-8")
         self.headers = headers or {"content-type": "application/json"}
 
@@ -73,7 +88,9 @@ class FakeResponse:
 
 
 class FakeStreamResponse(FakeResponse):
-    def __init__(self, status_code: int, lines: list[str | bytes], text: str | None = None):
+    def __init__(
+        self, status_code: int, lines: list[str | bytes], text: str | None = None
+    ):
         super().__init__(status_code=status_code, payload=None, text=text)
         self._lines = lines
 
@@ -92,7 +109,11 @@ class FakeStreamResponse(FakeResponse):
 
 
 class FakeHttpClient:
-    def __init__(self, post_response: FakeResponse | None = None, stream_response: FakeStreamResponse | None = None):
+    def __init__(
+        self,
+        post_response: FakeResponse | None = None,
+        stream_response: FakeStreamResponse | None = None,
+    ):
         self.post_response = post_response
         self.stream_response = stream_response
         self.last_post_call: dict | None = None
@@ -125,7 +146,9 @@ class RefactorP2RoutesTests(unittest.TestCase):
     @staticmethod
     def _write_json(path: Path, payload: dict) -> None:
         _seed_credentials_from_config(payload)
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
     @staticmethod
     def _selected_gemini_account() -> SelectedAccount:
@@ -146,7 +169,11 @@ class RefactorP2RoutesTests(unittest.TestCase):
 
         with _secrets_test_dir() as tmp_dir:
             gemini_path = tmp_dir / "gemini_accounts_config.json"
+            openai_path = tmp_dir / "openai_accounts_config.json"
             qwen_path = tmp_dir / "qwen_accounts_config.json"
+            openai_registry_path = (
+                tmp_dir / "openai-chatgpt" / "api-keys" / "registry.json"
+            )
             gemini_cfg = {
                 "mode": "single",
                 "active_account": "acct-1",
@@ -171,7 +198,9 @@ class RefactorP2RoutesTests(unittest.TestCase):
                 "active_account": "acct-1",
                 "all_accounts": ["acct-1"],
                 "accounts": {
-                    "acct-1": {"credentials_path": "secrets_test/accounts/qwen_acct-1.json"},
+                    "acct-1": {
+                        "credentials_path": "secrets_test/accounts/qwen_acct-1.json"
+                    },
                 },
                 "rotation_policy": {
                     "rate_limit_threshold": 2,
@@ -182,16 +211,67 @@ class RefactorP2RoutesTests(unittest.TestCase):
                     "default": "00:00:00",
                 },
             }
+            openai_cfg = {
+                "mode": "single",
+                "active_account": "acct-1",
+                "all_accounts": ["acct-1"],
+                "accounts": {
+                    "acct-1": {
+                        "credentials_path": "secrets_test/accounts/openai_acct-1.json"
+                    }
+                },
+                "rotation_policy": {
+                    "rate_limit_threshold": 2,
+                    "quota_exhausted_threshold": 2,
+                    "rate_limit_cooldown_seconds": 5,
+                },
+                "model_quota_resets": {
+                    "default": "00:00:00",
+                },
+                "groups": {
+                    "team-a": {
+                        "accounts": ["acct-1"],
+                        "models": ["gpt-5.4", "gpt-5.4-mini"],
+                    }
+                },
+            }
             _seed_credentials_from_config(gemini_cfg)
             _seed_credentials_from_config(qwen_cfg)
+            _seed_credentials_from_config(openai_cfg)
             self._write_json(gemini_path, gemini_cfg)
             self._write_json(qwen_path, qwen_cfg)
+            self._write_json(openai_path, openai_cfg)
 
             with (
-                patch("llm_agent_platform.services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH", str(gemini_path)),
-                patch("llm_agent_platform.services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+                patch(
+                    "llm_agent_platform.services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH",
+                    str(gemini_path),
+                ),
+                patch(
+                    "llm_agent_platform.services.account_router.QWEN_ACCOUNTS_CONFIG_PATH",
+                    str(qwen_path),
+                ),
+                patch(
+                    "llm_agent_platform.services.account_router.OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH",
+                    str(openai_path),
+                ),
+                patch(
+                    "llm_agent_platform.auth.credentials.OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH",
+                    str(openai_path),
+                ),
+                patch(
+                    "llm_agent_platform.config.OPENAI_CHATGPT_API_KEYS_REGISTRY_PATH",
+                    str(openai_registry_path),
+                ),
+                patch(
+                    "llm_agent_platform.services.openai_chatgpt_api_keys.OPENAI_CHATGPT_API_KEYS_REGISTRY_PATH",
+                    str(openai_registry_path),
+                ),
                 _patched_state_dir(tmp_dir),
             ):
+                openai_api_key = OpenAIChatGPTApiKeyRegistryService().create_key(
+                    group_id="team-a", label="models-smoke"
+                )["raw_api_key"]
                 gemini_response = self.client.get("/gemini-cli/v1/models")
                 self.assertEqual(gemini_response.status_code, 200)
                 gemini_payload = json.loads(gemini_response.data.decode("utf-8"))
@@ -204,7 +284,10 @@ class RefactorP2RoutesTests(unittest.TestCase):
                 qwen_ids = {item["id"] for item in qwen_payload["data"]}
                 self.assertIn("coder-model", qwen_ids)
 
-                openai_response = self.client.get("/openai-chatgpt/v1/models")
+                openai_response = self.client.get(
+                    "/openai-chatgpt/v1/models",
+                    headers={"Authorization": f"Bearer {openai_api_key}"},
+                )
                 self.assertEqual(openai_response.status_code, 200)
                 openai_payload = json.loads(openai_response.data.decode("utf-8"))
                 openai_ids = {item["id"] for item in openai_payload["data"]}
@@ -249,8 +332,12 @@ class RefactorP2RoutesTests(unittest.TestCase):
                     },
                 },
                 "accounts": {
-                    "lisa": {"credentials_path": "secrets_test/accounts/qwen_lisa.json"},
-                    "petr": {"credentials_path": "secrets_test/accounts/qwen_petr.json"},
+                    "lisa": {
+                        "credentials_path": "secrets_test/accounts/qwen_lisa.json"
+                    },
+                    "petr": {
+                        "credentials_path": "secrets_test/accounts/qwen_petr.json"
+                    },
                 },
                 "rotation_policy": {
                     "rate_limit_threshold": 2,
@@ -269,8 +356,14 @@ class RefactorP2RoutesTests(unittest.TestCase):
             self._write_json(qwen_path, qwen_cfg)
 
             with (
-                patch("llm_agent_platform.services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH", str(gemini_path)),
-                patch("llm_agent_platform.services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+                patch(
+                    "llm_agent_platform.services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH",
+                    str(gemini_path),
+                ),
+                patch(
+                    "llm_agent_platform.services.account_router.QWEN_ACCOUNTS_CONFIG_PATH",
+                    str(qwen_path),
+                ),
                 _patched_state_dir(tmp_dir),
             ):
                 default_response = self.client.get("/qwen-code/v1/models")
@@ -311,7 +404,9 @@ class RefactorP2RoutesTests(unittest.TestCase):
                     }
                 },
                 "accounts": {
-                    "acct-1": {"credentials_path": "secrets_test/accounts/qwen_acct-1.json"},
+                    "acct-1": {
+                        "credentials_path": "secrets_test/accounts/qwen_acct-1.json"
+                    },
                 },
                 "rotation_policy": {
                     "rate_limit_threshold": 2,
@@ -326,7 +421,10 @@ class RefactorP2RoutesTests(unittest.TestCase):
             self._write_json(qwen_path, qwen_cfg)
 
             with (
-                patch("llm_agent_platform.services.account_router.QWEN_ACCOUNTS_CONFIG_PATH", str(qwen_path)),
+                patch(
+                    "llm_agent_platform.services.account_router.QWEN_ACCOUNTS_CONFIG_PATH",
+                    str(qwen_path),
+                ),
                 _patched_state_dir(tmp_dir),
             ):
                 response = self.client.get("/qwen-code/missing/v1/models")
@@ -336,8 +434,14 @@ class RefactorP2RoutesTests(unittest.TestCase):
         self.assertIn("Unknown group", payload["error"]["message"])
 
     @patch("llm_agent_platform.api.gemini.routes.quota_account_router.select_account")
-    @patch("llm_agent_platform.api.gemini.routes.get_gemini_access_token_from_file", return_value="token-123")
-    @patch("llm_agent_platform.api.gemini.routes.get_auth_lock", return_value=threading.Lock())
+    @patch(
+        "llm_agent_platform.api.gemini.routes.get_gemini_access_token_from_file",
+        return_value="token-123",
+    )
+    @patch(
+        "llm_agent_platform.api.gemini.routes.get_auth_lock",
+        return_value=threading.Lock(),
+    )
     @patch("llm_agent_platform.api.gemini.routes.send_generate")
     def test_gemini_native_nonstream_quota_success(
         self,
@@ -404,7 +508,10 @@ class RefactorP2RoutesTests(unittest.TestCase):
                 }
             )
             with (
-                patch("llm_agent_platform.services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH", str(gemini_path)),
+                patch(
+                    "llm_agent_platform.services.account_router.GEMINI_ACCOUNTS_CONFIG_PATH",
+                    str(gemini_path),
+                ),
                 _patched_state_dir(tmp_dir),
             ):
                 response = self.client.post(
@@ -417,9 +524,15 @@ class RefactorP2RoutesTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = json.loads(response.data.decode("utf-8"))
         self.assertIn("candidates", body)
-        self.assertEqual(body["candidates"][0]["content"]["parts"][0]["text"], "hello from native gemini")
+        self.assertEqual(
+            body["candidates"][0]["content"]["parts"][0]["text"],
+            "hello from native gemini",
+        )
 
-    @patch("llm_agent_platform.api.gemini.routes.quota_account_router.select_account", side_effect=AllAccountsExhaustedError("all_accounts_exceed_quota"))
+    @patch(
+        "llm_agent_platform.api.gemini.routes.quota_account_router.select_account",
+        side_effect=AllAccountsExhaustedError("all_accounts_exceed_quota"),
+    )
     def test_gemini_native_quota_all_accounts_exhausted(self, _mock_select_account):
         response = self.client.post(
             "/v1/models/gemini-3-flash-preview-quota:generateContent",
@@ -433,8 +546,14 @@ class RefactorP2RoutesTests(unittest.TestCase):
 
     @patch("llm_agent_platform.api.gemini.routes.quota_account_router.select_account")
     @patch("llm_agent_platform.api.gemini.routes.quota_account_router.register_success")
-    @patch("llm_agent_platform.api.gemini.routes.get_gemini_access_token_from_file", return_value="token-123")
-    @patch("llm_agent_platform.api.gemini.routes.get_auth_lock", return_value=threading.Lock())
+    @patch(
+        "llm_agent_platform.api.gemini.routes.get_gemini_access_token_from_file",
+        return_value="token-123",
+    )
+    @patch(
+        "llm_agent_platform.api.gemini.routes.get_auth_lock",
+        return_value=threading.Lock(),
+    )
     @patch("llm_agent_platform.api.gemini.routes.stream_generate_lines")
     def test_gemini_native_stream_quota_yields_done(
         self,
@@ -461,11 +580,13 @@ class RefactorP2RoutesTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.data.decode("utf-8")
         self.assertIn("data: [DONE]", payload)
-        self.assertIn("\"candidates\"", payload)
+        self.assertIn('"candidates"', payload)
         mock_register_success.assert_called_once()
 
     @patch("llm_agent_platform.api.parity.routes.get_http_client")
-    def test_parity_relay_nonstream_forwards_body_and_params(self, mock_get_http_client):
+    def test_parity_relay_nonstream_forwards_body_and_params(
+        self, mock_get_http_client
+    ):
         fake_client = FakeHttpClient(
             post_response=FakeResponse(
                 200,
@@ -485,8 +606,11 @@ class RefactorP2RoutesTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(json.loads(response.data.decode("utf-8")), {"ok": True})
         self.assertIsNotNone(fake_client.last_post_call)
-        self.assertEqual(fake_client.last_post_call["params"], {"alt": "json"})
-        self.assertEqual(fake_client.last_post_call["content"], b'{"message": "hello"}')
+        last_post_call = fake_client.last_post_call
+        if last_post_call is None:
+            self.fail("last_post_call must not be None")
+        self.assertEqual(last_post_call["params"], {"alt": "json"})
+        self.assertEqual(last_post_call["content"], b'{"message": "hello"}')
 
     @patch("llm_agent_platform.api.parity.routes.get_http_client")
     def test_parity_relay_stream_mode_returns_sse(self, mock_get_http_client):
@@ -514,7 +638,10 @@ class RefactorP2RoutesTests(unittest.TestCase):
         payload = response.data.decode("utf-8")
         self.assertIn('data: {"delta":"hel"}', payload)
         self.assertIn("data: [DONE]", payload)
-        self.assertEqual(fake_client.last_stream_call["method"], "POST")
+        last_stream_call = fake_client.last_stream_call
+        if last_stream_call is None:
+            self.fail("last_stream_call must not be None")
+        self.assertEqual(last_stream_call["method"], "POST")
 
 
 if __name__ == "__main__":

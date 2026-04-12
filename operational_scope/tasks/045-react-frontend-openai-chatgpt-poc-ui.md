@@ -33,8 +33,10 @@ Frontend не публикуется наружу и не читает filesyste
 
 ## Canonical references
 
-- [`docs/architecture/poc-openai-chatgpt-demo.md`](../../docs/architecture/poc-openai-chatgpt-demo.md)
 - [`docs/architecture/web-ui.md`](../../docs/architecture/web-ui.md)
+- [`docs/architecture/admin-monitoring-read-model.md`](../../docs/architecture/admin-monitoring-read-model.md)
+- [`docs/architecture/admin-monitoring-refresh-subsystem.md`](../../docs/architecture/admin-monitoring-refresh-subsystem.md)
+- [`docs/providers/openai-chatgpt.md`](../../docs/providers/openai-chatgpt.md)
 - [`docs/contracts/api/admin/monitoring/openai-chatgpt-accounts-page.schema.json`](../../docs/contracts/api/admin/monitoring/openai-chatgpt-accounts-page.schema.json)
 - [`docs/contracts/api/admin/api-keys/openai-chatgpt-api-keys-list.schema.json`](../../docs/contracts/api/admin/api-keys/openai-chatgpt-api-keys-list.schema.json)
 - [`docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-create-request.schema.json`](../../docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-create-request.schema.json)
