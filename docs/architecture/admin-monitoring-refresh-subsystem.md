@@ -29,6 +29,7 @@ Admin monitoring page должна показывать не только persis
 4. Background polling и operator-triggered manual refresh используют один backend refresh subsystem.
 5. Persisted monitoring artifacts остаются restore/audit artifacts, а не frontend delivery source.
 6. Refresh subsystem обновляет memory state first и persistence second.
+7. Если provider-specific monitoring даёт сильный сигнал восстановления quota, refresh subsystem может инициировать router reconciliation, но owner routing truth остаётся router.
 
 ## Read-model semantics
 
@@ -48,6 +49,11 @@ Provider page обязана различать:
 
 - account может уже быть `quota_blocked` или `cooldown`, даже если monitoring snapshot ещё stale;
 - UI должен показывать operator truth сразу, не дожидаясь нового upstream usage snapshot.
+
+Provider-specific note for [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1):
+
+- successful refresh с `long_window.used_percent < 0.1` трактуется как strong evidence of long-window reset;
+- refresh subsystem может после такого snapshot вызвать router reconcile path и снять persisted/in-memory quota exhaustion у account.
 
 ## Refresh scopes
 

@@ -60,6 +60,7 @@ Non-scope:
 - REQ-PROVIDER-SENTINEL: для `per_provider` используется ключ `__provider__`.
 - REQ-GROUP-SNAPSHOT: пишется snapshot `quota_state.json` для `(provider_id, group_id)` и содержит только числа/доли.
 - REQ-ASYNC-WRITER: запись state на диск async, периодический flush.
+- REQ-ROUTER-UNBLOCK-FLUSH: provider-specific router unblock path может делать immediate persisted cleanup для `account_state.json`, если нужно синхронно убрать stale exhausted marker.
 - REQ-WRITER-SWAP: writer flush делает swap `pending -> to_flush`.
 - REQ-WRITER-MERGEBACK: при ошибке записи writer merge-back `to_flush` в `pending` без затирания более свежих значений.
 - REQ-WRITER-SHUTDOWN: при graceful shutdown writer делает best-effort final flush.
@@ -100,6 +101,10 @@ Non-scope:
 
 - TC-CD-RESTORE-1 (L1): Given `last_cooldown_at = now - 1s` и `rate_limit_cooldown_seconds=5`, When restart+hydrate, Then аккаунт считается в cooldown.
 - TC-CD-RESTORE-2 (L1): Given `last_cooldown_at = now - 10s` и `rate_limit_cooldown_seconds=5`, Then аккаунт не в cooldown.
+
+### REQ-ROUTER-UNBLOCK-FLUSH
+
+- TC-UNBLOCK-1 (L1/L3): Given provider-specific monitoring refresh снял quota block через router reconciliation, When unblock completed, Then `account_state.json` больше не содержит stale `quota_exhausted.keys` и restart/hydrate не возвращает old block.
 
 ### REQ-QUOTA-SCOPE + REQ-PROVIDER-SENTINEL
 

@@ -311,6 +311,12 @@ Writer использует coalesce map (last-write-wins buffer):
 | `request_usage.json` | runtime request-usage collector | shared async writer only | admin read-model | request-driven observability state |
 | [`quota_state.json`](docs/contracts/state/group-quota-state.schema.json:1) | router snapshot builder | shared async writer only | admin read-model | derived group snapshot |
 
+Provider-specific exception already materialized for [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1):
+
+- monitoring refresh может инициировать router reconciliation, если provider monitoring даёт strong recovery signal;
+- сам routing truth всё равно меняет только router;
+- для unblock cleanup router может выполнять immediate persisted write для конкретного `account_state.json`, чтобы stale exhausted marker не пережил restart.
+
 ## Admin read-model boundary
 
 Frontend не должен читать state files напрямую.

@@ -191,7 +191,21 @@ Long window трактуется как rolling weekly quota:
 
 - weekly saturation сама по себе не создаёт новый public API error code;
 - long window может использоваться как routing hint и admin monitoring signal;
-- polling может сократить блокировку при частичном восстановлении rolling window.
+- polling может сократить блокировку при восстановлении rolling window.
+
+Для текущего runtime `openai-chatgpt` фиксируется provider-specific reconciliation rule:
+
+- если monitoring refresh успешно materialize-ил fresh snapshot;
+- и `long_window.used_percent < 0.1`;
+- и account сейчас помечен роутером как quota exhausted / `quota_blocked`;
+- то monitoring subsystem подаёт router-owned signal на clear exhausted state для этого account.
+
+Границы ответственности при этом не меняются:
+
+- `usage_windows.json` остаётся monitoring truth;
+- `account_state.json` остаётся router-owned routing truth;
+- monitoring не мутирует `account_state.json` напрямую, а вызывает router reconciliation path;
+- router очищает и in-memory exhausted state, и persisted `account_state.json`, чтобы block не вернулся после restart/hydrate.
 
 ## Public `429` boundary
 
