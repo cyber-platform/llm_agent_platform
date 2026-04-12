@@ -26,6 +26,7 @@
 | `TS-ADMIN-MONITORING-REFRESH` | [`admin-monitoring-refresh.md`](docs/testing/suites/admin-monitoring-refresh.md) | Provider-wide monitoring refresh manager, manual refresh endpoints and operator progress contract for `openai-chatgpt` | [`services/backend/llm_agent_platform/tests/test_admin_monitoring_refresh.py`](services/backend/llm_agent_platform/tests/test_admin_monitoring_refresh.py:1) | active |
 | `TS-OPENAI-CHATGPT-POC-SMOKE` | [`openai-chatgpt-poc-smoke.md`](docs/testing/suites/openai-chatgpt-poc-smoke.md) | Final PoC smoke contour across key lifecycle, monitoring payload compatibility and checked-in local/public delivery boundary | [`services/backend/llm_agent_platform/tests/test_openai_chatgpt_poc_smoke.py`](services/backend/llm_agent_platform/tests/test_openai_chatgpt_poc_smoke.py:1), `services/frontend` build smoke | active |
 | `TS-SERVICE-HEALTH-CHECKS` | [`service-health-checks.md`](docs/testing/suites/service-health-checks.md) | Service-wide `/health` and compose probe contour for `backend`, `frontend` and `user_service` | [`services/backend/llm_agent_platform/tests/test_service_health_checks.py`](services/backend/llm_agent_platform/tests/test_service_health_checks.py:1) | active |
+| `TS-USER-SERVICE-PLATFORM-AUTH` | [`user-service-platform-auth.md`](docs/testing/suites/user-service-platform-auth.md) | `user_service` login/JWT baseline, role claims and checked-in shared-secret wiring for `PoC2` | [`services/user_service/tests/test_auth_baseline.py`](services/user_service/tests/test_auth_baseline.py:1) | active |
 | `TS-CONFIG-ENV-AND-LAYOUT` | [`config-env-and-layout.md`](docs/testing/suites/config-env-and-layout.md) | Env split, runtime package layout and verification command alignment | manual + smoke scripts | planned |
 
 ## Runbook
@@ -37,6 +38,7 @@
 - Целевая проверка admin monitoring refresh: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_refresh.py`
 - Целевая runtime-проверка `openai-chatgpt`: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
 - Целевая проверка service health contour: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_service_health_checks.py`
+- Целевая проверка `user_service` auth baseline: `cd services/user_service && uv run pytest tests/test_auth_baseline.py`
 - Финальный PoC smoke contour: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_poc_smoke.py`
 - Frontend build smoke для текущего PoC: `npm run build` (из `services/frontend`)
 

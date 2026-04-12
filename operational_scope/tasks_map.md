@@ -4,9 +4,14 @@
 
 Выполненные PoC-задачи остаются в individual task artifacts и больше не дублируются в этом индексе.
 
+## Недавние завершения
+
 | Задача | Статус | Файл |
 | --- | --- | --- |
-| Адаптация `user_service` под platform auth baseline для `PoC2` | planned | [`operational_scope/tasks/055-user-service-platform-auth-baseline.md`](operational_scope/tasks/055-user-service-platform-auth-baseline.md:1) |
+| Адаптация `user_service` под platform auth baseline для `PoC2` | completed | [`operational_scope/tasks/055-user-service-platform-auth-baseline.md`](operational_scope/tasks/055-user-service-platform-auth-baseline.md:1) |
+
+| Задача | Статус | Файл |
+| --- | --- | --- |
 | Backend admin JWT guard через `user_service` shared-secret baseline | planned | [`operational_scope/tasks/056-backend-admin-jwt-guard-via-user-service.md`](operational_scope/tasks/056-backend-admin-jwt-guard-via-user-service.md:1) |
 | Frontend login page и protected admin shell для `PoC2` | planned | [`operational_scope/tasks/057-frontend-login-and-protected-admin-shell.md`](operational_scope/tasks/057-frontend-login-and-protected-admin-shell.md:1) |
 | Документирование архитектуры ПО и навигационной структуры docs | ongoing | [`operational_scope/tasks/041-software-architecture-documentation.md`](operational_scope/tasks/041-software-architecture-documentation.md:1) |

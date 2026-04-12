@@ -249,6 +249,39 @@ Runtime invariant для `LLM provider`:
 
 ---
 
+## 6) `user_service` platform auth baseline для `PoC2`
+
+Для operator/admin auth текущего `PoC2` используется отдельный identity boundary `services/user_service`.
+
+### Freeze baseline
+
+- `POST /auth/login` в `services/user_service` выдает access token для login flow.
+- `services/backend` валидирует этот JWT через shared secret; introspection/public-key flow в быстрый контур не входят.
+- Канонический env name для shared secret: `JWT_SHARED_SECRET`.
+- Для backward compatibility `services/user_service` временно принимает и legacy `SECRET_KEY`, но platform assembly должна переходить на `JWT_SHARED_SECRET`.
+- `developer` остается source role в JWT claims; backend делает mapping `developer -> admin` только внутри `/admin/*` guard.
+
+### JWT payload baseline
+
+Текущий access token должен содержать минимум:
+
+- `sub`
+- `user_id`
+- `role`
+- `roles`
+- `iss`
+- `iat`
+- `exp`
+
+Это quick baseline только для `PoC2`; future `observer/admin` hardening остается в [`operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md`](operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md:1).
+
+### Verification
+
+- `cd services/user_service && uv run pytest tests/test_auth_baseline.py`
+- `curl -X POST http://127.0.0.1:8010/auth/login -H 'Content-Type: application/x-www-form-urlencoded' -d 'username=<user>&password=<password>'`
+
+---
+
 ## ⚠️ Известные проблемы с VS Code терминалом
 
 ### Проблема: ложное прерывание скрипта

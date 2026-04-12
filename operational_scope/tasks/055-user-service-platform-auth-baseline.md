@@ -64,8 +64,40 @@
 - Brute-force protection не теряется.
 - Есть verification notes для login и JWT issuance path.
 
-## Initial status
+## Execution notes
 
-- Current State: planned.
-- Next Step: materialize auth baseline для dependency chain `user_service -> backend -> frontend`.
+- `services/user_service` сохранил existing `/auth/login` route и brute-force behavior, но теперь выдает JWT с явными platform claims для backend admin guard baseline.
+- Shared-secret integration path materialized через `JWT_SHARED_SECRET`; при этом сохранен временный fallback на legacy `SECRET_KEY`, чтобы не ломать текущий локальный contour.
+- JWT payload нормализован до минимального набора `sub`, `user_id`, `role`, `roles`, `iss`, `iat`, `exp` без переноса future hardening semantics в `PoC2` baseline.
+- Login response теперь возвращает `role`, чтобы frontend/login shell мог синхронизировать локальный auth state без дополнительного profile roundtrip.
+
+## Materialized changes
+
+- В [`services/user_service/app/core/config.py`](../../services/user_service/app/core/config.py) введен явный settings path `JWT_SHARED_SECRET` с backward-compatible fallback на `SECRET_KEY` и issuer baseline `user_service`.
+- В [`services/user_service/app/core/security.py`](../../services/user_service/app/core/security.py) JWT signing переведен на shared-secret settings path; токены теперь получают `iss` и `iat` вместе с `exp`.
+- В [`services/user_service/app/api/auth.py`](../../services/user_service/app/api/auth.py) добавлен helper `build_access_token_claims()` и login payload/response с `role` и `roles[]` claims.
+- В [`services/user_service/docker-compose-dev.yml`](../../services/user_service/docker-compose-dev.yml), [`services/user_service/docker-compose-prod.yml`](../../services/user_service/docker-compose-prod.yml) и [`services/user_service/.env.example`](../../services/user_service/.env.example) checked-in env wiring переведено на `JWT_SHARED_SECRET`.
+- В [`services/user_service/tests/test_auth_baseline.py`](../../services/user_service/tests/test_auth_baseline.py) добавлен suite `TS-USER-SERVICE-PLATFORM-AUTH` для settings alias, role-claims и JWT issuance baseline.
+- В [`docs/auth.md`](../../docs/auth.md), [`docs/testing/suites/user-service-platform-auth.md`](../../docs/testing/suites/user-service-platform-auth.md) и [`docs/testing/test-map.md`](../../docs/testing/test-map.md) зафиксированы canonical verification notes для текущего auth contour.
+
+## Verification trail
+
+- `cd services/user_service && uv run pytest tests/test_auth_baseline.py`
+- `cd services/user_service && docker compose -f docker-compose-dev.yml config`
+- `cd services/user_service && docker compose -f docker-compose-prod.yml config`
+
+## Handoff context
+
+- Task закрывает dependency для backend admin JWT guard и frontend login flow, не вводя refresh tokens, introspection endpoint или separate `observer` role.
+- Backend должен трактовать `developer` как `admin` внутри собственного `/admin/*` guard; это mapping остается backend-owned semantics.
+- Future hardening и полноформатный RBAC по-прежнему вынесены в [`operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md`](../plans/040-admin-surface-auth-and-rbac-hardening.md).
+- Следующий агент может опираться на то, что canonical shared-secret env name уже зафиксирован как `JWT_SHARED_SECRET`, а legacy `SECRET_KEY` оставлен только как compatibility fallback в `user_service`.
+- Checked-in test coverage для этого baseline живет в [`services/user_service/tests/test_auth_baseline.py`](../../services/user_service/tests/test_auth_baseline.py) и покрывает alias env, claim shape и JWT decode path c issuer verification.
+- Compose validation для `services/user_service` уже выполнена после перевода env wiring на `JWT_SHARED_SECRET`; additional compose changes для этой задачи не требуются.
+- При verification были замечены только существующие deprecation warnings из [`services/user_service/app/db/base.py`](../../services/user_service/app/db/base.py) и [`services/user_service/app/schemas/user.py`](../../services/user_service/app/schemas/user.py); они не блокируют текущий auth baseline.
+
+## Final status
+
+- Current State: completed.
+- Verification: `cd services/user_service && uv run pytest tests/test_auth_baseline.py`
 - Blockers: none.
