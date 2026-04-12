@@ -57,6 +57,13 @@
 
 ## Execution Status
 
-- Current State: запланирована.
-- Next Step: materialize dev proxy config и demo exposure runbook.
+- Current State: выполнена.
+- Next Step: использовать current checked-in delivery boundary как PoC baseline до отдельного ingress/auth hardening stage.
 - Blockers: none.
+
+## Completion Notes
+
+- Local dev proxy materialized в `services/frontend/config/dev-server.json`: frontend proxy-ит `/admin` и `/openai-chatgpt` на backend `http://127.0.0.1:4000`.
+- Checked-in container delivery boundary materialized в `docker-compose.yml`: backend и frontend публикуются только на localhost (`127.0.0.1:4000` и `127.0.0.1:4173`).
+- PoC operator frontend остается local-only service, а machine-facing public namespace ограничивается `openai-chatgpt` API boundary по accepted delivery model из `docs/adr/0024-poc-operator-frontend-delivery-boundary.md`.
+- Финальный smoke contour `TS-OPENAI-CHATGPT-POC-SMOKE` фиксирует проверку local/public boundary: frontend и admin surface остаются локальными, внешний demo path должен публиковать только `/openai-chatgpt/*`.

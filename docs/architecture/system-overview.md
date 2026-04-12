@@ -93,6 +93,8 @@ flowchart LR
 ## Status notes
 
 - OpenAI pipeline, `LLM provider`-centric routing, `abstract provider` registry, auth, quota router и state persistence materialized в runtime code.
+- Group-scoped platform API key auth guard для public `openai-chatgpt` OpenAI-compatible API materialized и входит в working PoC baseline.
 - Admin monitoring read-model, live refresh subsystem и memory-first monitoring runtime materialized для `openai-chatgpt` в границе current single-instance PoC.
 - Local-only operator `Web UI` slice materialized как отдельный frontend service в nested repo [`services/frontend/`](services/frontend:1) и использует только backend admin API.
+- Current PoC delivery boundary already distinguishes local-only operator/admin surface from machine-facing public `/<provider>/v1/*` exposure path.
 - `LLM provider`-specific details и materialization boundary должны уточняться на страницах в [`docs/providers/`](docs/providers:1).

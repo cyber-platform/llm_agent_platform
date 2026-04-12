@@ -77,6 +77,14 @@ State model:
 
 ## Execution Status
 
-- Current State: запланирована.
-- Next Step: materialize frontend app shell и provider page.
-- Blockers: зависит от tasks 042 и 044.
+- Current State: выполнена.
+- Next Step: использовать current frontend slice как baseline для future multi-provider UI decisions, не смешивая его с full target Web UI.
+- Blockers: none.
+
+## Completion Notes
+
+- В `services/frontend/` materialized отдельный React frontend для local-only operator UX.
+- Provider-focused page для `openai-chatgpt` покрывает monitoring page, group selector, account activation, API key list/create/revoke flows и manual refresh banner/status UX.
+- Frontend читает только backend admin API и не зависит от direct filesystem access.
+- Same-origin local delivery обеспечивается через dev proxy config в `services/frontend/config/dev-server.json` и runtime config в `services/frontend/public/runtime-config.json`.
+- Build smoke зафиксирован в `docs/testing/suites/openai-chatgpt-poc-smoke.md` и проходит через `npm run build` в `services/frontend`.

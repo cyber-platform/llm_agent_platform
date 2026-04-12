@@ -27,6 +27,14 @@
 
 - [`docs/contracts/api/openai/errors/401-invalid-api-key-error.schema.json`](docs/contracts/api/openai/errors/401-invalid-api-key-error.schema.json:1)
 
+Для local operator/admin PoC также materialized provider-scoped admin key-management boundary:
+
+- `GET /admin/api-keys/openai-chatgpt?group_id=<group_id>`
+- `POST /admin/api-keys/openai-chatgpt`
+- `POST /admin/api-keys/openai-chatgpt/<key_id>/revoke`
+
+Эти маршруты остаются local-only admin surface и не являются частью public machine-facing API.
+
 ## Catalog strategy
 
 Текущий канон для [`openai-chatgpt`](llm_agent_platform/provider_registry/providers/openai-chatgpt.json:1):
@@ -261,6 +269,7 @@ No-auth admin surface допустима только как local single-user P
 - admin API и operator Web UI допустимы без auth только в локальной/private delivery boundary;
 - internet exposure допускается только для machine-facing OpenAI-compatible surface;
 - platform API keys не используются как admin auth substitute.
+- local frontend работает через backend/admin proxy path, а checked-in PoC delivery boundary держит frontend и admin surface только на localhost.
 
 Future hardening вынесен в [`operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md`](operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md:1).
 
