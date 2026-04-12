@@ -64,8 +64,39 @@ Health-check нужен как для локальной сборки, так и
 - Если нужны изменения в compose/runtime assembly, они materialized.
 - Есть минимальный verification trail с примерами проверки.
 
-## Initial status
+## Execution notes
 
-- Current State: planned.
-- Next Step: выполнить task как первый технический шаг Priority 1.
+- `services/backend` получил явный `GET /health` с легким JSON payload `{"status": "ok", "service": "backend"}`.
+- `services/frontend` нормализован через `nginx` endpoint `GET /health` и compose-level probe для root delivery contour.
+- `services/user_service` сохранил существующий `GET /health`; для `dev` и `prod` compose добавлен явный container healthcheck.
+- Минимальный verification trail зафиксирован в [`docs/testing/suites/service-health-checks.md`](../../docs/testing/suites/service-health-checks.md) и backend suite [`services/backend/llm_agent_platform/tests/test_service_health_checks.py`](../../services/backend/llm_agent_platform/tests/test_service_health_checks.py).
+
+## Materialized changes
+
+- В [`services/backend/llm_agent_platform/__main__.py`](../../services/backend/llm_agent_platform/__main__.py) добавлен route-level health endpoint без привязки к auth, monitoring refresh или provider-specific runtime.
+- В [`services/frontend/nginx.conf`](../../services/frontend/nginx.conf) добавлен standalone `location = /health`, возвращающий статический JSON, чтобы frontend health probe не зависел от SPA bundle или backend proxy.
+- В [`docker-compose.yml`](../../docker-compose.yml) и [`docker-compose-dev.yml`](../../docker-compose-dev.yml) добавлены `healthcheck` секции для `backend` и `frontend`; backend probe использует Python stdlib request к `http://127.0.0.1:4000/health`, frontend probe использует `wget` к `http://127.0.0.1/health`.
+- В [`services/user_service/docker-compose-dev.yml`](../../services/user_service/docker-compose-dev.yml) и [`services/user_service/docker-compose-prod.yml`](../../services/user_service/docker-compose-prod.yml) добавлены `healthcheck` секции для API-контейнера поверх существующего endpoint `http://127.0.0.1:8000/health`.
+- В [`services/backend/llm_agent_platform/tests/test_service_health_checks.py`](../../services/backend/llm_agent_platform/tests/test_service_health_checks.py) добавлен suite `TS-SERVICE-HEALTH-CHECKS`, который проверяет backend endpoint contract и checked-in probe wiring для frontend и `user_service`.
+- В [`docs/testing/suites/service-health-checks.md`](../../docs/testing/suites/service-health-checks.md) создана suite page; в [`docs/testing/test-map.md`](../../docs/testing/test-map.md) добавлен индекс этого verification contour.
+- В [`services/user_service/docker-compose-prod.yml`](../../services/user_service/docker-compose-prod.yml) одновременно удален obsolete `version` field после compose validation warning, чтобы checked-in prod compose оставался clean.
+
+## Verification trail
+
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_service_health_checks.py` -> `OK`.
+- `docker compose -f docker-compose.yml config` -> `OK`.
+- `docker compose -f docker-compose-dev.yml config` -> `OK`.
+- `cd services/user_service && docker compose -f docker-compose-dev.yml config` -> `OK`.
+- `cd services/user_service && docker compose -f docker-compose-prod.yml config` -> `OK`.
+
+## Handoff context
+
+- Task закрыт как completed; активный backlog в [`operational_scope/tasks_map.md`](../tasks_map.md) больше не содержит задачу `054`.
+- Получившийся baseline intentionally lightweight: это только cheap health contour для локальной сборки и дальнейшего monitoring/deploy слоя, без readiness/liveness split и без deep dependency diagnostics.
+- Следующие PoC2 задачи могут безопасно опираться на наличие стабильных probes у всех трех runtime services.
+
+## Final status
+
+- Current State: completed.
+- Verification: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_service_health_checks.py`
 - Blockers: none.

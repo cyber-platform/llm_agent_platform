@@ -6,7 +6,6 @@
 
 | Задача | Статус | Файл |
 | --- | --- | --- |
-| Service-wide health-check endpoints для `backend`, `frontend` и `user_service` | planned | [`operational_scope/tasks/054-service-wide-health-check-endpoints.md`](operational_scope/tasks/054-service-wide-health-check-endpoints.md:1) |
 | Адаптация `user_service` под platform auth baseline для `PoC2` | planned | [`operational_scope/tasks/055-user-service-platform-auth-baseline.md`](operational_scope/tasks/055-user-service-platform-auth-baseline.md:1) |
 | Backend admin JWT guard через `user_service` shared-secret baseline | planned | [`operational_scope/tasks/056-backend-admin-jwt-guard-via-user-service.md`](operational_scope/tasks/056-backend-admin-jwt-guard-via-user-service.md:1) |
 | Frontend login page и protected admin shell для `PoC2` | planned | [`operational_scope/tasks/057-frontend-login-and-protected-admin-shell.md`](operational_scope/tasks/057-frontend-login-and-protected-admin-shell.md:1) |
