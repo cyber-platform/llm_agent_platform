@@ -4,6 +4,8 @@
 
 ---
 
+![screen](docs/pictures/LLM_platform-monitornig-quota.png)
+
 ## ✨ Что дает платформа
 
 1. **Единый OpenAI-compatible вход для агентных инструментов**
