@@ -27,5 +27,7 @@ tmp/
 # Nested Git repositories
 tools/repo-archiver/
 .kilo/
+kilo.jsonc
+.vscode
 sot_layers/hyper-graph/
 services/frontend/
