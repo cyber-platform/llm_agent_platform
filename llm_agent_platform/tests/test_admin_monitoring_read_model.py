@@ -334,6 +334,149 @@ class AdminMonitoringReadModelTests(unittest.TestCase):
         self.assertEqual(acct_1["routing"]["block_reason"], "rate_limit_cooldown")
         self.assertEqual(selected.account.name, "acct-2")
 
+    def test_provider_page_keeps_runtime_snapshot_after_persisted_files_change(self):
+        """Keeps serving hydrated runtime state instead of rereading persisted files.
+
+        Test case: TC-ADMIN-MONITORING-READ-MODEL-004
+        Requirement: admin monitoring page reads process-local runtime state after startup hydration.
+        """
+
+        with _tmp_state_dir() as tmp_dir:
+            creds_path = tmp_dir / "openai-chatgpt" / "auth" / "oauth-account.json"
+            accounts_config_path = tmp_dir / "openai_accounts_config.json"
+            creds_path.parent.mkdir(parents=True, exist_ok=True)
+            creds_path.write_text("{}", encoding="utf-8")
+            self._write_json(
+                accounts_config_path,
+                self._openai_accounts_config(str(creds_path)),
+            )
+            self._seed_monitoring_files(tmp_dir)
+
+            with self._patched_paths(tmp_dir, accounts_config_path):
+                first_response = self.client.get("/admin/monitoring/openai-chatgpt")
+                self._write_json(
+                    tmp_dir
+                    / "openai-chatgpt"
+                    / "accounts"
+                    / "acct-1"
+                    / "usage_windows.json",
+                    {
+                        "version": 1,
+                        "provider_id": "openai-chatgpt",
+                        "short_window": {"used_percent": 99.0, "window_minutes": 60},
+                        "long_window": {"used_percent": 88.0, "window_minutes": 10080},
+                        "refresh": {
+                            "last_refreshed_at": self._iso_now(-5),
+                            "next_refresh_at": self._iso_now(300),
+                            "refresh_interval_seconds": 300,
+                            "status": "ok",
+                            "last_error": None,
+                        },
+                    },
+                )
+                self._write_json(
+                    tmp_dir
+                    / "openai-chatgpt"
+                    / "accounts"
+                    / "acct-1"
+                    / "request_usage.json",
+                    {
+                        "version": 1,
+                        "provider_id": "openai-chatgpt",
+                        "request_counters": {
+                            "total_requests": 999,
+                            "successful_requests": 999,
+                            "failed_requests": 0,
+                            "last_request_at": self._iso_now(-1),
+                        },
+                    },
+                )
+                second_response = self.client.get("/admin/monitoring/openai-chatgpt")
+
+        first_payload = first_response.get_json()
+        second_payload = second_response.get_json()
+        first_acct_1 = next(
+            item
+            for item in first_payload["groups"][0]["accounts"]
+            if item["account_name"] == "acct-1"
+        )
+        second_acct_1 = next(
+            item
+            for item in second_payload["groups"][0]["accounts"]
+            if item["account_name"] == "acct-1"
+        )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(first_acct_1["short_window"]["used_percent"], 12.5)
+        self.assertEqual(second_acct_1["short_window"]["used_percent"], 12.5)
+        self.assertEqual(
+            second_acct_1["drawer"]["raw_request_usage_payload"]["request_counters"][
+                "total_requests"
+            ],
+            9,
+        )
+
+    def test_provider_page_ignores_legacy_limits_files_on_read_path(self):
+        """Does not use legacy limits.json as a live monitoring input.
+
+        Test case: TC-ADMIN-MONITORING-READ-MODEL-005
+        Requirement: admin monitoring read-model does not depend on legacy limits.json.
+        """
+
+        with _tmp_state_dir() as tmp_dir:
+            creds_path = tmp_dir / "openai-chatgpt" / "auth" / "oauth-account.json"
+            accounts_config_path = tmp_dir / "openai_accounts_config.json"
+            creds_path.parent.mkdir(parents=True, exist_ok=True)
+            creds_path.write_text("{}", encoding="utf-8")
+            self._write_json(
+                accounts_config_path,
+                self._openai_accounts_config(str(creds_path)),
+            )
+            self._write_json(
+                tmp_dir
+                / "openai-chatgpt"
+                / "usage"
+                / "accounts"
+                / "acct-1"
+                / "limits.json",
+                {
+                    "account_id": "legacy-acct-1",
+                    "as_of": self._iso_now(-30),
+                    "limits": {
+                        "primary": {"used_percent": 77, "window": "60m"},
+                        "secondary": {"used_percent": 55, "window": "10080m"},
+                    },
+                    "metadata": {
+                        "usage": {
+                            "prompt_tokens": 1,
+                            "completion_tokens": 2,
+                            "total_tokens": 3,
+                        }
+                    },
+                },
+            )
+
+            with self._patched_paths(tmp_dir, accounts_config_path):
+                response = self.client.get("/admin/monitoring/openai-chatgpt")
+
+        payload = response.get_json()
+        acct_1 = next(
+            item
+            for item in payload["groups"][0]["accounts"]
+            if item["account_name"] == "acct-1"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(acct_1["short_window"]["used_percent"], 0.0)
+        self.assertEqual(acct_1["long_window"]["used_percent"], 0.0)
+        self.assertEqual(
+            acct_1["drawer"]["raw_request_usage_payload"]["request_counters"][
+                "total_requests"
+            ],
+            0,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

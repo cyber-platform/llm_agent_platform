@@ -337,6 +337,132 @@ class AdminMonitoringRefreshTests(unittest.TestCase):
         self.assertEqual(payload["groups"][0]["refresh"]["status"], "completed")
         self.assertEqual(payload["groups"][0]["refresh"]["successful_accounts"], 2)
 
+    def test_refresh_normalizes_single_upstream_window_without_falling_back_to_stale(
+        self,
+    ):
+        """Preserves single-window upstream snapshots instead of collapsing to stale defaults.
+
+        Test case: TC-ADMIN-MONITORING-REFRESH-006
+        Requirement: a partial usage-limits snapshot still materializes a fresh monitoring payload.
+        """
+
+        with _tmp_state_dir() as tmp_dir:
+            accounts_config_path = self._seed_files(tmp_dir)
+
+            def fetch_snapshot(_adapter_self):
+                return {
+                    "version": 1,
+                    "provider_id": "openai-chatgpt",
+                    "as_of": "2026-01-01T00:00:00Z",
+                    "limits": {
+                        "primary": {
+                            "used_percent": 18,
+                            "window": "10080m",
+                            "metadata": {"limit_window_seconds": 604800},
+                        }
+                    },
+                }
+
+            with (
+                self._patched_paths(tmp_dir, accounts_config_path),
+                patch(
+                    "llm_agent_platform.services.openai_chatgpt_admin_monitoring.OpenAIChatGptUsageLimitsAdapter.fetch_snapshot",
+                    new=fetch_snapshot,
+                ),
+            ):
+                response = self.client.post("/admin/monitoring/openai-chatgpt/refresh")
+                self._poll_terminal_status(response.get_json()["refresh_id"])
+                acct_1_usage = get_usage_windows("acct-1")
+
+        self.assertEqual(acct_1_usage["refresh"]["status"], "fresh")
+        self.assertEqual(acct_1_usage["short_window"]["window_minutes"], 1)
+        self.assertEqual(acct_1_usage["long_window"]["window_minutes"], 10080)
+        self.assertEqual(acct_1_usage["long_window"]["used_percent"], 18.0)
+
+    def test_refresh_updates_runtime_before_persistence_flush(self):
+        """Keeps live runtime state fresh even when the durability flush fails.
+
+        Test case: TC-ADMIN-MONITORING-REFRESH-007
+        Requirement: refresh mutates memory first and persistence remains secondary.
+        """
+
+        with _tmp_state_dir() as tmp_dir:
+            accounts_config_path = self._seed_files(tmp_dir)
+            self._write_json(
+                tmp_dir
+                / "openai-chatgpt"
+                / "accounts"
+                / "acct-1"
+                / "usage_windows.json",
+                {
+                    "version": 1,
+                    "provider_id": "openai-chatgpt",
+                    "short_window": {"used_percent": 7.0, "window_minutes": 60},
+                    "long_window": {"used_percent": 14.0, "window_minutes": 10080},
+                    "refresh": {
+                        "last_refreshed_at": "2026-01-01T00:00:00Z",
+                        "next_refresh_at": "2026-01-01T00:10:00Z",
+                        "refresh_interval_seconds": 600,
+                        "status": "ok",
+                        "last_error": None,
+                    },
+                },
+            )
+
+            def fetch_snapshot(_adapter_self):
+                return {
+                    "version": 1,
+                    "provider_id": "openai-chatgpt",
+                    "as_of": "2026-01-02T00:00:00Z",
+                    "limits": {
+                        "primary": {"used_percent": 61, "window": "60m"},
+                        "secondary": {"used_percent": 91, "window": "10080m"},
+                    },
+                }
+
+            def fail_usage_windows_write(path, payload):
+                if path.name == "usage_windows.json":
+                    raise OSError("disk flush failed")
+                self.fail(f"unexpected persisted write: {path}")
+
+            with (
+                self._patched_paths(tmp_dir, accounts_config_path),
+                patch(
+                    "llm_agent_platform.services.openai_chatgpt_admin_monitoring.OpenAIChatGptUsageLimitsAdapter.fetch_snapshot",
+                    new=fetch_snapshot,
+                ),
+                patch(
+                    "llm_agent_platform.services.openai_chatgpt_admin_monitoring._write_json",
+                    new=fail_usage_windows_write,
+                ),
+            ):
+                response = self.client.post("/admin/monitoring/openai-chatgpt/refresh")
+                payload = self._poll_terminal_status(response.get_json()["refresh_id"])
+                runtime_usage = get_usage_windows("acct-1")
+                page_response = self.client.get("/admin/monitoring/openai-chatgpt")
+
+            persisted_usage = json.loads(
+                (
+                    tmp_dir
+                    / "openai-chatgpt"
+                    / "accounts"
+                    / "acct-1"
+                    / "usage_windows.json"
+                ).read_text(encoding="utf-8")
+            )
+        page_payload = page_response.get_json()
+        acct_1 = next(
+            item
+            for item in page_payload["groups"][0]["accounts"]
+            if item["account_name"] == "acct-1"
+        )
+
+        self.assertEqual(payload["status"], "completed")
+        self.assertEqual(runtime_usage["short_window"]["used_percent"], 61.0)
+        self.assertEqual(runtime_usage["refresh"]["status"], "fresh")
+        self.assertEqual(acct_1["short_window"]["used_percent"], 61.0)
+        self.assertEqual(persisted_usage["short_window"]["used_percent"], 7.0)
+
 
 if __name__ == "__main__":
     unittest.main()

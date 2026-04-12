@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from copy import deepcopy
 from dataclasses import dataclass, field
 import json
 import threading
@@ -30,8 +31,17 @@ ACTIVATE_SEMANTICS = "session_scoped_in_memory_preferred_account_override"
 DEFAULT_REFRESH_INTERVAL_SECONDS = 10
 
 _cache_lock = threading.Lock()
-_usage_windows_cache: dict[tuple[str, str], dict[str, Any]] = {}
-_request_usage_cache: dict[tuple[str, str], dict[str, Any]] = {}
+
+
+@dataclass(slots=True)
+class _MonitoringRuntimeState:
+    initialized: bool = False
+    hydrated_accounts: set[str] = field(default_factory=set)
+    usage_windows_by_account: dict[str, dict[str, Any]] = field(default_factory=dict)
+    request_usage_by_account: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+
+_runtime_state = _MonitoringRuntimeState()
 
 
 class MonitoringReadModelError(RuntimeError):
@@ -405,7 +415,11 @@ class _MonitoringRefreshManager:
 
     def _refresh_account(self, credentials_path: str, account_name: str) -> None:
         snapshot = OpenAIChatGptUsageLimitsAdapter(credentials_path).fetch_snapshot()
-        save_usage_windows(account_name, snapshot)
+        normalized = _store_runtime_usage_windows(account_name, snapshot)
+        try:
+            _persist_usage_windows(account_name, normalized)
+        except Exception:
+            pass
 
     def _mark_account_result(
         self,
@@ -428,7 +442,7 @@ class _MonitoringRefreshManager:
             )
 
     def _persist_refresh_error(self, account_name: str, error_message: str) -> None:
-        payload = get_usage_windows(account_name)
+        payload = _get_runtime_usage_windows(account_name)
         refresh = dict(payload.get("refresh") or {})
         refresh["status"] = "error"
         refresh["last_error"] = error_message
@@ -436,7 +450,11 @@ class _MonitoringRefreshManager:
             _utc_now() + timedelta(seconds=_refresh_interval_seconds())
         )
         payload["refresh"] = refresh
-        save_usage_windows(account_name, payload)
+        normalized = _store_runtime_usage_windows(account_name, payload)
+        try:
+            _persist_usage_windows(account_name, normalized)
+        except Exception:
+            pass
 
     def _finish_run(self, refresh_id: str, status: str) -> None:
         with self._lock:
@@ -597,6 +615,18 @@ def _default_usage_windows_payload() -> dict[str, Any]:
     }
 
 
+def _default_request_usage_payload() -> dict[str, Any]:
+    return {
+        "version": 1,
+        "provider_id": PROVIDER_ID,
+        "request_counters": {
+            "total_requests": 0,
+            "successful_requests": 0,
+            "failed_requests": 0,
+        },
+    }
+
+
 def _normalize_usage_windows_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if "short_window" in payload and "long_window" in payload and "refresh" in payload:
         normalized = dict(payload)
@@ -620,8 +650,28 @@ def _normalize_usage_windows_payload(payload: dict[str, Any]) -> dict[str, Any]:
         return _default_usage_windows_payload()
     primary = limits.get("primary")
     secondary = limits.get("secondary")
-    if not isinstance(primary, dict) or not isinstance(secondary, dict):
+    if not isinstance(primary, dict) and not isinstance(secondary, dict):
         return _default_usage_windows_payload()
+
+    short_window = {"used_percent": 0.0, "window_minutes": 1}
+    long_window = {"used_percent": 0.0, "window_minutes": 1}
+    normalized_primary = (
+        _normalize_window(primary) if isinstance(primary, dict) else None
+    )
+    normalized_secondary = (
+        _normalize_window(secondary) if isinstance(secondary, dict) else None
+    )
+
+    if normalized_primary is not None and normalized_secondary is not None:
+        short_window = normalized_primary
+        long_window = normalized_secondary
+    elif normalized_primary is not None:
+        if int(normalized_primary.get("window_minutes", 0) or 0) >= 1440:
+            long_window = normalized_primary
+        else:
+            short_window = normalized_primary
+    elif normalized_secondary is not None:
+        long_window = normalized_secondary
 
     as_of = (
         payload.get("as_of")
@@ -632,8 +682,8 @@ def _normalize_usage_windows_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "version": 1,
         "provider_id": PROVIDER_ID,
         "account_id": payload.get("account_id"),
-        "short_window": _normalize_window(primary),
-        "long_window": _normalize_window(secondary),
+        "short_window": short_window,
+        "long_window": long_window,
         "refresh": {
             "last_refreshed_at": as_of,
             "next_refresh_at": _isoformat(
@@ -657,15 +707,7 @@ def _normalize_request_usage_payload(payload: dict[str, Any]) -> dict[str, Any]:
     metadata = payload.get("metadata")
     usage = metadata.get("usage") if isinstance(metadata, dict) else None
     if not isinstance(usage, dict):
-        return {
-            "version": 1,
-            "provider_id": PROVIDER_ID,
-            "request_counters": {
-                "total_requests": 0,
-                "successful_requests": 0,
-                "failed_requests": 0,
-            },
-        }
+        return _default_request_usage_payload()
 
     requested_at = (
         payload.get("as_of")
@@ -698,58 +740,133 @@ def _normalize_request_usage_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def get_usage_windows(account_name: str) -> dict[str, Any]:
-    cache_key = (PROVIDER_ID, account_name)
-    with _cache_lock:
-        cached = _usage_windows_cache.get(cache_key)
-    if cached is not None:
-        return dict(cached)
+def _configured_account_names() -> list[str]:
+    cfg = quota_account_router.try_load_provider_config(PROVIDER_ID)
+    if cfg is None:
+        return []
+    return list(cfg.accounts.keys())
 
-    payload = _read_json(_usage_windows_path(account_name))
-    if payload is None:
-        payload = _read_json(_legacy_limits_path(account_name)) or {}
+
+def _load_persisted_usage_windows(account_name: str) -> dict[str, Any]:
+    payload = _read_json(_usage_windows_path(account_name)) or {}
+    return _normalize_usage_windows_payload(payload)
+
+
+def _load_persisted_request_usage(account_name: str) -> dict[str, Any]:
+    payload = _read_json(_request_usage_path(account_name)) or {}
+    return _normalize_request_usage_payload(payload)
+
+
+def initialize_monitoring_runtime() -> None:
+    account_names = _configured_account_names()
+    if not account_names:
+        return
+
+    with _cache_lock:
+        missing_accounts = [
+            account_name
+            for account_name in account_names
+            if account_name not in _runtime_state.hydrated_accounts
+        ]
+        if _runtime_state.initialized and not missing_accounts:
+            return
+
+    hydrated_usage = {
+        account_name: _load_persisted_usage_windows(account_name)
+        for account_name in missing_accounts
+    }
+    hydrated_request_usage = {
+        account_name: _load_persisted_request_usage(account_name)
+        for account_name in missing_accounts
+    }
+
+    with _cache_lock:
+        for account_name, payload in hydrated_usage.items():
+            _runtime_state.usage_windows_by_account[account_name] = deepcopy(payload)
+            _runtime_state.hydrated_accounts.add(account_name)
+        for account_name, payload in hydrated_request_usage.items():
+            _runtime_state.request_usage_by_account[account_name] = deepcopy(payload)
+        _runtime_state.initialized = True
+
+
+def _get_runtime_usage_windows(account_name: str) -> dict[str, Any]:
+    with _cache_lock:
+        payload = _runtime_state.usage_windows_by_account.get(account_name)
+        if payload is None:
+            raise MonitoringReadModelError(
+                f"Monitoring runtime state for account '{account_name}' is not hydrated"
+            )
+        return deepcopy(payload)
+
+
+def _get_runtime_request_usage(account_name: str) -> dict[str, Any]:
+    with _cache_lock:
+        payload = _runtime_state.request_usage_by_account.get(account_name)
+        if payload is None:
+            raise MonitoringReadModelError(
+                f"Request usage runtime state for account '{account_name}' is not hydrated"
+            )
+        return deepcopy(payload)
+
+
+def _store_runtime_usage_windows(
+    account_name: str, payload: dict[str, Any]
+) -> dict[str, Any]:
     normalized = _normalize_usage_windows_payload(payload)
     with _cache_lock:
-        _usage_windows_cache[cache_key] = dict(normalized)
+        _runtime_state.usage_windows_by_account[account_name] = deepcopy(normalized)
+        _runtime_state.hydrated_accounts.add(account_name)
+        _runtime_state.initialized = True
     return normalized
 
 
-def save_usage_windows(account_name: str, payload: dict[str, Any]) -> dict[str, Any]:
-    normalized = _normalize_usage_windows_payload(payload)
+def _store_runtime_request_usage(
+    account_name: str, payload: dict[str, Any]
+) -> dict[str, Any]:
+    normalized = _normalize_request_usage_payload(payload)
     with _cache_lock:
-        _usage_windows_cache[(PROVIDER_ID, account_name)] = dict(normalized)
-    _write_json(_usage_windows_path(account_name), normalized)
+        _runtime_state.request_usage_by_account[account_name] = deepcopy(normalized)
+        _runtime_state.hydrated_accounts.add(account_name)
+        _runtime_state.initialized = True
+    return normalized
+
+
+def _persist_usage_windows(account_name: str, payload: dict[str, Any]) -> None:
+    _write_json(_usage_windows_path(account_name), payload)
+
+
+def _persist_request_usage(account_name: str, payload: dict[str, Any]) -> None:
+    _write_json(_request_usage_path(account_name), payload)
+
+
+def get_usage_windows(account_name: str) -> dict[str, Any]:
+    initialize_monitoring_runtime()
+    return _get_runtime_usage_windows(account_name)
+
+
+def save_usage_windows(account_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+    normalized = _store_runtime_usage_windows(account_name, payload)
+    _persist_usage_windows(account_name, normalized)
     return normalized
 
 
 def get_request_usage(account_name: str) -> dict[str, Any]:
-    cache_key = (PROVIDER_ID, account_name)
-    with _cache_lock:
-        cached = _request_usage_cache.get(cache_key)
-    if cached is not None:
-        return dict(cached)
-
-    payload = _read_json(_request_usage_path(account_name))
-    if payload is None:
-        payload = _read_json(_legacy_limits_path(account_name)) or {}
-    normalized = _normalize_request_usage_payload(payload)
-    with _cache_lock:
-        _request_usage_cache[cache_key] = dict(normalized)
-    return normalized
+    initialize_monitoring_runtime()
+    return _get_runtime_request_usage(account_name)
 
 
 def save_request_usage(account_name: str, payload: dict[str, Any]) -> dict[str, Any]:
-    normalized = _normalize_request_usage_payload(payload)
-    with _cache_lock:
-        _request_usage_cache[(PROVIDER_ID, account_name)] = dict(normalized)
-    _write_json(_request_usage_path(account_name), normalized)
+    normalized = _store_runtime_request_usage(account_name, payload)
+    _persist_request_usage(account_name, normalized)
     return normalized
 
 
 def reset_monitoring_caches() -> None:
     with _cache_lock:
-        _usage_windows_cache.clear()
-        _request_usage_cache.clear()
+        _runtime_state.initialized = False
+        _runtime_state.hydrated_accounts.clear()
+        _runtime_state.usage_windows_by_account.clear()
+        _runtime_state.request_usage_by_account.clear()
     _reset_refresh_runtime()
 
 
@@ -778,6 +895,7 @@ def _account_status(runtime_status: dict[str, Any]) -> str:
 
 class OpenAIChatGPTAdminMonitoringService:
     def list_providers(self) -> dict[str, Any]:
+        initialize_monitoring_runtime()
         _get_refresh_manager().ensure_background_poller()
         cfg = quota_account_router.try_load_provider_config(PROVIDER_ID)
         if cfg is None:
@@ -796,6 +914,7 @@ class OpenAIChatGPTAdminMonitoringService:
         }
 
     def get_provider_page(self) -> dict[str, Any]:
+        initialize_monitoring_runtime()
         refresh_manager = _get_refresh_manager()
         refresh_manager.ensure_background_poller()
         cfg = quota_account_router.try_load_provider_config(PROVIDER_ID)
@@ -897,11 +1016,13 @@ class OpenAIChatGPTAdminMonitoringService:
         }
 
     def start_refresh(self) -> dict[str, Any]:
+        initialize_monitoring_runtime()
         refresh_manager = _get_refresh_manager()
         refresh_manager.ensure_background_poller()
         return refresh_manager.start_manual_refresh(PROVIDER_ID)
 
     def get_refresh_status(self, refresh_id: str) -> dict[str, Any]:
+        initialize_monitoring_runtime()
         refresh_manager = _get_refresh_manager()
         refresh_manager.ensure_background_poller()
         return refresh_manager.get_run_status(refresh_id)

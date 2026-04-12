@@ -19,9 +19,14 @@ app.register_blueprint(parity_bp)
 if __name__ == "__main__":
     # Initialize authentication first
     from llm_agent_platform.auth.credentials import initialize_auth
+    from llm_agent_platform.services.openai_chatgpt_admin_monitoring import (
+        initialize_monitoring_runtime,
+    )
 
     if not initialize_auth():
         logger.error("[ERROR] Failed to initialize authentication. Exiting.")
         exit(1)
+
+    initialize_monitoring_runtime()
 
     app.run(host="0.0.0.0", port=4000, debug=False)
