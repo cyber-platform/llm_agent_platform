@@ -28,8 +28,10 @@ flowchart LR
   subgraph Platform[llm_agent_platform]
     Frontend[Frontend service]
     Backend[Backend service]
+    UserService[User service]
   end
   Frontend --> Backend
+  Frontend --> UserService
   Bootstrap --> Secrets[Secrets storage]
   Backend --> Secrets
   Backend --> State[STATE_DIR storage]
@@ -64,12 +66,24 @@ flowchart LR
 - Role: human-facing web service поверх backend admin API.
 - Responsibilities:
   - human-facing access к platform capabilities;
+  - login flow через `User service`;
   - navigation and interaction layer для user и admin scenarios;
   - role-aware visibility через `RBAC`.
 - Details: [`web-ui.md`](./web-ui.md)
 - Primary implementation: [`services/frontend/`](../../services/frontend)
 - Service lifecycle orchestration и dev/prod materialization выполняются через [`HSM`](../terms/project/terms/hsm.md).
 - Status: materialized как local-only operator-facing service; full target `Web UI` architecture по-прежнему шире текущей реализации.
+
+### User service
+
+- Role: identity service для operator/admin login и JWT issuance.
+- Responsibilities:
+  - user registration and storage;
+  - login flow и access token issuance;
+  - role claims baseline для backend admin guard;
+  - brute-force protection.
+- Primary implementation: [`services/user_service/`](../../services/user_service)
+- Status: materialized и интегрирован в текущий mini-release auth contour.
 
 ## External systems and storage
 
@@ -102,12 +116,12 @@ Provider readiness matrix и current provider canon задаются в [`index.
 - `Operator or administrator` использует `Frontend service` для human-facing access к платформе.
 - `LLM agent or developer tool` использует `Backend service` как machine-facing API surface.
 - `Operator or developer` использует `OAuth bootstrap scripts` для подготовки credentials.
-- `Frontend service` использует только `Backend service`.
+- `Frontend service` использует `User service` для login flow и `Backend service` для admin API.
 - `Backend service` читает `Secrets storage`, использует `STATE_DIR storage` и обращается к внешнему `LLM provider`.
 
 ## Status notes
 
-- В текущем PoC materialized containers: `Backend service`, `OAuth bootstrap scripts`, local-only `Frontend service` operator slice.
+- В текущем PoC materialized containers: `Backend service`, `User service`, `OAuth bootstrap scripts`, local-only `Frontend service` operator slice.
 - `Frontend service` уже реализован как отдельный nested frontend repo/service, а `Backend service` materialized как отдельный service-local boundary в `services/backend/`.
 - `docker-compose` и `HSM` не являются runtime containers этой диаграммы; они относятся к local delivery и stack management layer.
 

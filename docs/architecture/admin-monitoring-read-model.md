@@ -119,9 +119,14 @@ Canonical rules:
 
 ## Current security boundary
 
-Для текущего мониторингового PoC no-auth admin surface допустима только как local single-user boundary.
+Для текущего мониторингового PoC admin surface больше не является no-auth contour.
 
-Это ограничение относится к текущему operational scope и не должно трактоваться как общий baseline для shared dev or prod.
+Текущий baseline:
+
+- frontend login выполняется через `services/user_service`;
+- backend защищает `/admin/*` через JWT guard;
+- public provider routes остаются отделены и продолжают использовать provider/public auth semantics;
+- текущий auth contour intentionally lightweight и не подменяет future full RBAC hardening.
 
 ## Related documents
 

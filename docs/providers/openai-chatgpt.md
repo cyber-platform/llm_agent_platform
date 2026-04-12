@@ -274,13 +274,20 @@ Provider-specific refresh contracts:
 
 ## Current admin security boundary
 
-No-auth admin surface допустима только как local single-user PoC boundary.
+Текущий admin surface больше не является no-auth PoC boundary.
 
-Это не baseline для shared dev, multi-user или production-like deployment. При первом выходе за этот контекст вопрос auth/RBAC должен вернуться в отдельный Stage 2 цикл.
+Для текущего mini-release baseline зафиксировано:
+
+- admin API защищен JWT guard через `services/user_service` shared-secret contour;
+- operator login flow выполняется через `POST /auth/login` в `services/user_service`;
+- public `openai-chatgpt` routes по-прежнему используют platform API key auth;
+- `developer` маппится в `admin` только внутри backend admin boundary.
+
+Это все еще не final RBAC architecture для shared dev, multi-user или production-like deployment. Дальнейшее hardening должно идти отдельным Stage 2 циклом.
 
 Для demo PoC это означает:
 
-- admin API и operator Web UI допустимы без auth только в локальной/private delivery boundary;
+- admin API и operator Web UI уже работают с JWT login boundary;
 - internet exposure допускается только для machine-facing OpenAI-compatible surface;
 - platform API keys не используются как admin auth substitute.
 - local frontend работает через backend/admin proxy path, а checked-in PoC delivery boundary держит frontend и admin surface только на localhost.

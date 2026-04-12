@@ -213,9 +213,14 @@ Qwen refresh выполняется:
 
 ### Current admin monitoring boundary
 
-Для текущего monitoring PoC admin surface допустима без auth только в local single-user boundary.
+Для текущего monitoring/admin contour materialized отдельный admin auth boundary:
 
-Это временное допущение для operator-facing PoC и не считается baseline для shared dev or prod. Future hardening вынесен в [`operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md`](operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md:1).
+- `services/user_service` выдает JWT через `POST /auth/login`;
+- `services/backend` защищает `/admin/*` через shared-secret JWT guard;
+- public OpenAI-compatible provider routes не используют этот auth path и продолжают жить на platform API keys;
+- текущий role mapping остается intentionally lightweight: `developer -> admin` только внутри backend admin boundary.
+
+Это уже не no-auth contour, но и не финальный production-grade RBAC. Future hardening по `observer/admin`, audit trail и более строгому identity boundary вынесен в [`operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md`](operational_scope/plans/040-admin-surface-auth-and-rbac-hardening.md:1).
 
 ### Path resolution ports
 
@@ -278,6 +283,7 @@ Runtime invariant для `LLM provider`:
 ### Verification
 
 - `cd services/user_service && uv run pytest tests/test_auth_baseline.py`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_admin_auth_guard.py`
 - `curl -X POST http://127.0.0.1:8010/auth/login -H 'Content-Type: application/x-www-form-urlencoded' -d 'username=<user>&password=<password>'`
 
 ---
