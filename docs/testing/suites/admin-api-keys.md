@@ -20,6 +20,7 @@
 ## Scope
 
 - Проверка provider-scoped registry для platform API keys `openai-chatgpt`.
+- Проверка того, что admin CRUD routes выполняются только под valid admin JWT контуром.
 - Проверка hash-only persisted storage без сохранения raw secret в `registry.json`.
 - Проверка admin CRUD routes `list`, `create`, `revoke` для group-scoped keys.
 - Проверка invalid `group_id` handling и исключения revoked key из future lookup path.

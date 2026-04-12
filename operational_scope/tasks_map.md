@@ -4,15 +4,10 @@
 
 Выполненные PoC-задачи остаются в individual task artifacts и больше не дублируются в этом индексе.
 
-## Недавние завершения
-
 | Задача | Статус | Файл |
 | --- | --- | --- |
 | Адаптация `user_service` под platform auth baseline для `PoC2` | completed | [`operational_scope/tasks/055-user-service-platform-auth-baseline.md`](operational_scope/tasks/055-user-service-platform-auth-baseline.md:1) |
-
-| Задача | Статус | Файл |
-| --- | --- | --- |
-| Backend admin JWT guard через `user_service` shared-secret baseline | planned | [`operational_scope/tasks/056-backend-admin-jwt-guard-via-user-service.md`](operational_scope/tasks/056-backend-admin-jwt-guard-via-user-service.md:1) |
+| Backend admin JWT guard через `user_service` shared-secret baseline | complited | [`operational_scope/tasks/056-backend-admin-jwt-guard-via-user-service.md`](operational_scope/tasks/056-backend-admin-jwt-guard-via-user-service.md:1) |
 | Frontend login page и protected admin shell для `PoC2` | planned | [`operational_scope/tasks/057-frontend-login-and-protected-admin-shell.md`](operational_scope/tasks/057-frontend-login-and-protected-admin-shell.md:1) |
 | Документирование архитектуры ПО и навигационной структуры docs | ongoing | [`operational_scope/tasks/041-software-architecture-documentation.md`](operational_scope/tasks/041-software-architecture-documentation.md:1) |
 | Сравнение monitoring semantics для `openai-chatgpt`, `gemini-cli`, `qwen_code` | отложена после PoC | [`operational_scope/tasks/051-provider-monitoring-semantics-comparison-openai-gemini-qwen.md`](operational_scope/tasks/051-provider-monitoring-semantics-comparison-openai-gemini-qwen.md:1) |
