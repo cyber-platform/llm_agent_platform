@@ -64,7 +64,8 @@ flowchart LR
   - navigation and interaction layer для user и admin scenarios;
   - role-aware visibility через `RBAC`.
 - Details: [`web-ui.md`](./web-ui.md)
-- Status: planned container; runtime boundary полезно зафиксировать заранее, even if implementation еще не materialized.
+- Primary implementation: [`services/frontend/`](../../services/frontend)
+- Status: materialized как local-only operator-facing PoC slice; full target `Web UI` architecture по-прежнему шире текущей реализации.
 
 ## External systems and storage
 
@@ -98,9 +99,9 @@ flowchart LR
 
 ## Status notes
 
-- В текущем root runtime materialized containers: `Runtime API process`, `OAuth bootstrap scripts`.
-- `Web UI` здесь зафиксирован как целевой container для дальнейшей архитектурной навигации, а не как уже реализованный runtime package.
-- Если UI boundary materialize-ится как отдельный repo или отдельный runtime, этот документ должен остаться container-level SoT entry point, а package mapping нужно будет держать в соответствующем local context.
+- В текущем PoC materialized containers: `Runtime API process`, `OAuth bootstrap scripts`, local-only `Web UI` operator slice.
+- `Web UI` уже реализован как отдельный nested frontend repo/service, но container-level SoT по-прежнему описывает более широкую target boundary, чем текущий PoC slice.
+- Если UI boundary дальше расширяется как отдельный repo или отдельный runtime, этот документ должен остаться container-level SoT entry point, а package mapping нужно будет держать в соответствующем local context.
 
 ## Related documents
 

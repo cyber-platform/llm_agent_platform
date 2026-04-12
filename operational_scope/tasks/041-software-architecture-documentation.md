@@ -120,8 +120,8 @@
 
 ## Execution Status
 
-- Current State: собран navigable architecture set (`Context`, `Container`, `Component`, `flows`, `packages`, `terms`, `drift register`); `runtime-flows.md` усилен диаграммами; taxonomy для `LLM API protocol`, `LLM provider`, `abstract provider`, `provider implementation`, `hydrate`, `persist` зафиксирована; основной terminology cleanup по `docs/architecture/`, `docs/providers/`, `docs/auth.md` и key `docs/testing/` entry points выполнен; `sot_layers/hyper-graph/docs/terms/` и reusable terms-management assets приведены к новой structure.
-- Next Step: добить terminology cleanup в secondary support docs и non-entry artifacts, затем использовать drift register как основной список архитектурных gaps для closure.
+- Current State: собран navigable architecture set (`Context`, `Container`, `Component`, `flows`, `packages`, `terms`, `drift register`); `runtime-flows.md` усилен диаграммами; taxonomy для `LLM API protocol`, `LLM provider`, `abstract provider`, `provider implementation`, `hydrate`, `persist` зафиксирована; основной terminology cleanup по `docs/architecture/`, `docs/providers/`, `docs/auth.md` и key `docs/testing/` entry points выполнен; `sot_layers/hyper-graph/docs/terms/` и reusable terms-management assets приведены к новой structure; архитектурный SoT синхронизирован с текущим working PoC baseline для `openai-chatgpt` admin monitoring, live refresh, memory-first monitoring runtime и local-only operator `Web UI` slice.
+- Next Step: добить terminology cleanup в secondary support docs и non-entry artifacts, затем использовать drift register как основной список remaining architectural gaps и open questions beyond current PoC baseline.
 - Blockers: none.
 - Contract Changes: present.
 - Verification: docs updated by direct file inspection; no command-based verification was run.

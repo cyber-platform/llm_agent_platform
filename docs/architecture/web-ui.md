@@ -88,8 +88,9 @@
 
 ## Status notes
 
-- `Web UI` пока зафиксирован как target container.
-- `LLM provider`-specific pages и dynamic `LLM provider` navigation являются важной частью target architecture и должны оставаться согласованными с backend contracts.
+- `Web UI` materialized в текущем PoC как local-only operator-facing frontend service в [`services/frontend/`](services/frontend:1).
+- Текущая реализация покрывает `openai-chatgpt` operator page, live refresh banner/status flow, account activation и API key management.
+- `LLM provider`-specific pages и dynamic `LLM provider` navigation остаются частью target architecture и должны оставаться согласованными с backend contracts при дальнейшем multi-provider расширении.
 
 ## Related documents
 

@@ -93,5 +93,6 @@ flowchart LR
 ## Status notes
 
 - OpenAI pipeline, `LLM provider`-centric routing, `abstract provider` registry, auth, quota router и state persistence materialized в runtime code.
-- Admin monitoring read-model канонизирован архитектурно, но root runtime admin API materialized не полностью.
-- `LLM provider`-specific details должны уточняться на страницах в [`docs/providers/`](docs/providers:1).
+- Admin monitoring read-model, live refresh subsystem и memory-first monitoring runtime materialized для `openai-chatgpt` в границе current single-instance PoC.
+- Local-only operator `Web UI` slice materialized как отдельный frontend service в nested repo [`services/frontend/`](services/frontend:1) и использует только backend admin API.
+- `LLM provider`-specific details и materialization boundary должны уточняться на страницах в [`docs/providers/`](docs/providers:1).
