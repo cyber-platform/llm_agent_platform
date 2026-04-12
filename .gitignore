@@ -30,4 +30,4 @@ tools/repo-archiver/
 kilo.jsonc
 .vscode
 sot_layers/hyper-graph/
-services/frontend/
+services
