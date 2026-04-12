@@ -6,6 +6,8 @@
 
 Подсистема является platform-level паттерном, но в текущем PoC materialized только для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1).
 
+Platform-wide runtime Source of Truth для monitoring memory store, hydration и persistence boundary описан в [`docs/architecture/platform-monitoring-runtime.md`](docs/architecture/platform-monitoring-runtime.md:1).
+
 ## Problem frame
 
 Admin monitoring page должна показывать не только persisted snapshot, но и достаточно свежее состояние provider monitoring.
@@ -26,6 +28,7 @@ Admin monitoring page должна показывать не только persis
 3. Routing truth и monitoring freshness являются разными слоями read-model.
 4. Background polling и operator-triggered manual refresh используют один backend refresh subsystem.
 5. Persisted monitoring artifacts остаются restore/audit artifacts, а не frontend delivery source.
+6. Refresh subsystem обновляет memory state first и persistence second.
 
 ## Read-model semantics
 
@@ -89,7 +92,7 @@ Current PoC cadence:
 
 ## Refresh run lifecycle
 
-Manual refresh materialize-ится как in-memory `refresh run`.
+Manual refresh materialize-ится как in-memory `refresh run` внутри process-local monitoring runtime.
 
 Canonical statuses:
 
@@ -205,6 +208,12 @@ Refresh subsystem использует provider-specific monitoring adapters.
 - `openai-chatgpt` refreshes только monitoring usage state;
 - request-driven observability state не перезапрашивается этим subsystem и остаётся request-driven.
 
+## Hydration relation
+
+Persisted artifacts могут использоваться для startup hydration monitoring runtime до начала normal serving.
+
+После startup hydration refresh subsystem больше не должен re-read persisted files как live input source для operator page.
+
 ## Current maturity and revision triggers
 
 Текущая степень зрелости: `PoC-stage accepted architecture`.
@@ -219,6 +228,7 @@ Refresh subsystem использует provider-specific monitoring adapters.
 ## Related documents
 
 - [`docs/architecture/admin-monitoring-read-model.md`](docs/architecture/admin-monitoring-read-model.md:1)
+- [`docs/architecture/platform-monitoring-runtime.md`](docs/architecture/platform-monitoring-runtime.md:1)
 - [`docs/configuration/service-behavior-config.md`](docs/configuration/service-behavior-config.md:1)
 - [`docs/architecture/web-ui.md`](docs/architecture/web-ui.md:1)
 - [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)

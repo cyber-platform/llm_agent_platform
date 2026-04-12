@@ -4,6 +4,8 @@
 
 Этот документ фиксирует общий архитектурный boundary для admin monitoring surface и provider-specific monitoring pages.
 
+Platform-wide runtime Source of Truth для monitoring storage, hydration и persistence boundary описан в [`docs/architecture/platform-monitoring-runtime.md`](docs/architecture/platform-monitoring-runtime.md:1).
+
 Он описывает не provider-specific бизнес-семантику, а платформенные правила для:
 
 - provider list;
@@ -16,8 +18,8 @@
 
 1. Admin UI читает только backend admin API.
 2. Frontend не читает persisted state files напрямую.
-3. Backend admin API строит read-model из runtime state и backend-owned monitoring snapshots.
-4. Persisted files нужны для restore after restart и audit trail, но не для live UI delivery path.
+3. Backend admin API строит read-model только из process-local runtime state.
+4. Persisted files нужны для startup hydration, restore after restart и audit trail, но не для live UI delivery path.
 5. Provider list и navigation являются общими.
 6. Provider page, columns и drawer являются provider-specific.
 7. Routing truth и monitoring freshness materialize-ятся отдельно.
@@ -62,10 +64,8 @@ Provider page является provider-specific read-model boundary.
 Канонический live read path:
 
 ```text
-runtime in-memory state -> backend admin read-model -> frontend UI
+process-local monitoring runtime store -> backend admin read-model -> frontend UI
 ```
-
-Для live monitoring refresh backend может временно использовать persisted artifacts как restore/input layer, но frontend delivery source остаётся только backend admin read-model.
 
 Неканонический и запрещённый path:
 
@@ -75,12 +75,12 @@ state files -> frontend UI
 
 ## Relation to persistence
 
-Persisted files могут временно отставать от in-memory state из-за async writer semantics.
+Persisted files могут временно отставать от process-local runtime state из-за async writer semantics.
 
 Это допустимо, потому что:
 
 - persisted files не являются live UI source;
-- admin read-model строится из runtime state и backend-owned refresh pipeline;
+- admin read-model строится из process-local runtime state и backend-owned refresh pipeline;
 - group snapshots и provider-specific monitoring files остаются persistence artifacts, а не delivery transport.
 
 ## Routing truth vs monitoring freshness
@@ -126,6 +126,7 @@ Canonical rules:
 ## Related documents
 
 - [`docs/architecture/quota-group-state-snapshot-and-state-dir.md`](docs/architecture/quota-group-state-snapshot-and-state-dir.md:1)
+- [`docs/architecture/platform-monitoring-runtime.md`](docs/architecture/platform-monitoring-runtime.md:1)
 - [`docs/architecture/admin-monitoring-refresh-subsystem.md`](docs/architecture/admin-monitoring-refresh-subsystem.md:1)
 - [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
 - [`docs/adr/0021-account-centric-provider-monitoring-and-admin-read-model.md`](docs/adr/0021-account-centric-provider-monitoring-and-admin-read-model.md:1)

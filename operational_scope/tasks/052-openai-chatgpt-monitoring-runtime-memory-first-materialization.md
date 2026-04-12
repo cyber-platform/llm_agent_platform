@@ -79,6 +79,27 @@
 - Legacy file-backed behavior убран из live admin read path.
 - Automated tests покрывают runtime alignment и не регрессируют existing admin monitoring behavior.
 
+## Execution summary
+
+- В `llm_agent_platform/services/openai_chatgpt_admin_monitoring.py` materialized explicit process-local runtime store `_MonitoringRuntimeState` с `usage_windows_by_account`, `request_usage_by_account` и `hydrated_accounts`.
+- Добавлен lifecycle step `initialize_monitoring_runtime()`, который гидрирует canonical monitoring state из `usage_windows.json` и `request_usage.json` только один раз на startup/runtime initialization boundary.
+- `get_usage_windows()` и `get_request_usage()` больше не читают persisted artifacts на request path; backend admin read-model читает только runtime memory state.
+- Убран live fallback на legacy `limits.json` из admin monitoring read path; legacy payload больше не считается источником истины для provider page.
+- Refresh path в `_MonitoringRefreshManager` переведен на canonical mutation order `memory first -> persistence second`: snapshot/error state сначала попадает в runtime store, затем best-effort persist-ится на диск.
+- Ошибка persistence для `usage_windows.json` не ломает live operator-visible state: provider page и refresh status продолжают отражать memory truth текущего процесса.
+- `OpenAIChatGPTAdminMonitoringService.list_providers()`, `get_provider_page()`, `start_refresh()` и `get_refresh_status()` теперь явно гарантируют runtime initialization перед доступом к read-model/refresh flow.
+- В `llm_agent_platform/__main__.py` добавлен startup вызов `initialize_monitoring_runtime()` после auth initialization.
+- В `llm_agent_platform/tests/test_admin_monitoring_read_model.py` добавлены test cases `TC-ADMIN-MONITORING-READ-MODEL-004..005` для проверки startup hydration semantics, отсутствия reread persisted files и отсутствия legacy `limits.json` dependency.
+- В `llm_agent_platform/tests/test_admin_monitoring_refresh.py` добавлен `TC-ADMIN-MONITORING-REFRESH-007` для проверки memory-first refresh semantics при failed persistence flush; также покрыт partial single-window upstream snapshot case `TC-ADMIN-MONITORING-REFRESH-006`.
+- Обновлены `docs/testing/suites/admin-monitoring-read-model.md` и `docs/testing/suites/admin-monitoring-refresh.md` для traceability нового runtime behavior.
+
+## Verification
+
+- `uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_read_model.py`
+- `uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_refresh.py`
+- `uv run python -m compileall llm_agent_platform`
+- Full regression run: `Ran 70 tests in 0.274s`, `OK`
+
 ## Initial status
 
 - Current State: completed.
