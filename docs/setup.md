@@ -24,7 +24,7 @@
 ### Шаг 1: Клонирование репозитория
 ```bash
 git clone <your-repo-url>
-cd model_proxy
+cd llm_agent_platform
 ```
 
 ### Шаг 2: Подготовка окружения
