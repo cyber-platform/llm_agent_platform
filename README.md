@@ -57,13 +57,40 @@ uv run python scripts/get_gemini-cli_credentials.py
 - [`docs/auth.md`](docs/auth.md:1)
 - provider-specific страницы в [`docs/providers/`](docs/providers:1)
 
-### 2. Запуск через Docker
+### 2. Запуск системы через Docker Compose
+
+`docker-compose.yml` использует уже собранные заранее Docker images для backend и frontend, поэтому для стандартного запуска локальная сборка сервисов не требуется.
+
 ```bash
 cp .env.example .env
-docker-compose up -d --build
+docker-compose up -d
 ```
 
-### 3. Подключение к IDE
+### 3. Локальная сборка сервисов из исходников
+
+Для локальной сборки внутри этого репозитория используется `docker-compose-dev.yml`. Для него рядом с root проекта должна существовать директория `services/` с двумя nested repositories:
+
+```bash
+mkdir -p services
+git clone https://github.com/cyber-platform/backend.git services/backend
+git clone https://github.com/cyber-platform/frontend.git services/frontend
+```
+
+После клонирования переключите оба репозитория на git tag, соответствующий git tag основного репозитория.
+
+Пример проверки текущего тега root repo:
+
+```bash
+git describe --tags --exact-match
+```
+
+Затем запустите локальную сборку:
+
+```bash
+docker-compose -f docker-compose-dev.yml up -d --build
+```
+
+### 4. Подключение к IDE
 
 #### Вариант А: OpenAI Compatible
 | Параметр | Значение |
