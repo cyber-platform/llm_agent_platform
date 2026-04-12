@@ -70,3 +70,40 @@
 - Current State: planned.
 - Next Step: materialize frontend auth UX после backend admin JWT guard.
 - Blockers: none.
+
+## Execution notes
+
+- `services/frontend` получил отдельный login screen, адаптирующий visual patterns donor UI без переноса runtime dependency на `web_ui_service`.
+- Frontend хранит access token локально и добавляет Bearer JWT ко всем `/admin/*` запросам.
+- Protected shell теперь недоступен без токена; logout и admin unauthorized states возвращают пользователя на login screen с явным session message.
+
+## Materialized changes
+
+- В [`services/frontend/src/LoginPage.tsx`](../../services/frontend/src/LoginPage.tsx) добавлен отдельный stylized login screen с scanner/rain visual motifs и явными error/session banners.
+- В [`services/frontend/src/App.tsx`](../../services/frontend/src/App.tsx) materialized local auth session storage, login/logout flow, protected rendering и auto-logout при `missing_bearer_token`/`invalid_token`/`token_expired`/`insufficient_role`.
+- В [`services/frontend/src/api.ts`](../../services/frontend/src/api.ts) admin API client переведен на explicit Bearer auth headers, а login flow подключен к `user_service` `POST /auth/login`.
+- В [`services/frontend/src/runtime-config.ts`](../../services/frontend/src/runtime-config.ts), [`services/frontend/src/types.ts`](../../services/frontend/src/types.ts) и [`services/frontend/public/runtime-config.json`](../../services/frontend/public/runtime-config.json) добавлен browser runtime setting `authApiBaseUrl`.
+- В [`services/frontend/src/styles.css`](../../services/frontend/src/styles.css) добавлены login-specific layout, scanner animations и responsive auth-shell styles; позже scan sweep дополнительно замедлен для менее агрессивного UX.
+- В [`services/frontend/README.md`](../../services/frontend/README.md) обновлен service scope и runtime-config section под новый auth contour.
+- В [`docker-compose-dev.yml`](../../docker-compose-dev.yml) root dev contour расширен сервисами `user-db` и `user_service`, а также shared JWT env wiring для `backend`, чтобы login flow работал в общей сборке, а не только в isolated `user_service` compose.
+- В [`services/user_service/README.md`](../../services/user_service/README.md), [`services/user_service/docs/user_management.md`](../../services/user_service/docs/user_management.md) и [`services/user_service/docs/interaction.md`](../../services/user_service/docs/interaction.md) зафиксирован обязательный prerequisite `uv run alembic upgrade head` перед CLI registration/list/delete scripts и описан failure mode `relation "users" does not exist`.
+
+## Verification trail
+
+- `cd services/frontend && npm run build`
+- `docker compose -f docker-compose-dev.yml config`
+- `docker exec user-service-dev uv run alembic upgrade head`
+- `docker exec user-service-dev uv run python scripts/register_user.py "anton-admin" "12345admin" "developer"`
+
+## Handoff context
+
+- Frontend login flow зависит от доступности `user_service` по `authApiBaseUrl`; для root dev contour это теперь `http://127.0.0.1:8010`, который поднимается тем же `docker-compose-dev.yml`.
+- Если `user_service` поднимается на fresh Postgres volume, CLI registration scripts не будут работать до применения Alembic migrations внутри контейнера.
+- Для текущего `PoC2` operator login следует создавать пользователя с ролью `developer`, потому что backend admin guard маппит `developer -> admin` только внутри `/admin/*` boundary.
+- В рабочем dev contour уже проверен happy path: после `alembic upgrade head` пользователь `anton-admin` был успешно создан через `register_user.py`; этот шаг служит smoke verification для login dependency chain.
+
+## Final status
+
+- Current State: completed.
+- Verification: `cd services/frontend && npm run build`; `docker compose -f docker-compose-dev.yml config`; `docker exec user-service-dev uv run alembic upgrade head`; `docker exec user-service-dev uv run python scripts/register_user.py "anton-admin" "12345admin" "developer"`
+- Blockers: none.
