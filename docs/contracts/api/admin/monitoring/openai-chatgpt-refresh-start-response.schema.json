@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/model-proxy/contracts/api/admin/monitoring/openai-chatgpt-refresh-start-response.schema.json",
+  "title": "OpenAI ChatGPT admin monitoring refresh start response v1",
+  "description": "Accepted response for starting or reusing a provider-wide monitoring refresh run.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "refresh_id",
+    "provider_id",
+    "status",
+    "processed_accounts",
+    "total_accounts",
+    "successful_accounts",
+    "failed_accounts"
+  ],
+  "properties": {
+    "refresh_id": { "type": "string", "minLength": 1 },
+    "provider_id": { "type": "string", "const": "openai-chatgpt" },
+    "status": {
+      "type": "string",
+      "enum": ["queued", "running"]
+    },
+    "processed_accounts": { "type": "integer", "minimum": 0 },
+    "total_accounts": { "type": "integer", "minimum": 0 },
+    "successful_accounts": { "type": "integer", "minimum": 0 },
+    "failed_accounts": { "type": "integer", "minimum": 0 }
+  }
+}

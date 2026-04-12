@@ -1,5 +1,23 @@
 # Suite: Quota state persistence (STATE_DIR + account_state.json + group snapshot + async writer)
 
+## Suite ID
+- `TS-QUOTA-STATE-PERSISTENCE`
+
+## Documentation roots
+- `docs/testing/test-map.md`
+- `docs/testing/traceability.md`
+- `docs/testing/suites/quota-state-persistence.md`
+
+## Implementation roots
+- `services/backend/llm_agent_platform/tests/test_quota_account_router.py`
+- planned `services/backend/llm_agent_platform/tests/test_quota_state_persistence.py`
+
+## Search anchors
+- `TS-QUOTA-STATE-PERSISTENCE`
+- `test_quota_account_router.py`
+- `TC-STATE-`
+- `STATE_DIR`
+
 ## Scope
 
 Покрываем изменения в quota-first контуре, связанные с persisted runtime state и мониторинговым snapshot.
@@ -7,6 +25,7 @@
 В рамках suite тестируем:
 
 - новый persisted account state формат `account_state.json`
+- `LLM provider`-specific account artifacts `usage_windows.json` и `request_usage.json`
 - новый layout под `STATE_DIR` (state на HDD)
 - восстановление in-memory состояния роутера при старте из файлов
 - `quota_scope: per_model | per_provider`
@@ -27,16 +46,21 @@ Non-scope:
 
 ## Requirement Traceability
 
+- Suite rollout note: suite-level anchor уже каноничен как `TS-QUOTA-STATE-PERSISTENCE`; existing requirement and case identifiers сохраняются как legacy-compatible anchors до отдельной нормализации.
+
 ### Requirements
 
 - REQ-STATE-DIR: state-файлы пишутся/читаются из `STATE_DIR`, secrets остаются в `secrets/`.
 - REQ-ACCOUNT-STATE-V1: единый файл `account_state.json` содержит `last_used_at`, `cooldown.last_cooldown_at`, `quota_exhausted.keys`.
+- REQ-USAGE-WINDOWS-V1: `LLM provider`-specific monitoring snapshot хранится в `usage_windows.json` и пишет refresh metadata отдельно от request counters.
+- REQ-REQUEST-USAGE-V1: request-driven observability хранится в `request_usage.json` и не перетирает monitoring windows.
 - REQ-LAZY-HYDRATE: при первом доступе к `(provider_id, group_id)` runtime восстанавливает in-memory state из `STATE_DIR` (lazy hydrate = lazy restore persisted state) без обязательного глобального pre-scan.
 - REQ-COOLDOWN-RESTORE: cooldown переживает рестарт (восстанавливается из `last_cooldown_at`).
-- REQ-QUOTA-SCOPE: provider accounts-config поддерживает `quota_scope=per_model|per_provider`.
+- REQ-QUOTA-SCOPE: `LLM provider` accounts-config поддерживает `quota_scope=per_model|per_provider`.
 - REQ-PROVIDER-SENTINEL: для `per_provider` используется ключ `__provider__`.
 - REQ-GROUP-SNAPSHOT: пишется snapshot `quota_state.json` для `(provider_id, group_id)` и содержит только числа/доли.
 - REQ-ASYNC-WRITER: запись state на диск async, периодический flush.
+- REQ-ROUTER-UNBLOCK-FLUSH: provider-specific router unblock path может делать immediate persisted cleanup для `account_state.json`, если нужно синхронно убрать stale exhausted marker.
 - REQ-WRITER-SWAP: writer flush делает swap `pending -> to_flush`.
 - REQ-WRITER-MERGEBACK: при ошибке записи writer merge-back `to_flush` в `pending` без затирания более свежих значений.
 - REQ-WRITER-SHUTDOWN: при graceful shutdown writer делает best-effort final flush.
@@ -64,6 +88,11 @@ Non-scope:
 
 - TC-ASTATE-1 (L1): Given `account_state.json` c `quota_exhausted.keys`, When router восстанавливает состояние из файла (hydrate), Then router считает exhausted корректно.
 
+### REQ-USAGE-WINDOWS-V1 + REQ-REQUEST-USAGE-V1
+
+- TC-UPROV-1 (L1): Given `LLM provider` monitoring refresh обновляет usage snapshot, When persisted payload materialized, Then `usage_windows.json` содержит два окна и refresh metadata.
+- TC-UPROV-2 (L1): Given request-path usage update, When persisted payload materialized, Then `request_usage.json` обновляется отдельно и не затирает `usage_windows.json`.
+
 ### REQ-LAZY-HYDRATE
 
 - TC-HYDRATE-1 (L1): Given в `STATE_DIR` уже есть `account_state.json`, When первый вызов роутера обращается к `(provider_id, group_id)`, Then in-memory state lazily восстанавливается из файлов без отдельного bootstrap scan API.
@@ -72,6 +101,10 @@ Non-scope:
 
 - TC-CD-RESTORE-1 (L1): Given `last_cooldown_at = now - 1s` и `rate_limit_cooldown_seconds=5`, When restart+hydrate, Then аккаунт считается в cooldown.
 - TC-CD-RESTORE-2 (L1): Given `last_cooldown_at = now - 10s` и `rate_limit_cooldown_seconds=5`, Then аккаунт не в cooldown.
+
+### REQ-ROUTER-UNBLOCK-FLUSH
+
+- TC-UNBLOCK-1 (L1/L3): Given provider-specific monitoring refresh снял quota block через router reconciliation, When unblock completed, Then `account_state.json` больше не содержит stale `quota_exhausted.keys` и restart/hydrate не возвращает old block.
 
 ### REQ-QUOTA-SCOPE + REQ-PROVIDER-SENTINEL
 
@@ -95,6 +128,8 @@ Non-scope:
 | :--- | :--- | :---: | :--- |
 | REQ-STATE-DIR | TC-STATE-DIR-1 | L1 | `tests/test_quota_account_router.py` (или новый `tests/test_quota_state_persistence.py`) |
 | REQ-ACCOUNT-STATE-V1 | TC-ASTATE-1 | L1 | то же |
+| REQ-USAGE-WINDOWS-V1 | TC-UPROV-1 | L1 | то же |
+| REQ-REQUEST-USAGE-V1 | TC-UPROV-2 | L1 | то же |
 | REQ-LAZY-HYDRATE | TC-HYDRATE-1 | L1 | то же |
 | REQ-COOLDOWN-RESTORE | TC-CD-RESTORE-1, TC-CD-RESTORE-2 | L1 | то же |
 | REQ-QUOTA-SCOPE | TC-QSCOPE-1, TC-QSCOPE-2 | L1 | то же |

@@ -7,22 +7,22 @@ Accepted
 
 В проекте есть два разных рантайма с разными требованиями к конфигурации:
 
-1) **Платформа для LLM-агентов** запускается в контейнере через [`docker-compose.yml`](docker-compose.yml:1) и читает конфигурацию из переменных окружения процесса (см. [`llm_agent_platform/config.py`](llm_agent_platform/config.py:1)).
+1) **Платформа для LLM-агентов** запускается в контейнере через [`docker-compose.yml`](docker-compose.yml:1) и читает конфигурацию из переменных окружения процесса (см. [`services/backend/llm_agent_platform/config.py`](services/backend/llm_agent_platform/config.py:1)).
 
 2) **OAuth bootstrap-скрипты** запускаются локально (вне контейнера) из VS Code/uv, например:
-   - [`scripts/get_gemini-cli_credentials.py`](scripts/get_gemini-cli_credentials.py:1)
-   - [`scripts/get_qwen-code_credentials.py`](scripts/get_qwen-code_credentials.py:1)
+   - [`services/backend/scripts/get_gemini-cli_credentials.py`](services/backend/scripts/get_gemini-cli_credentials.py:1)
+   - [`services/backend/scripts/get_qwen-code_credentials.py`](services/backend/scripts/get_qwen-code_credentials.py:1)
 
 Сейчас:
 
-- [`llm_agent_platform/config.py`](llm_agent_platform/config.py:1) читает значения из `os.environ` и **не загружает** [`.env`](.env:1) автоматически.
+- [`services/backend/llm_agent_platform/config.py`](services/backend/llm_agent_platform/config.py:1) читает значения из `os.environ` и **не загружает** [`.env`](.env:1) автоматически.
 - Docker Compose читает [`.env`](.env:1) **для подстановки** значений в compose-файл, а внутрь контейнера попадают только явно заданные переменные (см. `environment:` в [`docker-compose.yml`](docker-compose.yml:14)).
 
 Из-за этого локальные OAuth-скрипты могут не видеть значения, которые пользователь ожидает взять из [`.env`](.env:1), что приводит к ошибке вида:
 
-- проверка наличия [`GEMINI_CLI_CLIENT_ID`](llm_agent_platform/config.py:59) в [`scripts/get_gemini-cli_credentials.py`](scripts/get_gemini-cli_credentials.py:99)
+- проверка наличия [`GEMINI_CLI_CLIENT_ID`](services/backend/llm_agent_platform/config.py:59) в [`services/backend/scripts/get_gemini-cli_credentials.py`](services/backend/scripts/get_gemini-cli_credentials.py:99)
 
-Дополнительно [`.env.example`](.env.example:1) сейчас смешивает runtime-настройки и bootstrap-параметры OAuth, что создаёт ощущение «лишних» переменных и размывает границы ответственности.
+Дополнительно [`services/backend/.env.example`](services/backend/.env.example:1) сейчас смешивает runtime-настройки и bootstrap-параметры OAuth, что создаёт ощущение «лишних» переменных и размывает границы ответственности.
 
 ## Decision
 
@@ -34,7 +34,7 @@ Accepted
 И дополнительно:
 
 - Контейнеру прокси передавать runtime-переменные через `env_file: .env` в [`docker-compose.yml`](docker-compose.yml:1).
-- Локальные OAuth-скрипты перед импортом [`llm_agent_platform/config.py`](llm_agent_platform/config.py:1) загружают оба файла:
+- Локальные OAuth-скрипты перед импортом [`services/backend/llm_agent_platform/config.py`](services/backend/llm_agent_platform/config.py:1) загружают оба файла:
   - сначала [`.env`](.env:1)
   - затем [`.env.oauth`](.env.oauth:1) с приоритетом (override)
 
@@ -42,7 +42,7 @@ Bootstrap OAuth секреты не должны автоматически по
 
 ## Options Considered
 
-### Option A: Один файл [`.env`](.env:1) для всего + автозагрузка внутри [`llm_agent_platform/config.py`](llm_agent_platform/config.py:1)
+### Option A: Один файл [`.env`](.env:1) для всего + автозагрузка внутри [`services/backend/llm_agent_platform/config.py`](services/backend/llm_agent_platform/config.py:1)
 - Плюсы: проще в объяснении.
 - Минусы: смешение ответственности, риск утечки OAuth bootstrap параметров в runtime; сложнее контролировать «что именно должно попасть в контейнер».
 
@@ -59,11 +59,11 @@ Bootstrap OAuth секреты не должны автоматически по
 ### Положительные
 - Локальные скрипты получают детерминированную конфигурацию без ручного экспорта env.
 - Runtime контейнера получает только нужные переменные, без bootstrap OAuth секретов.
-- [`.env.example`](.env.example:1) становится чище: только runtime-настройки.
+- [`services/backend/.env.example`](services/backend/.env.example:1) становится чище: только runtime-настройки.
 
 ### Негативные / Риски
 - Появляется второй файл-конфиг [`.env.oauth`](.env.oauth:1), который нужно поддерживать и документировать.
-- Нужны явные примеры: [`.env.example`](.env.example:1) и новый [`.env.oauth.example`](.env.oauth.example:1).
+- Нужны явные примеры: [`services/backend/.env.example`](services/backend/.env.example:1) и новый [`.env.oauth.example`](.env.oauth.example:1).
 - Требуется обновить документацию запуска и ожидания по переменным.
 
 ## Implementation Notes (non-normative)
@@ -72,7 +72,7 @@ Bootstrap OAuth секреты не должны автоматически по
   - `env_file: .env` в [`docker-compose.yml`](docker-compose.yml:1)
   - `environment:` остаётся для override-переменных (например, `LOG_DIR` как путь внутри контейнера).
 - OAuth bootstrap источники:
-  - локальная загрузка [`.env`](.env:1) и [`.env.oauth`](.env.oauth:1) внутри [`scripts/get_gemini-cli_credentials.py`](scripts/get_gemini-cli_credentials.py:1) и [`scripts/get_qwen-code_credentials.py`](scripts/get_qwen-code_credentials.py:1).
+  - локальная загрузка [`.env`](.env:1) и [`.env.oauth`](.env.oauth:1) внутри [`services/backend/scripts/get_gemini-cli_credentials.py`](services/backend/scripts/get_gemini-cli_credentials.py:1) и [`services/backend/scripts/get_qwen-code_credentials.py`](services/backend/scripts/get_qwen-code_credentials.py:1).
 
 ## Diagram
 

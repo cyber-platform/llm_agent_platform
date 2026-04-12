@@ -10,9 +10,10 @@
     ]
   },
   "force_include": [
-    ".kilocode",
+    ".kilo",
     "secrets",
-    ".env"
+    ".env",
+    "services"
   ],
   "force_exclude": [
     ".venv"

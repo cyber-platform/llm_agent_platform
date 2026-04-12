@@ -41,6 +41,25 @@
           }
         }
       }
+    },
+    "quota_blocked_until": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Normalized provider-specific block boundary used for temporary quota blocking when provider semantics are not fully expressed by generic exhausted keys."
+    },
+    "quota_block_reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Normalized provider-specific reason for current quota block."
+    },
+    "quota_block_metadata": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": true,
+      "description": "Optional provider-specific metadata attached to normalized quota block state."
     }
   }
 }

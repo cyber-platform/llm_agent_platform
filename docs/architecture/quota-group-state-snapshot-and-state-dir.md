@@ -1,6 +1,6 @@
-# Quota state persistence: `STATE_DIR` + `account_state.json` + group `quota_state.json` (Proposed)
+# Quota state persistence: `STATE_DIR`, account state, provider monitoring snapshots and async writer
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-03-18
 
 ## Цель
@@ -20,6 +20,7 @@
 - доля аккаунтов с неисчерпанной квотой
 
 3) Вынести state-файлы на HDD (много перезаписей), оставив secrets/credentials на SSD.
+4) Зафиксировать provider-specific account monitoring artifacts и boundary для admin read-model.
 
 ---
 
@@ -66,18 +67,23 @@
 
 ---
 
-## Decision 2: единый файл состояния аккаунта `account_state.json`
+## Decision 2: account-centric runtime layout
 
 ### Layout
 
 Файлы состояния лежат под `STATE_DIR`:
 
-```
+```text
 <STATE_DIR>/
   <provider_id>/
     accounts/
       <account_name>/
         account_state.json
+        usage_windows.json
+        request_usage.json
+    groups/
+      <group_id>/
+        quota_state.json
 ```
 
 ### Формат `account_state.json` (v1)
@@ -101,6 +107,12 @@
 Контракт:
 
 - [`docs/contracts/state/account-state.schema.json`](docs/contracts/state/account-state.schema.json:1)
+
+Допустимые дополнительные поля для provider-specific normalized block state:
+
+- `quota_blocked_until`
+- `quota_block_reason`
+- `quota_block_metadata`
 
 ### Breaking boundary
 
@@ -212,6 +224,7 @@ Exhausted определяется через `quota_exhausted.keys` и `model_q
 - Snapshot содержит **только числа/доли**, без списков аккаунтов.
 - Если provider не объявляет явные `groups`, runtime использует логическую дефолтную группу `g0` и может писать snapshot для неё.
 - Snapshot — monitoring артефакт и не является source of truth для routing.
+- Snapshot допустим как persisted monitoring artifact, но не как live UI transport.
 
 Контракт:
 
@@ -229,12 +242,24 @@ Exhausted определяется через `quota_exhausted.keys` и `model_q
 - во время работы routing использует только in-memory;
 - запись state на диск — best-effort и асинхронная.
 
+Provider-specific monitoring snapshots подчиняются тем же правилам:
+
+- `usage_windows.json` и `request_usage.json` обновляют in-memory snapshots first;
+- затем prepared payload enqueue-ится в shared async writer;
+- persisted files не считаются live source для runtime или admin UI.
+
 ### Mutation points
 
 - `select_account()` может инициировать refresh group snapshot после восстановления state из файлов (`hydrate`) и `cleanup`, если изменилась наблюдаемая доступность группы;
 - `select_account()` **не должен** сам по себе менять `last_used_at`;
 - `register_success()` обновляет `last_used_at`, очищает cooldown и может сдвигать round-robin state;
 - `register_event()` обновляет cooldown/exhausted состояние и enqueue'ит persisted account state + group snapshot.
+
+Provider-specific mutation boundaries:
+
+- monitoring refresh subsystem владеет `usage_windows.json`;
+- request-usage collector владеет `request_usage.json`;
+- router остаётся единственным owner для mutation routing truth в [`account_state.json`](docs/contracts/state/account-state.schema.json:1).
 
 ### Async writer: coalesce map
 
@@ -277,6 +302,35 @@ Writer использует coalesce map (last-write-wins buffer):
 - per-file write остаётся атомарным (`tmp + replace`), но cross-file transactional consistency не гарантируется;
 - `quota_state.json` может временно отставать от `account_state.json`, что допустимо для monitoring snapshot.
 
+## Ownership matrix
+
+| Artifact | Semantic owner | Persistence path | Read side | Semantics |
+| --- | --- | --- | --- | --- |
+| [`account_state.json`](docs/contracts/state/account-state.schema.json:1) | router | shared async writer only | router hydrate, admin read-model | routing-critical persisted backup |
+| `usage_windows.json` | monitoring refresh subsystem | shared async writer only | provider quota handler, admin read-model | provider-specific monitoring truth |
+| `request_usage.json` | runtime request-usage collector | shared async writer only | admin read-model | request-driven observability state |
+| [`quota_state.json`](docs/contracts/state/group-quota-state.schema.json:1) | router snapshot builder | shared async writer only | admin read-model | derived group snapshot |
+
+Provider-specific exception already materialized for [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1):
+
+- monitoring refresh может инициировать router reconciliation, если provider monitoring даёт strong recovery signal;
+- сам routing truth всё равно меняет только router;
+- для unblock cleanup router может выполнять immediate persisted write для конкретного `account_state.json`, чтобы stale exhausted marker не пережил restart.
+
+## Admin read-model boundary
+
+Frontend не должен читать state files напрямую.
+
+Канонический live path:
+
+- runtime in-memory state -> backend admin read-model -> frontend UI
+
+Следствия:
+
+- persisted files нужны для restore after restart и audit trail;
+- UI не зависит от async flush timing;
+- provider-specific drawers и monitoring pages строятся поверх admin contracts, а не поверх file layout.
+
 ### Mermaid: порядок действий
 
 ```mermaid
@@ -288,7 +342,7 @@ flowchart TD
   Router -->|4 update in memory state| StateInMem
   Router -->|5 enqueue writes| Writer[Async writer]
   Writer -->|6 flush to STATE_DIR every N seconds| StateFS
-  StateFS -->|7 admin reads quota_state.json| Admin[Admin]
+  StateInMem -->|7 backend admin read-model builds UI payload| Admin[Admin]
 ```
 
 ---

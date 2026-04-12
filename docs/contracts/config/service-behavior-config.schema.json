@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/model-proxy/contracts/config/service-behavior-config.schema.json",
+  "title": "Service behavior config",
+  "description": "Non-secret operational behavior config for backend and frontend service tuning.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "monitoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "background_poll_interval_seconds",
+        "refresh_concurrency",
+        "per_account_refresh_timeout_seconds",
+        "refresh_run_timeout_seconds",
+        "refresh_run_retention_seconds"
+      ],
+      "properties": {
+        "background_poll_interval_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "refresh_concurrency": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "per_account_refresh_timeout_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "refresh_run_timeout_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "refresh_run_retention_seconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "frontend": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "page_poll_interval_ms": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "manual_refresh_status_poll_interval_ms": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

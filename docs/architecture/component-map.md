@@ -1,121 +1,53 @@
-# Component Map (каноническая карта компонентов)
+# Component Map
 
-Цель: дать LLM-агенту и разработчику быстрый способ понять:
+## Назначение
 
-- какие компоненты есть у сервиса;
-- за что они отвечают;
-- где лежит актуальный runtime-код;
-- какие артефакты описывают правила (ADR/spec/docs).
+Этот документ даёт code-oriented карту компонентов платформы.
 
-Связанные решения и канонические документы:
+Он отвечает на вопросы:
 
-- Env split (runtime vs OAuth bootstrap): [`docs/adr/0015-env-separation-runtime-vs-oauth-bootstrap.md`](docs/adr/0015-env-separation-runtime-vs-oauth-bootstrap.md:1), [`docs/configuration/env-files.md`](docs/configuration/env-files.md:1)
-- Provider-centric routing: [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:1)
-- Quota rotation + groups: [`docs/architecture/quota-account-rotation-groups-and-models.md`](docs/architecture/quota-account-rotation-groups-and-models.md:1)
-- OpenAI chat completions pipeline: [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1)
-- Provider index and status matrix: [`docs/providers/README.md`](docs/providers/README.md:1)
+- где в коде materialized каждый runtime component;
+- в какие Python packages и модули идти для детального code reading;
+- какой focused document использовать, если нужен не кодовый, а архитектурный zoom.
 
-## 1) Границы workspace
+Для layer model см. [`layers.md`](./layers.md).
 
-### 1.1 Наш код
+Для `C4 Component` view см. [`component-view.md`](./component-view.md).
 
-Актуальный runtime layout:
-- пакет [`llm_agent_platform/`](llm_agent_platform:1)
-- локальные bootstrap scripts в [`scripts/`](scripts:1)
-- contracts и канон в [`docs/`](docs:1)
+Для package-level mapping см. [`package-map.md`](./package-map.md).
 
-Для понимания архитектуры текущей системы Source of Truth нужно брать из актуального layout, а не из временных migration narrative.
+## Component-to-code map
 
-### 1.2 Внешние nested repos (reference upstream)
+| Component | Primary code | Куда идти дальше | Focused architecture docs |
+| --- | --- | --- | --- |
+| Runtime shell | [`services/backend/llm_agent_platform/__main__.py`](../../services/backend/llm_agent_platform/__main__.py) | app factory, blueprint registration | [`container-view.md`](./container-view.md) |
+| API surfaces | [`services/backend/llm_agent_platform/api/openai/`](../../services/backend/llm_agent_platform/api/openai), [`services/backend/llm_agent_platform/api/gemini/`](../../services/backend/llm_agent_platform/api/gemini), [`services/backend/llm_agent_platform/api/parity/`](../../services/backend/llm_agent_platform/api/parity) | `routes.py`, boundary request handling | [`runtime-flows.md`](./runtime-flows.md) |
+| OpenAI pipeline orchestration | [`services/backend/llm_agent_platform/api/openai/pipeline.py`](../../services/backend/llm_agent_platform/api/openai/pipeline.py), [`services/backend/llm_agent_platform/api/openai/types.py`](../../services/backend/llm_agent_platform/api/openai/types.py), [`services/backend/llm_agent_platform/api/openai/streaming.py`](../../services/backend/llm_agent_platform/api/openai/streaming.py), [`services/backend/llm_agent_platform/api/openai/response_shaper.py`](../../services/backend/llm_agent_platform/api/openai/response_shaper.py) | context build, stream and non-stream path | [`openai-chat-completions-pipeline.md`](./openai-chat-completions-pipeline.md) |
+| Provider integrations | [`services/backend/llm_agent_platform/api/openai/providers/`](../../services/backend/llm_agent_platform/api/openai/providers) | `provider implementation`, upstream protocol adaptation and normalization | [`../providers/index.md`](../providers/index.md) |
+| Execution strategy layer | [`services/backend/llm_agent_platform/api/openai/strategies/`](../../services/backend/llm_agent_platform/api/openai/strategies) | direct execution, retries, semantic `429` handling | [`quota-account-rotation-groups-and-models.md`](./quota-account-rotation-groups-and-models.md) |
+| Provider registry and catalogs | [`services/backend/llm_agent_platform/services/provider_registry.py`](../../services/backend/llm_agent_platform/services/provider_registry.py), [`services/backend/llm_agent_platform/provider_registry/`](../../services/backend/llm_agent_platform/provider_registry) | `abstract provider` descriptor loading, catalog resolution | [`../providers/index.md`](../providers/index.md) |
+| Quota and account state runtime | [`services/backend/llm_agent_platform/services/account_router.py`](../../services/backend/llm_agent_platform/services/account_router.py), [`services/backend/llm_agent_platform/services/account_state_store.py`](../../services/backend/llm_agent_platform/services/account_state_store.py), [`services/backend/llm_agent_platform/services/runtime_state_paths.py`](../../services/backend/llm_agent_platform/services/runtime_state_paths.py) | account pool state, group snapshots, async persistence | [`quota-group-state-snapshot-and-state-dir.md`](./quota-group-state-snapshot-and-state-dir.md) |
+| Runtime services | [`services/backend/llm_agent_platform/services/openai_chatgpt_admin_monitoring.py`](../../services/backend/llm_agent_platform/services/openai_chatgpt_admin_monitoring.py), [`services/backend/llm_agent_platform/services/provider_usage_limits.py`](../../services/backend/llm_agent_platform/services/provider_usage_limits.py), [`services/backend/llm_agent_platform/services/credentials_paths.py`](../../services/backend/llm_agent_platform/services/credentials_paths.py), [`services/backend/llm_agent_platform/services/quota_transport.py`](../../services/backend/llm_agent_platform/services/quota_transport.py), [`services/backend/llm_agent_platform/api/admin/routes.py`](../../services/backend/llm_agent_platform/api/admin/routes.py) | monitoring runtime store, admin read-model/materialization, monitoring ports, state path helpers, quota helper ports | [`admin-monitoring-read-model.md`](./admin-monitoring-read-model.md), [`admin-monitoring-refresh-subsystem.md`](./admin-monitoring-refresh-subsystem.md), [`platform-monitoring-runtime.md`](./platform-monitoring-runtime.md) |
+| Auth runtime | [`services/backend/llm_agent_platform/auth/`](../../services/backend/llm_agent_platform/auth) | credentials discovery, `LLM provider`-specific OAuth refresh | [`../auth.md`](../auth.md) |
+| Shared infrastructure and core | [`services/backend/llm_agent_platform/config.py`](../../services/backend/llm_agent_platform/config.py), [`services/backend/llm_agent_platform/services/http_pool.py`](../../services/backend/llm_agent_platform/services/http_pool.py), [`services/backend/llm_agent_platform/core/`](../../services/backend/llm_agent_platform/core) | env loading, HTTP client, shared helpers | [`layers.md`](./layers.md) |
 
-Эти директории рассматриваются как внешние, upstream/reference. Их код не меняем, они не входят в runtime пакеты:
+## Workspace boundaries
 
-- [`qwen-code/`](qwen-code)
-- [`gemini-cli/`](gemini-cli)
-- [`kilocode/`](kilocode)
+В scope этой карты входят:
 
-## 2) Компоненты прокси
+- runtime package [`services/backend/llm_agent_platform/`](../../services/backend/llm_agent_platform)
+- bootstrap scripts [`services/backend/scripts/`](../../services/backend/scripts)
+- canonical docs and contracts in [`docs/`](../)
 
-### 2.1 HTTP API слой (OpenAI-compatible)
+Внешние nested repos не входят в runtime package map и рассматриваются как reference-only context:
 
-- Назначение: provider-scoped OpenAI-compatible endpoints, стриминг, tool calling.
-- Текущий код:
-  - [`llm_agent_platform/api/openai/routes.py`](llm_agent_platform/api/openai/routes.py:1)
-  - [`llm_agent_platform/api/openai/transform.py`](llm_agent_platform/api/openai/transform.py:1)
-  - [`llm_agent_platform/api/openai/pipeline.py`](llm_agent_platform/api/openai/pipeline.py:1)
+- [`qwen-code/`](../../qwen-code)
+- [`gemini-cli/`](../../gemini-cli)
+- [`kilocode/`](../../kilocode)
 
-### 2.2 HTTP API слой (Gemini native provider surface)
+## Related documents
 
-- Назначение: provider специфичные маршруты и проксирование в Gemini.
-- Текущий код: [`llm_agent_platform/api/gemini/routes.py`](llm_agent_platform/api/gemini/routes.py:1)
-
-### 2.3 Parity / capture relay
-
-- Назначение: инструменты parity валидации и capture-relay контур.
-- Текущий код: [`llm_agent_platform/api/parity/routes.py`](llm_agent_platform/api/parity/routes.py:1)
-
-### 2.4 Auth: credentials, refresh, provider-specific state
-
-- Назначение: обнаружение источников авторизации, refresh токенов, fail-fast диагностика.
-- Текущий код:
-  - [`llm_agent_platform/auth/credentials.py`](llm_agent_platform/auth/credentials.py:1)
-  - [`llm_agent_platform/auth/discovery.py`](llm_agent_platform/auth/discovery.py:1)
-  - [`llm_agent_platform/auth/qwen_oauth.py`](llm_agent_platform/auth/qwen_oauth.py:1)
-
-Provider-specific auth semantics должны документироваться на отдельных страницах в [`docs/providers/`](docs/providers:1).
-
-### 2.5 Core: logging, utils, models
-
-- Назначение: shared утилиты и модели.
-- Текущий код:
-  - [`llm_agent_platform/core/logging.py`](llm_agent_platform/core/logging.py:1)
-  - [`llm_agent_platform/core/models.py`](llm_agent_platform/core/models.py:1)
-  - [`llm_agent_platform/core/utils.py`](llm_agent_platform/core/utils.py:1)
-
-### 2.6 Services: transport, registry, routing, state
-
-- Назначение: инфраструктурные сервисы платформы.
-- Текущий код:
-  - [`llm_agent_platform/services/http_pool.py`](llm_agent_platform/services/http_pool.py:1)
-  - [`llm_agent_platform/services/provider_registry.py`](llm_agent_platform/services/provider_registry.py:1)
-  - [`llm_agent_platform/services/account_router.py`](llm_agent_platform/services/account_router.py:1)
-  - [`llm_agent_platform/services/account_state_store.py`](llm_agent_platform/services/account_state_store.py:1)
-
-Граница ответственности в provider-centric каноне:
-- provider descriptor contracts задают declarative configuration boundary через [`docs/contracts/config/provider-descriptor.schema.json`](docs/contracts/config/provider-descriptor.schema.json:1) и [`docs/contracts/config/provider-registry.schema.json`](docs/contracts/config/provider-registry.schema.json:1);
-- [`llm_agent_platform/services/provider_registry.py`](llm_agent_platform/services/provider_registry.py:1) резолвит descriptor boundary и catalog metadata;
-- runtime adapters исполняют transport/auth/runtime contract внутри [`llm_agent_platform/api/openai/providers/`](llm_agent_platform/api/openai/providers/base.py:1);
-- strategies исполняют policy boundary внутри [`llm_agent_platform/api/openai/strategies/`](llm_agent_platform/api/openai/strategies/base.py:1).
-
-Usage-limits capability трактуется отдельно от routing/runtime readiness:
-- quota exhaustion всегда фиксируется по runtime error path;
-- proactive usage polling допустим только как optional observability and monitoring capability provider;
-- нормализованный usage snapshot не заменяет основной quota enforcement path.
-
-### 2.7 Конфигурация runtime
-
-- Назначение: единая точка конфигурации через env.
-- Текущий код: [`llm_agent_platform/config.py`](llm_agent_platform/config.py:1)
-- Правила env: [`docs/configuration/env-files.md`](docs/configuration/env-files.md:1)
-
-### 2.8 Entrypoint платформы
-
-- Назначение: собрать Flask app, зарегистрировать blueprints, выполнить init auth, запустить server.
-- Текущий код: [`llm_agent_platform/__main__.py`](llm_agent_platform/__main__.py:1)
-
-## 3) Локальные tools
-
-- Назначение: одноразовое получение credentials и запись в `secrets/`.
-- Текущий код:
-  - [`scripts/get_gemini-cli_credentials.py`](scripts/get_gemini-cli_credentials.py:1)
-  - [`scripts/get_qwen-code_credentials.py`](scripts/get_qwen-code_credentials.py:1)
-
-Bootstrap env правила: [`docs/configuration/env-files.md`](docs/configuration/env-files.md:1)
-
-Именование bootstrap scripts синхронизировано с provider ids:
-- [`scripts/get_gemini-cli_credentials.py`](scripts/get_gemini-cli_credentials.py:1)
-- [`scripts/get_qwen-code_credentials.py`](scripts/get_qwen-code_credentials.py:1)
-
-## 4) Тестовый контур
-
-Канонический индекс: [`docs/testing/test-map.md`](docs/testing/test-map.md:1)
+- architecture entrypoint: [`index.md`](./index.md)
+- `C4 Component`: [`component-view.md`](./component-view.md)
+- package-level traceability: [`package-map.md`](./package-map.md)
+- runtime scenarios: [`runtime-flows.md`](./runtime-flows.md)

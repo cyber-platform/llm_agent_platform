@@ -4,6 +4,8 @@
 
 ---
 
+![screen](docs/pictures/LLM_platform-monitornig-quota.png)
+
 ## ✨ Что дает платформа
 
 1. **Единый OpenAI-compatible вход для агентных инструментов**
@@ -21,7 +23,7 @@
 4. **Единый архитектурный канон и contracts**
    - Общая архитектура фиксируется в [`docs/architecture/`](docs/architecture:1).
    - Contracts фиксируются в [`docs/contracts/`](docs/contracts:1).
-   - Provider-specific особенности документируются отдельно в [`docs/providers/`](docs/providers:1) и индексируются в [`docs/providers/README.md`](docs/providers/README.md:1).
+   - Provider-specific особенности документируются отдельно в [`docs/providers/`](docs/providers:1) и индексируются в [`docs/providers/index.md`](docs/providers/index.md:1).
 
 5. **Платформа для эволюции provider-specific runtime adapters**
    - Общий OpenAI-compatible surface остается стабильным.
@@ -55,13 +57,40 @@ uv run python scripts/get_gemini-cli_credentials.py
 - [`docs/auth.md`](docs/auth.md:1)
 - provider-specific страницы в [`docs/providers/`](docs/providers:1)
 
-### 2. Запуск через Docker
+### 2. Запуск системы через Docker Compose
+
+`docker-compose.yml` использует уже собранные заранее Docker images для backend и frontend, поэтому для стандартного запуска локальная сборка сервисов не требуется.
+
 ```bash
 cp .env.example .env
-docker-compose up -d --build
+docker-compose up -d
 ```
 
-### 3. Подключение к IDE
+### 3. Локальная сборка сервисов из исходников
+
+Для локальной сборки внутри этого репозитория используется `docker-compose-dev.yml`. Для него рядом с root проекта должна существовать директория `services/` с двумя nested repositories:
+
+```bash
+mkdir -p services
+git clone https://github.com/cyber-platform/backend.git services/backend
+git clone https://github.com/cyber-platform/frontend.git services/frontend
+```
+
+После клонирования переключите оба репозитория на git tag, соответствующий git tag основного репозитория.
+
+Пример проверки текущего тега root repo:
+
+```bash
+git describe --tags --exact-match
+```
+
+Затем запустите локальную сборку:
+
+```bash
+docker-compose -f docker-compose-dev.yml up -d --build
+```
+
+### 4. Подключение к IDE
 
 #### Вариант А: OpenAI Compatible
 | Параметр | Значение |
@@ -87,10 +116,10 @@ docker-compose up -d --build
 - [Видение проекта](./docs/vision.md)
 - [Настройка авторизации](./docs/auth.md)
 - [Установка и развертывание](./docs/setup.md)
-- [Сценарии запуска](./docs/run/README.md)
+- [Сценарии запуска](./docs/run/index.md)
 - [Использование платформы](./docs/usage.md)
 - [Карта компонентов](./docs/architecture/component-map.md)
-- [Каталог провайдеров](./docs/providers/README.md)
+- [Каталог провайдеров](./docs/providers/index.md)
 - [Provider: `openai-chatgpt`](./docs/providers/openai-chatgpt.md)
 
 ---

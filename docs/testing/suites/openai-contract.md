@@ -1,11 +1,31 @@
 # Suite: OpenAI stream/non-stream contract
 
+## Suite ID
+- `TS-OPENAI-CONTRACT`
+
+## Documentation roots
+- `docs/testing/test-map.md`
+- `docs/testing/traceability.md`
+- `docs/testing/suites/openai-contract.md`
+
+## Implementation roots
+- `services/backend/llm_agent_platform/tests/test_openai_contract.py`
+- `services/backend/llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
+
+## Search anchors
+- `TS-OPENAI-CONTRACT`
+- `test_openai_contract.py`
+- `test_openai_chatgpt_runtime.py`
+- `openai-chatgpt`
+
 ## Scope
-- Проверка ответа provider-scoped `/chat/completions` в non-stream формате.
+- Проверка ответа `LLM provider`-scoped `/chat/completions` в non-stream формате.
 - Проверка SSE потока с `stream_options.include_usage=true`.
 - Проверка записи `last_used_at` для Qwen streaming.
-- Проверка private backend runtime adapter для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1), включая forced refresh retry и optional `ChatGPT-Account-Id`.
+- Проверка private backend `provider implementation` для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1), включая forced refresh retry и optional `ChatGPT-Account-Id`.
+- Проверка public auth guard для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): missing, malformed, revoked и out-of-scope platform API key сводятся к OpenAI-style `401 invalid_api_key`.
 - Проверка маппинга upstream-ошибки в OpenAI error shape.
+- Проверка того, что richer internal/admin quota taxonomy для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1) не расширяет public `429` contract.
 - Проверка streamed non-200 ошибки для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): ошибка должна вернуться как OpenAI-compatible SSE event, без silent разрыва потока.
 - Проверка strict OpenAI-compatible streaming parity для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): partial `tool_calls[].function.arguments` не дублируются на `response.output_item.done`.
 - Проверка reasoning parity для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): reasoning stream отдается через `reasoning_text`, совместимый с KiloCode OpenAI-compatible parser.
@@ -14,20 +34,25 @@
 - L3 System (integration, real deps): контракт проверяется через реальный Flask endpoint прокси и реальные форматы ответа (JSON/SSE).
 
 ## Requirement Traceability
-- Requirement: стабильный provider-centric OpenAI-compatible контракт.
+- Requirement: стабильный `LLM provider`-centric OpenAI-compatible контракт.
+- Rollout metadata:
+  - suite anchor: `TS-OPENAI-CONTRACT`
+  - future case anchors: `TC-OPENAI-CONTRACT-...`
 - Canonical references:
   - Архитектура pipeline: [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1)
   - Нормативные схемы ошибок: [`docs/contracts/api/openai/errors/429-error.schema.json`](docs/contracts/api/openai/errors/429-error.schema.json:1)
-- Script: [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1), [`llm_agent_platform/tests/test_openai_chatgpt_runtime.py`](llm_agent_platform/tests/test_openai_chatgpt_runtime.py:1)
+  - Нормативная auth schema: [`docs/contracts/api/openai/errors/401-invalid-api-key-error.schema.json`](docs/contracts/api/openai/errors/401-invalid-api-key-error.schema.json:1)
+  - `LLM provider`-specific quota boundary: [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
+- Script: [`services/backend/llm_agent_platform/tests/test_openai_contract.py`](services/backend/llm_agent_platform/tests/test_openai_contract.py:1), [`services/backend/llm_agent_platform/tests/test_openai_chatgpt_runtime.py`](services/backend/llm_agent_platform/tests/test_openai_chatgpt_runtime.py:1)
 
 ## Verification Command
-- `uv run python -m unittest llm_agent_platform/tests/test_openai_contract.py`
-- `uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_openai_contract.py`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
 
 ## Debug Methodology (usage in stream)
 
 ### Goal
-- Диагностировать расхождения usage-токенов между non-stream и stream для provider-scoped OpenAI-compatible `/chat/completions`.
+- Диагностировать расхождения usage-токенов между non-stream и stream для `LLM provider`-scoped OpenAI-compatible `/chat/completions`.
 
 ### Step 1 — Baseline (non-stream)
 - Выполнить non-stream запрос для каждого провайдера (`gemini`, `qwen`) и сохранить raw-ответ.

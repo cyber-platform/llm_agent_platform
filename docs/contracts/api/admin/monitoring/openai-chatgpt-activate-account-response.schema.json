@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://model-proxy.local/contracts/api/admin/monitoring/openai-chatgpt-activate-account-response.schema.json",
+  "title": "OpenAIChatGPTActivateAccountResponse",
+  "description": "Admin API response returned after setting a process-global in-memory preferred account override for one openai-chatgpt group.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ok",
+    "provider_id",
+    "group_id",
+    "account_name",
+    "activate_semantics"
+  ],
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "const": true
+    },
+    "provider_id": {
+      "type": "string",
+      "const": "openai-chatgpt"
+    },
+    "group_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "account_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "activate_semantics": {
+      "type": "string",
+      "const": "session_scoped_in_memory_preferred_account_override"
+    }
+  }
+}

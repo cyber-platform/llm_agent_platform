@@ -1,4 +1,4 @@
-# ADR 0016: Runtime package layout `llm_agent_platform/` + local scripts in `scripts/`
+# ADR 0016: Runtime package layout `services/backend/llm_agent_platform/` + local scripts in `services/backend/scripts/`
 
 ## Status
 Accepted
@@ -15,8 +15,8 @@ Accepted
 
 Актуальный runtime layout уже сложился и используется во всей текущей архитектуре платформы:
 
-- runtime package: [`llm_agent_platform/`](llm_agent_platform:1)
-- local scripts: [`scripts/`](scripts:1)
+- runtime package: [`services/backend/llm_agent_platform/`](services/backend/llm_agent_platform:1)
+- local scripts: [`services/backend/scripts/`](services/backend/scripts:1)
 - canonical docs and contracts: [`docs/`](docs:1)
 - external nested repos: [`gemini-cli/`](gemini-cli:1), [`qwen-code/`](qwen-code:1), [`kilocode/`](kilocode:1)
 
@@ -26,24 +26,24 @@ Accepted
 
 Принять фактический layout как канонический:
 
-1. [`llm_agent_platform/`](llm_agent_platform:1) — единственный runtime package платформы.
-2. [`scripts/`](scripts:1) — локальные bootstrap/maintenance scripts, не являющиеся частью контейнерного runtime.
+1. [`services/backend/llm_agent_platform/`](services/backend/llm_agent_platform:1) — единственный runtime package платформы.
+2. [`services/backend/scripts/`](services/backend/scripts:1) — локальные bootstrap/maintenance scripts, не являющиеся частью контейнерного runtime.
 3. [`docs/`](docs:1) — Source of Truth для архитектуры, contracts и testing traceability.
 4. Внешние nested repos остаются reference-only и не описываются как runtime-компоненты платформы.
 
 ### Canonical layout
 
-- [`llm_agent_platform/`](llm_agent_platform:1)
+- [`services/backend/llm_agent_platform/`](services/backend/llm_agent_platform:1)
   - runtime API, auth, core, services, config и entrypoint
-- [`scripts/`](scripts:1)
+- [`services/backend/scripts/`](services/backend/scripts:1)
   - bootstrap OAuth и вспомогательные локальные скрипты
 - [`docs/`](docs:1)
   - архитектурный канон, ADR, contracts, testing docs
 
 ### Entry points
 
-- Контейнерный runtime стартует через пакет [`llm_agent_platform/__main__.py`](llm_agent_platform/__main__.py:1).
-- Локальные bootstrap scripts запускаются из [`scripts/`](scripts:1).
+- Контейнерный runtime стартует через пакет [`services/backend/llm_agent_platform/__main__.py`](services/backend/llm_agent_platform/__main__.py:1).
+- Локальные bootstrap scripts запускаются из [`services/backend/scripts/`](services/backend/scripts:1).
 
 ## Options considered
 
@@ -55,7 +55,7 @@ Accepted
 - Плюсы: классический packaging narrative.
 - Минусы: не соответствует текущему runtime и создаёт ложный Source of Truth.
 
-### Option C: Канонизировать фактический layout `llm_agent_platform/` + `scripts/`
+### Option C: Канонизировать фактический layout `services/backend/llm_agent_platform/` + `services/backend/scripts/`
 - Плюсы: документация совпадает с реальной структурой проекта; меньше когнитивного шума; проще traceability.
 - Минусы: требуется cleanup legacy docs, где остались ссылки на `src/` и `model_proxy`.
 
@@ -77,4 +77,4 @@ Accepted
 
 ## Review conditions
 
-- Пересмотреть ADR, если runtime package будет реально вынесен из [`llm_agent_platform/`](llm_agent_platform:1) в другой layout.
+- Пересмотреть ADR, если runtime package будет реально вынесен из [`services/backend/llm_agent_platform/`](services/backend/llm_agent_platform:1) в другой layout.

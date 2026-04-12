@@ -88,6 +88,6 @@
 
 ## Verification
 
-- Компиляция: `uv run python -m compileall llm_agent_platform`
-- Тесты: `uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
+- Компиляция: `cd services/backend && uv run python -m compileall llm_agent_platform`
+- Тесты: `cd services/backend && uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
 - Трассировка тестов: [`docs/testing/suites/quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md:1)

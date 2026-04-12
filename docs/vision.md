@@ -27,9 +27,9 @@
 - общий OpenAI pipeline в [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1);
 - auth и runtime boundaries в [`docs/auth.md`](docs/auth.md:1) и [`docs/configuration/env-files.md`](docs/configuration/env-files.md:1);
 - contracts в [`docs/contracts/`](docs/contracts:1);
-- тестовую трассировку в [`docs/testing/test-map.md`](docs/testing/test-map.md:1).
+- тестовую трассировку в [`docs/testing/index.md`](docs/testing/index.md:1).
 
-Список providers и их актуальный статус должны сводиться в [`docs/providers/README.md`](docs/providers/README.md:1).
+Список providers и их актуальный статус должны сводиться в [`docs/providers/index.md`](docs/providers/index.md:1).
 
 ## Как документировать провайдеров
 
@@ -42,7 +42,7 @@
 - состав каталога моделей;
 - особенности usage-limits и retry semantics.
 
-Поверх provider pages должен существовать единый индекс свойств providers в [`docs/providers/README.md`](docs/providers/README.md:1).
+Поверх provider pages должен существовать единый индекс свойств providers в [`docs/providers/index.md`](docs/providers/index.md:1).
 
 Первая такая страница: [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1).
 
@@ -62,4 +62,4 @@
 Платформа может расширяться новыми провайдерами, не меняя продуктовую модель:
 - общий канон остается provider-centric;
 - provider-specific детали добавляются на выделенные страницы в [`docs/providers/`](docs/providers:1);
-- boundary contracts и test traceability остаются централизованными в [`docs/contracts/`](docs/contracts:1) и [`docs/testing/`](docs/testing:1).
+- boundary contracts и test traceability остаются централизованными в [`docs/contracts/index.md`](docs/contracts/index.md:1) и [`docs/testing/index.md`](docs/testing/index.md:1).

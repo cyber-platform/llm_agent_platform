@@ -1,0 +1,54 @@
+services:
+  backend:
+    build:
+      context: ./services/backend
+    image: ${DOCKERHUB_NAMESPACE:-local}/llm-agent-platform-backend:${BACKEND_IMAGE_TAG:-dev}
+    container_name: backend
+    ports:
+      - "127.0.0.1:4000:4000"
+    volumes:
+      - ./secrets:/app/secrets:rw
+      - /data/backend_state:/app/state:rw
+      - /data/backend_logs:/app/logs:rw
+    environment:
+      VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID}
+      VERTEX_LOCATION: ${VERTEX_LOCATION:-us-central1}
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT}
+      DEFAULT_QUOTA_MODEL: ${DEFAULT_QUOTA_MODEL}
+      STRICT_CLI_PARITY: ${STRICT_CLI_PARITY:-true}
+      CLOUD_CODE_ENDPOINT: ${CLOUD_CODE_ENDPOINT}
+      GEMINI_CLI_CLIENT_ID: ${GEMINI_CLI_CLIENT_ID}
+      GEMINI_CLI_CLIENT_SECRET: ${GEMINI_CLI_CLIENT_SECRET}
+      USER_GEMINI_CREDS_PATH: ${USER_GEMINI_CREDS_PATH:-/app/secrets/user_gemini_credentials.json}
+      USER_QWEN_CREDS_PATH: ${USER_QWEN_CREDS_PATH:-/app/secrets/user_qwen_credentials.json}
+      GEMINI_ACCOUNTS_CONFIG_PATH: ${GEMINI_ACCOUNTS_CONFIG_PATH:-/app/secrets/gemini-cli/accounts_config.json}
+      QWEN_ACCOUNTS_CONFIG_PATH: ${QWEN_ACCOUNTS_CONFIG_PATH:-/app/secrets/qwen_code/accounts_config.json}
+      OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH: ${OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH:-/app/secrets/openai-chatgpt/accounts_config.json}
+      SERVICE_ACCOUNT_PATH: ${SERVICE_ACCOUNT_PATH:-/app/secrets/service_account.json}
+      STATE_DIR: ${STATE_DIR:-/app/state}
+      STATE_FLUSH_INTERVAL_SECONDS: ${STATE_FLUSH_INTERVAL_SECONDS:-3}
+      STATE_WRITER_MAX_PENDING_FILES: ${STATE_WRITER_MAX_PENDING_FILES:-1024}
+      QWEN_OAUTH_CLIENT_ID: ${QWEN_OAUTH_CLIENT_ID}
+      QWEN_OAUTH_SCOPE: ${QWEN_OAUTH_SCOPE:-openid profile email model.completion}
+      QWEN_OAUTH_DEVICE_CODE_ENDPOINT: ${QWEN_OAUTH_DEVICE_CODE_ENDPOINT:-https://chat.qwen.ai/api/v1/oauth2/device/code}
+      QWEN_OAUTH_TOKEN_ENDPOINT: ${QWEN_OAUTH_TOKEN_ENDPOINT:-https://chat.qwen.ai/api/v1/oauth2/token}
+      QWEN_DEFAULT_RESOURCE_URL: ${QWEN_DEFAULT_RESOURCE_URL:-https://dashscope.aliyuncs.com/compatible-mode}
+      HTTP_TIMEOUT_SECONDS: ${HTTP_TIMEOUT_SECONDS:-60}
+      HTTP_MAX_CONNECTIONS: ${HTTP_MAX_CONNECTIONS:-100}
+      HTTP_MAX_KEEPALIVE_CONNECTIONS: ${HTTP_MAX_KEEPALIVE_CONNECTIONS:-20}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_DIR: /app/logs
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./services/frontend
+    image: ${DOCKERHUB_NAMESPACE:-local}/llm-agent-platform-frontend:${FRONTEND_IMAGE_TAG:-dev}
+    container_name: openai-chatgpt-poc-frontend
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:4173:80"
+    volumes:
+      - ./services/frontend/public/runtime-config.json:/usr/share/nginx/html/runtime-config.json:ro
+    restart: unless-stopped

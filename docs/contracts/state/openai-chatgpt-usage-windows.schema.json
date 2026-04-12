@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/model-proxy/contracts/state/openai-chatgpt-usage-windows.schema.json",
+  "title": "OpenAI ChatGPT usage windows state v1",
+  "description": "Account-scoped provider monitoring snapshot with two normalized usage windows and refresh metadata.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "provider_id",
+    "short_window",
+    "long_window",
+    "refresh"
+  ],
+  "$defs": {
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "used_percent",
+        "window_minutes"
+      ],
+      "properties": {
+        "used_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "window_minutes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reset_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "refresh": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "last_refreshed_at",
+        "refresh_interval_seconds",
+        "status"
+      ],
+      "properties": {
+        "last_refreshed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "next_refresh_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "refresh_interval_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "last_error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "provider_id": {
+      "type": "string",
+      "const": "openai-chatgpt"
+    },
+    "account_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional best-effort provider account identifier for observability and correlation."
+    },
+    "short_window": {
+      "$ref": "#/$defs/window"
+    },
+    "long_window": {
+      "$ref": "#/$defs/window"
+    },
+    "refresh": {
+      "$ref": "#/$defs/refresh"
+    },
+    "metadata": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": true
+    }
+  }
+}
