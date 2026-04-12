@@ -45,9 +45,9 @@ flowchart LR
   - provider-scoped [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md);
   - provider-native routes;
   - auth/runtime/quota orchestration вокруг `abstract provider` и `provider implementation`.
-- Primary implementation: [`llm_agent_platform/__main__.py`](../../llm_agent_platform/__main__.py), [`component-view.md`](./component-view.md)
+- Primary implementation: [`services/backend/llm_agent_platform/__main__.py`](../../services/backend/llm_agent_platform/__main__.py), [`component-view.md`](./component-view.md)
 - Service lifecycle orchestration и dev/prod materialization выполняются через [`HSM`](../terms/project/terms/hsm.md).
-- Status: materialized in code; target repo boundary — отдельный `Backend service` repository.
+- Status: materialized в `services/backend/` как service-local repository boundary.
 
 ### OAuth bootstrap scripts
 
@@ -56,7 +56,7 @@ flowchart LR
   - загрузить bootstrap env;
   - пройти OAuth flow;
   - записать credentials в `Secrets storage`.
-- Primary implementation: [`scripts/`](../../scripts)
+- Primary implementation: [`services/backend/scripts/`](../../services/backend/scripts)
 - Status: materialized in code.
 
 ### Frontend service
@@ -108,7 +108,7 @@ Provider readiness matrix и current provider canon задаются в [`index.
 ## Status notes
 
 - В текущем PoC materialized containers: `Backend service`, `OAuth bootstrap scripts`, local-only `Frontend service` operator slice.
-- `Frontend service` уже реализован как отдельный nested frontend repo/service, а `Backend service` готовится к выделению в отдельный repo boundary.
+- `Frontend service` уже реализован как отдельный nested frontend repo/service, а `Backend service` materialized как отдельный service-local boundary в `services/backend/`.
 - `docker-compose` и `HSM` не являются runtime containers этой диаграммы; они относятся к local delivery и stack management layer.
 
 ## Related documents

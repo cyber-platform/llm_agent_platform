@@ -30,13 +30,13 @@ cd model_proxy
 ### Шаг 2: Подготовка окружения
 Используйте `uv` для автоматической настройки виртуального окружения и установки всех необходимых библиотек:
 ```bash
-uv sync
+uv sync --project services/backend
 ```
 
 ### Шаг 3: Настройка конфигурации
 Создайте файл `.env` на основе примера:
 ```bash
-cp .env.example .env
+cp services/backend/.env.example .env
 ```
 Отредактируйте `.env`:
 *   `VERTEX_PROJECT_ID`: ID вашего проекта в Google Cloud (обязательно для Vertex Mode).
@@ -45,7 +45,7 @@ cp .env.example .env
 ### Шаг 4: Авторизация
 Для quota-based providers подготовьте OAuth credentials. Базовый пример для Gemini OAuth:
 ```bash
-uv run python scripts/get_gemini-cli_credentials.py
+uv run --project services/backend python services/backend/scripts/get_gemini-cli_credentials.py
 ```
 Подробности:
 - [`docs/auth.md`](docs/auth.md:1)
@@ -65,7 +65,7 @@ docker-compose up -d --build
 ### Вариант Б: Локальный запуск
 Если вы хотите запустить сервер напрямую:
 ```bash
-uv run python -m llm_agent_platform
+uv run --project services/backend python -m llm_agent_platform
 ```
 
 ---
@@ -92,7 +92,7 @@ curl -X POST http://localhost:4000/gemini-cli/v1/chat/completions \
 ---
 
 ## 📂 Структура папок
-*   `llm_agent_platform/`: runtime-код платформы.
-*   `scripts/`: Вспомогательные скрипты для регистрации и тестов.
+*   `services/backend/llm_agent_platform/`: runtime-код платформы.
+*   `services/backend/scripts/`: Вспомогательные скрипты для регистрации и тестов.
 *   `secrets/`: чувствительные данные и локальные credentials.
 *   `docs/`: Source of Truth для архитектуры, contracts и testing traceability.

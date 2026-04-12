@@ -15,21 +15,21 @@ Non-scope:
 
 ## Source of Truth
 - Реализация:
-  - Routes entry: [`llm_agent_platform/api/openai/routes.py`](llm_agent_platform/api/openai/routes.py:1)
-  - Pipeline: [`llm_agent_platform/api/openai/pipeline.py`](llm_agent_platform/api/openai/pipeline.py:1)
-  - Types/context: [`llm_agent_platform/api/openai/types.py`](llm_agent_platform/api/openai/types.py:1)
+  - Routes entry: [`services/backend/llm_agent_platform/api/openai/routes.py`](services/backend/llm_agent_platform/api/openai/routes.py:1)
+  - Pipeline: [`services/backend/llm_agent_platform/api/openai/pipeline.py`](services/backend/llm_agent_platform/api/openai/pipeline.py:1)
+  - Types/context: [`services/backend/llm_agent_platform/api/openai/types.py`](services/backend/llm_agent_platform/api/openai/types.py:1)
   - Providers:
-    - Base: [`llm_agent_platform/api/openai/providers/base.py`](llm_agent_platform/api/openai/providers/base.py:1)
-    - Gemini CLI quota: [`llm_agent_platform/api/openai/providers/gemini_cli.py`](llm_agent_platform/api/openai/providers/gemini_cli.py:1)
-    - Qwen Code quota: [`llm_agent_platform/api/openai/providers/qwen_code.py`](llm_agent_platform/api/openai/providers/qwen_code.py:1)
-    - Google Vertex: [`llm_agent_platform/api/openai/providers/google_vertex.py`](llm_agent_platform/api/openai/providers/google_vertex.py:1)
+    - Base: [`services/backend/llm_agent_platform/api/openai/providers/base.py`](services/backend/llm_agent_platform/api/openai/providers/base.py:1)
+    - Gemini CLI quota: [`services/backend/llm_agent_platform/api/openai/providers/gemini_cli.py`](services/backend/llm_agent_platform/api/openai/providers/gemini_cli.py:1)
+    - Qwen Code quota: [`services/backend/llm_agent_platform/api/openai/providers/qwen_code.py`](services/backend/llm_agent_platform/api/openai/providers/qwen_code.py:1)
+    - Google Vertex: [`services/backend/llm_agent_platform/api/openai/providers/google_vertex.py`](services/backend/llm_agent_platform/api/openai/providers/google_vertex.py:1)
   - Strategies:
-    - Base: [`llm_agent_platform/api/openai/strategies/base.py`](llm_agent_platform/api/openai/strategies/base.py:1)
-    - Registry: [`llm_agent_platform/api/openai/strategies/registry.py`](llm_agent_platform/api/openai/strategies/registry.py:1)
-    - Direct: [`llm_agent_platform/api/openai/strategies/direct.py`](llm_agent_platform/api/openai/strategies/direct.py:1)
-    - Rotate-on-429: [`llm_agent_platform/api/openai/strategies/rotate_on_429_rounding.py`](llm_agent_platform/api/openai/strategies/rotate_on_429_rounding.py:1)
-  - Streaming: [`llm_agent_platform/api/openai/streaming.py`](llm_agent_platform/api/openai/streaming.py:1)
-  - Response shaping: [`llm_agent_platform/api/openai/response_shaper.py`](llm_agent_platform/api/openai/response_shaper.py:1)
+    - Base: [`services/backend/llm_agent_platform/api/openai/strategies/base.py`](services/backend/llm_agent_platform/api/openai/strategies/base.py:1)
+    - Registry: [`services/backend/llm_agent_platform/api/openai/strategies/registry.py`](services/backend/llm_agent_platform/api/openai/strategies/registry.py:1)
+    - Direct: [`services/backend/llm_agent_platform/api/openai/strategies/direct.py`](services/backend/llm_agent_platform/api/openai/strategies/direct.py:1)
+    - Rotate-on-429: [`services/backend/llm_agent_platform/api/openai/strategies/rotate_on_429_rounding.py`](services/backend/llm_agent_platform/api/openai/strategies/rotate_on_429_rounding.py:1)
+  - Streaming: [`services/backend/llm_agent_platform/api/openai/streaming.py`](services/backend/llm_agent_platform/api/openai/streaming.py:1)
+  - Response shaping: [`services/backend/llm_agent_platform/api/openai/response_shaper.py`](services/backend/llm_agent_platform/api/openai/response_shaper.py:1)
 
 ## Responsibilities & boundaries
 ### Route layer
@@ -67,8 +67,8 @@ Provider-specific runtime semantics должны документировать�
   - работу со stream/non-stream execution.
 
 ### Streaming mapping & response shaping
-- Преобразование upstream stream событий в OpenAI SSE chunks выполняется в [`llm_agent_platform/api/openai/streaming.py`](llm_agent_platform/api/openai/streaming.py:1).
-- Формирование non-stream ответа выполняется в [`llm_agent_platform/api/openai/response_shaper.py`](llm_agent_platform/api/openai/response_shaper.py:1).
+- Преобразование upstream stream событий в OpenAI SSE chunks выполняется в [`services/backend/llm_agent_platform/api/openai/streaming.py`](services/backend/llm_agent_platform/api/openai/streaming.py:1).
+- Формирование non-stream ответа выполняется в [`services/backend/llm_agent_platform/api/openai/response_shaper.py`](services/backend/llm_agent_platform/api/openai/response_shaper.py:1).
 
 ## Data flow
 ```mermaid
@@ -103,13 +103,13 @@ Provider-specific инвариант для [`openai-chatgpt`](docs/providers/op
 
 ## Verification (evidence)
 ### Commands
-- `uv run python -m compileall llm_agent_platform`
-- `uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
+- `cd services/backend && uv run python -m compileall llm_agent_platform`
+- `cd services/backend && uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
 
 ### Relevant suites
 - OpenAI contract: [`docs/testing/suites/openai-contract.md`](docs/testing/suites/openai-contract.md:1)
 - Proxy routes smoke: [`docs/testing/suites/proxy-routes.md`](docs/testing/suites/proxy-routes.md:1)
 
 ### Relevant tests
-- Contract: [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1)
-- Routes smoke: [`llm_agent_platform/tests/test_refactor_p2_routes.py`](llm_agent_platform/tests/test_refactor_p2_routes.py:1)
+- Contract: [`services/backend/llm_agent_platform/tests/test_openai_contract.py`](services/backend/llm_agent_platform/tests/test_openai_contract.py:1)
+- Routes smoke: [`services/backend/llm_agent_platform/tests/test_refactor_p2_routes.py`](services/backend/llm_agent_platform/tests/test_refactor_p2_routes.py:1)

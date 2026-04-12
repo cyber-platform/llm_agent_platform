@@ -9,8 +9,8 @@
 - `docs/testing/suites/quota-state-persistence.md`
 
 ## Implementation roots
-- `llm_agent_platform/tests/test_quota_account_router.py`
-- planned `llm_agent_platform/tests/test_quota_state_persistence.py`
+- `services/backend/llm_agent_platform/tests/test_quota_account_router.py`
+- planned `services/backend/llm_agent_platform/tests/test_quota_state_persistence.py`
 
 ## Search anchors
 - `TS-QUOTA-STATE-PERSISTENCE`

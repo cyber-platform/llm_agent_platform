@@ -9,8 +9,8 @@
 - `docs/testing/suites/openai-contract.md`
 
 ## Implementation roots
-- `llm_agent_platform/tests/test_openai_contract.py`
-- `llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
+- `services/backend/llm_agent_platform/tests/test_openai_contract.py`
+- `services/backend/llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
 
 ## Search anchors
 - `TS-OPENAI-CONTRACT`
@@ -43,11 +43,11 @@
   - Нормативные схемы ошибок: [`docs/contracts/api/openai/errors/429-error.schema.json`](docs/contracts/api/openai/errors/429-error.schema.json:1)
   - Нормативная auth schema: [`docs/contracts/api/openai/errors/401-invalid-api-key-error.schema.json`](docs/contracts/api/openai/errors/401-invalid-api-key-error.schema.json:1)
   - `LLM provider`-specific quota boundary: [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
-- Script: [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1), [`llm_agent_platform/tests/test_openai_chatgpt_runtime.py`](llm_agent_platform/tests/test_openai_chatgpt_runtime.py:1)
+- Script: [`services/backend/llm_agent_platform/tests/test_openai_contract.py`](services/backend/llm_agent_platform/tests/test_openai_contract.py:1), [`services/backend/llm_agent_platform/tests/test_openai_chatgpt_runtime.py`](services/backend/llm_agent_platform/tests/test_openai_chatgpt_runtime.py:1)
 
 ## Verification Command
-- `uv run python -m unittest llm_agent_platform/tests/test_openai_contract.py`
-- `uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_openai_contract.py`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
 
 ## Debug Methodology (usage in stream)
 

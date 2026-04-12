@@ -9,9 +9,9 @@
 - `docs/testing/suites/quota-account-rotation.md`
 
 ## Implementation roots
-- `llm_agent_platform/tests/test_quota_account_router.py`
-- `llm_agent_platform/tests/test_refactor_p2_routes.py`
-- `llm_agent_platform/tests/test_openai_contract.py`
+- `services/backend/llm_agent_platform/tests/test_quota_account_router.py`
+- `services/backend/llm_agent_platform/tests/test_refactor_p2_routes.py`
+- `services/backend/llm_agent_platform/tests/test_openai_contract.py`
 
 ## Search anchors
 - `TS-QUOTA-ACCOUNT-ROTATION`
@@ -56,7 +56,7 @@
 ### Source links
 - Канонический архитектурный документ: [`docs/architecture/quota-account-rotation-groups-and-models.md`](docs/architecture/quota-account-rotation-groups-and-models.md:1)
 - ADR по `LLM provider`-centric routing: [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:1)
-- Реализация: [`llm_agent_platform/services/account_router.py`](llm_agent_platform/services/account_router.py:1)
+- Реализация: [`services/backend/llm_agent_platform/services/account_router.py`](services/backend/llm_agent_platform/services/account_router.py:1)
 
 ## Risk Register (test-focused)
 - RISK-1 (RNG nondeterminism): random-order требует детерминирования через patch RNG (например patch `random.choice`).
@@ -66,7 +66,7 @@
 - RISK-5 (state persistence): state-файлы должны писаться в temp-dir в тестах через patch путей.
 
 ## Test Levels (L1–L4)
-- L1 Unit: чистая логика роутера (изменения в [`llm_agent_platform/services/account_router.py`](llm_agent_platform/services/account_router.py:1)), без Flask.
+- L1 Unit: чистая логика роутера (изменения в [`services/backend/llm_agent_platform/services/account_router.py`](services/backend/llm_agent_platform/services/account_router.py:1)), без Flask.
 - L2 Contract: структура OpenAI-compatible ответов в части status/message для 429 сценариев (через Flask client в контрактных тестах).
 - L3 Integration: маршрутизация Flask и `LLM provider`-scoped group-aware endpoints, без реальных upstream вызовов (моки провайдеров/роутера).
 - L4 E2E: реальные upstream провайдеры (out of scope для этой suite).
@@ -108,23 +108,23 @@
 ## Coverage Matrix
 | Requirement | Test cases | Level | Target scripts |
 | :--- | :--- | :---: | :--- |
-| REQ-015-RANDOM | TC-RAND-1, TC-RAND-2 | L1 | `llm_agent_platform/tests/test_quota_account_router.py` |
-| REQ-016-BY-N | TC-N-1, TC-N-2 | L1 | `llm_agent_platform/tests/test_quota_account_router.py` |
-| REQ-GRP-ISO | TC-GRP-1 | L1 | `llm_agent_platform/tests/test_quota_account_router.py` |
-| REQ-MODELS-GROUP | TC-MODELS-1, TC-MODELS-2 | L3 | `llm_agent_platform/tests/test_refactor_p2_routes.py` |
-| REQ-COOLDOWN-WAIT | TC-CD-1, TC-CD-2 | L1 + L2/L3 | `llm_agent_platform/tests/test_quota_account_router.py`, `llm_agent_platform/tests/test_openai_contract.py` |
-| REQ-RESET-PERIOD | TC-PERIOD-1 | L1 | `llm_agent_platform/tests/test_quota_account_router.py` |
-| REQ-STATE-PERSIST | TC-STATE-1 | L1 | `llm_agent_platform/tests/test_quota_account_router.py` |
-| REQ-DISJOINT-GROUPS | TC-DISJOINT-1 | L1 | `llm_agent_platform/tests/test_quota_account_router.py` |
-| REQ-QWEN-IDLE-REFRESH | TC-QWEN-REFRESH-1, TC-QWEN-REFRESH-2 | L1/L2 | `llm_agent_platform/tests/test_openai_contract.py` |
+| REQ-015-RANDOM | TC-RAND-1, TC-RAND-2 | L1 | `services/backend/llm_agent_platform/tests/test_quota_account_router.py` |
+| REQ-016-BY-N | TC-N-1, TC-N-2 | L1 | `services/backend/llm_agent_platform/tests/test_quota_account_router.py` |
+| REQ-GRP-ISO | TC-GRP-1 | L1 | `services/backend/llm_agent_platform/tests/test_quota_account_router.py` |
+| REQ-MODELS-GROUP | TC-MODELS-1, TC-MODELS-2 | L3 | `services/backend/llm_agent_platform/tests/test_refactor_p2_routes.py` |
+| REQ-COOLDOWN-WAIT | TC-CD-1, TC-CD-2 | L1 + L2/L3 | `services/backend/llm_agent_platform/tests/test_quota_account_router.py`, `services/backend/llm_agent_platform/tests/test_openai_contract.py` |
+| REQ-RESET-PERIOD | TC-PERIOD-1 | L1 | `services/backend/llm_agent_platform/tests/test_quota_account_router.py` |
+| REQ-STATE-PERSIST | TC-STATE-1 | L1 | `services/backend/llm_agent_platform/tests/test_quota_account_router.py` |
+| REQ-DISJOINT-GROUPS | TC-DISJOINT-1 | L1 | `services/backend/llm_agent_platform/tests/test_quota_account_router.py` |
+| REQ-QWEN-IDLE-REFRESH | TC-QWEN-REFRESH-1, TC-QWEN-REFRESH-2 | L1/L2 | `services/backend/llm_agent_platform/tests/test_openai_contract.py` |
 
 ## Scripts
-- Router unit: [`llm_agent_platform/tests/test_quota_account_router.py`](llm_agent_platform/tests/test_quota_account_router.py:1)
-- Routes smoke/integration: [`llm_agent_platform/tests/test_refactor_p2_routes.py`](llm_agent_platform/tests/test_refactor_p2_routes.py:1)
-- OpenAI-compatible contract: [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1)
+- Router unit: [`services/backend/llm_agent_platform/tests/test_quota_account_router.py`](services/backend/llm_agent_platform/tests/test_quota_account_router.py:1)
+- Routes smoke/integration: [`services/backend/llm_agent_platform/tests/test_refactor_p2_routes.py`](services/backend/llm_agent_platform/tests/test_refactor_p2_routes.py:1)
+- OpenAI-compatible contract: [`services/backend/llm_agent_platform/tests/test_openai_contract.py`](services/backend/llm_agent_platform/tests/test_openai_contract.py:1)
 
 ## Verification Command
-- `uv run python -m unittest llm_agent_platform/tests/test_quota_account_router.py`
-- `uv run python -m unittest llm_agent_platform/tests/test_refactor_p2_routes.py`
-- `uv run python -m unittest llm_agent_platform/tests/test_openai_contract.py`
-- Full run: `uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_quota_account_router.py`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_refactor_p2_routes.py`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_openai_contract.py`
+- Full run: `cd services/backend && uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`

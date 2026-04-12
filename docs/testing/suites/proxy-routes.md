@@ -9,7 +9,7 @@
 - `docs/testing/suites/proxy-routes.md`
 
 ## Implementation roots
-- `llm_agent_platform/tests/test_refactor_p2_routes.py`
+- `services/backend/llm_agent_platform/tests/test_refactor_p2_routes.py`
 
 ## Search anchors
 - `TS-PROXY-ROUTES`
@@ -35,8 +35,8 @@
   - Архитектура pipeline: [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1)
   - Карта компонентов: [`docs/architecture/component-map.md`](docs/architecture/component-map.md:1)
 - Script:
-  - [`llm_agent_platform/tests/test_refactor_p2_routes.py`](llm_agent_platform/tests/test_refactor_p2_routes.py:1)
+  - [`services/backend/llm_agent_platform/tests/test_refactor_p2_routes.py`](services/backend/llm_agent_platform/tests/test_refactor_p2_routes.py:1)
 
 ## Verification Command
-- `uv run python -m unittest llm_agent_platform/tests/test_refactor_p2_routes.py`
-- `uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_refactor_p2_routes.py`
+- `cd services/backend && uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`

@@ -9,7 +9,7 @@
 - `docs/testing/suites/admin-api-keys.md`
 
 ## Implementation roots
-- `llm_agent_platform/tests/test_admin_api_keys.py`
+- `services/backend/llm_agent_platform/tests/test_admin_api_keys.py`
 
 ## Search anchors
 - `TS-ADMIN-API-KEYS`
@@ -37,11 +37,11 @@
   - [`docs/contracts/api/admin/api-keys/openai-chatgpt-api-keys-list.schema.json`](docs/contracts/api/admin/api-keys/openai-chatgpt-api-keys-list.schema.json:1)
   - [`docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-revoke-response.schema.json`](docs/contracts/api/admin/api-keys/openai-chatgpt-api-key-revoke-response.schema.json:1)
   - [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
-- Target script: `uv run python -m unittest llm_agent_platform/tests/test_admin_api_keys.py`
+- Target script: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_admin_api_keys.py`
 
 ## Verification Command
 
-- `uv run python -m unittest llm_agent_platform/tests/test_admin_api_keys.py`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_admin_api_keys.py`
 
 ## Status
 

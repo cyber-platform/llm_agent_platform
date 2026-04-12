@@ -6,7 +6,7 @@
 
 ## Контекст
 
-В stream контуре [`chat_completions()`](llm_agent_platform/api/openai/routes.py:1) и [`gemini_proxy()`](llm_agent_platform/api/gemini/routes.py:1) возникли скрытые мутации состояния при переключении аккаунтов в nested-функциях. Подход с неявным захватом переменных повышает риск ошибок области видимости и усложняет тестирование.
+В stream контуре [`chat_completions()`](services/backend/llm_agent_platform/api/openai/routes.py:1) и [`gemini_proxy()`](services/backend/llm_agent_platform/api/gemini/routes.py:1) возникли скрытые мутации состояния при переключении аккаунтов в nested-функциях. Подход с неявным захватом переменных повышает риск ошибок области видимости и усложняет тестирование.
 
 Параллельно принято архитектурное решение разделить класс `429` на семантические категории:
 - `rate_limit`

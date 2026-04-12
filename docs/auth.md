@@ -28,7 +28,7 @@
    ```
 2. Запустите OAuth-скрипт:
    ```bash
-   uv run python scripts/get_gemini-cli_credentials.py
+   uv run --project services/backend python services/backend/scripts/get_gemini-cli_credentials.py
    ```
 3. Пройдите авторизацию в браузере.
 
@@ -54,7 +54,7 @@
 ### Шаги
 1. Запустите OAuth device-flow скрипт:
    ```bash
-   uv run python scripts/get_qwen-code_credentials.py
+   uv run --project services/backend python services/backend/scripts/get_qwen-code_credentials.py
    ```
 2. Откройте ссылку в браузере и завершите подтверждение.
 3. Скрипт дождётся токена и сохранит credentials в `secrets/qwen_code/user_credentials.json`.
@@ -64,7 +64,7 @@
 - источник: `qwen-code/packages/core/src/qwen/qwenOAuth2.ts` (`QWEN_OAUTH_SCOPE`)
 
 Важно по разделению bootstrap/runtime:
-- `QWEN_OAUTH_CLIENT_ID` и `QWEN_OAUTH_SCOPE` нужны для bootstrap device-flow (скрипт [`scripts/get_qwen-code_credentials.py`](scripts/get_qwen-code_credentials.py:1)).
+- `QWEN_OAUTH_CLIENT_ID` и `QWEN_OAUTH_SCOPE` нужны для bootstrap device-flow (скрипт [`services/backend/scripts/get_qwen-code_credentials.py`](services/backend/scripts/get_qwen-code_credentials.py:1)).
 - Runtime прокси при refresh берёт `client_id` из credentials-файла аккаунта.
 
 ---
@@ -156,13 +156,13 @@ Qwen refresh выполняется:
 
 ## 4) OpenAI ChatGPT OAuth runtime
 
-Текущий статус интеграции [`openai-chatgpt`](llm_agent_platform/provider_registry/providers/openai-chatgpt.json:1):
+Текущий статус интеграции [`openai-chatgpt`](services/backend/llm_agent_platform/provider_registry/providers/openai-chatgpt.json:1):
 
 - `GET /openai-chatgpt/v1/models` и `POST /openai-chatgpt/v1/chat/completions` уже обслуживаются runtime implementation.
 - Для каталога используется static bootstrap catalog без live discovery.
-- Bootstrap script реализован в [`scripts/get_openai-chatgpt_credentials.py`](scripts/get_openai-chatgpt_credentials.py:1).
+- Bootstrap script реализован в [`services/backend/scripts/get_openai-chatgpt_credentials.py`](services/backend/scripts/get_openai-chatgpt_credentials.py:1).
 - `provider implementation` использует private backend surface и общий `LLM provider` accounts-config contract для `single` и `rounding`.
-- Usage adapter вынесен в monitoring-only контур [`llm_agent_platform/services/provider_usage_limits.py`](llm_agent_platform/services/provider_usage_limits.py:1).
+- Usage adapter вынесен в monitoring-only контур [`services/backend/llm_agent_platform/services/provider_usage_limits.py`](services/backend/llm_agent_platform/services/provider_usage_limits.py:1).
 
 ### Что создаётся
 - Базовый файл OAuth по умолчанию: `secrets/openai-chatgpt/accounts/user_credentials.json`.
@@ -203,8 +203,8 @@ Qwen refresh выполняется:
 Для платформы в целом каноническая граница хранения задаётся так:
 
 - user OAuth credentials в `secrets/<provider_id>/...` — это пользовательские credentials;
-- общий quota state живёт только в [`STATE_DIR`](llm_agent_platform/config.py:30) по общему канону [`account_state.json`](docs/contracts/state/account-state.schema.json:1) и [`quota_state.json`](docs/contracts/state/group-quota-state.schema.json:1);
-- `LLM provider`-specific usage snapshot, если `LLM provider` умеет отдавать usage/limits данные, тоже живёт только в [`STATE_DIR`](llm_agent_platform/config.py:30).
+- общий quota state живёт только в [`STATE_DIR`](services/backend/llm_agent_platform/config.py:30) по общему канону [`account_state.json`](docs/contracts/state/account-state.schema.json:1) и [`quota_state.json`](docs/contracts/state/group-quota-state.schema.json:1);
+- `LLM provider`-specific usage snapshot, если `LLM provider` умеет отдавать usage/limits данные, тоже живёт только в [`STATE_DIR`](services/backend/llm_agent_platform/config.py:30).
 
 Следствие:
 
@@ -222,7 +222,7 @@ Qwen refresh выполняется:
 Чтобы эта граница не размазывалась по `provider implementation`, path-resolution должен быть разделён на два платформенных направления:
 
 - credentials locator port — отвечает только за ссылки на user credentials в `secrets/`;
-- runtime state paths port — отвечает только за mutable state в [`STATE_DIR`](llm_agent_platform/config.py:30), включая platform router/quota state и `LLM provider` monitoring snapshots.
+- runtime state paths port — отвечает только за mutable state в [`STATE_DIR`](services/backend/llm_agent_platform/config.py:30), включая platform router/quota state и `LLM provider` monitoring snapshots.
 
 Это означает, что `provider implementation` и usage-monitoring не должны сами вычислять пути строковыми `replace(...)`, а должны опираться на общие платформенные path-resolver компоненты.
 
@@ -233,7 +233,7 @@ Runtime invariant для `LLM provider`:
 
 1. Получить OAuth state:
    ```bash
-   uv run python scripts/get_openai-chatgpt_credentials.py
+   uv run --project services/backend python services/backend/scripts/get_openai-chatgpt_credentials.py
    ```
 2. Указать файл аккаунта в `OPENAI_CHATGPT_ACCOUNTS_CONFIG_PATH`.
 3. Для single mode достаточно одного аккаунта с `credentials_path`; для rounding `LLM provider` использует тот же общий quota contour, что и остальные `LLM provider`.

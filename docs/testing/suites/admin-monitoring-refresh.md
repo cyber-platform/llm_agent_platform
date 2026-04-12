@@ -9,7 +9,7 @@
 - `docs/testing/suites/admin-monitoring-refresh.md`
 
 ## Implementation roots
-- `llm_agent_platform/tests/test_admin_monitoring_refresh.py`
+- `services/backend/llm_agent_platform/tests/test_admin_monitoring_refresh.py`
 
 ## Search anchors
 - `TS-ADMIN-MONITORING-REFRESH`
@@ -38,11 +38,11 @@
   - [`docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-start-response.schema.json`](docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-start-response.schema.json:1)
   - [`docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-status.schema.json`](docs/contracts/api/admin/monitoring/openai-chatgpt-refresh-status.schema.json:1)
   - [`docs/contracts/api/admin/monitoring/openai-chatgpt-accounts-page.schema.json`](docs/contracts/api/admin/monitoring/openai-chatgpt-accounts-page.schema.json:1)
-- Target script: `uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_refresh.py`
+- Target script: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_refresh.py`
 
 ## Verification Command
 
-- `uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_refresh.py`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_refresh.py`
 
 ## Status
 

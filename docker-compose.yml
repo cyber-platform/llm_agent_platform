@@ -1,15 +1,16 @@
 services:
   model-proxy:
-    build: .
+    build:
+      context: ./services/backend
     container_name: model-proxy
     ports:
       - "127.0.0.1:4000:4000"
     volumes:
       # Dev-режим: runtime-код всегда берётся с хоста, без baked-in snapshot в image
-      - ./llm_agent_platform:/app/llm_agent_platform:rw
+      - ./services/backend/llm_agent_platform:/app/llm_agent_platform:rw
       # На случай обновления entrypoint/метаданных проекта внутри dev-среды
-      - ./pyproject.toml:/app/pyproject.toml:ro
-      - ./uv.lock:/app/uv.lock:ro
+      - ./services/backend/pyproject.toml:/app/pyproject.toml:ro
+      - ./services/backend/uv.lock:/app/uv.lock:ro
       # Монтируем директорию секретов
       # user_credentials.json - для Quota (OAuth)
       # service_account.json - для Vertex (Credits)

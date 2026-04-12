@@ -16,9 +16,9 @@ Non-scope:
 
 ## Source of Truth (самодостаточно)
 - Реализация (ключевые точки):
-  - Router: [`llm_agent_platform/services/account_router.py`](llm_agent_platform/services/account_router.py:1)
-  - Strategy: [`llm_agent_platform/api/openai/strategies/rotate_on_429_rounding.py`](llm_agent_platform/api/openai/strategies/rotate_on_429_rounding.py:1)
-  - Routes: [`llm_agent_platform/api/openai/routes.py`](llm_agent_platform/api/openai/routes.py:1)
+  - Router: [`services/backend/llm_agent_platform/services/account_router.py`](services/backend/llm_agent_platform/services/account_router.py:1)
+  - Strategy: [`services/backend/llm_agent_platform/api/openai/strategies/rotate_on_429_rounding.py`](services/backend/llm_agent_platform/api/openai/strategies/rotate_on_429_rounding.py:1)
+  - Routes: [`services/backend/llm_agent_platform/api/openai/routes.py`](services/backend/llm_agent_platform/api/openai/routes.py:1)
 - Тест-дизайн и трассировка:
   - Suite: [`docs/testing/suites/quota-account-rotation.md`](docs/testing/suites/quota-account-rotation.md:1)
   - Test map: [`docs/testing/test-map.md`](docs/testing/test-map.md:1)
@@ -98,13 +98,13 @@ flowchart TD
 
 ## Verification (evidence)
 ### Commands
-- `uv run python -m compileall llm_agent_platform`
-- `uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
+- `cd services/backend && uv run python -m compileall llm_agent_platform`
+- `cd services/backend && uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
 
 ### Relevant tests
-- Router unit: [`llm_agent_platform/tests/test_quota_account_router.py`](llm_agent_platform/tests/test_quota_account_router.py:1)
-- Routes: [`llm_agent_platform/tests/test_refactor_p2_routes.py`](llm_agent_platform/tests/test_refactor_p2_routes.py:1)
-- OpenAI contract: [`llm_agent_platform/tests/test_openai_contract.py`](llm_agent_platform/tests/test_openai_contract.py:1)
+- Router unit: [`services/backend/llm_agent_platform/tests/test_quota_account_router.py`](services/backend/llm_agent_platform/tests/test_quota_account_router.py:1)
+- Routes: [`services/backend/llm_agent_platform/tests/test_refactor_p2_routes.py`](services/backend/llm_agent_platform/tests/test_refactor_p2_routes.py:1)
+- OpenAI contract: [`services/backend/llm_agent_platform/tests/test_openai_contract.py`](services/backend/llm_agent_platform/tests/test_openai_contract.py:1)
 
 ## ADR
 - [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:1)

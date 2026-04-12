@@ -9,8 +9,8 @@
 - `docs/testing/suites/quota-parity.md`
 
 ## Implementation roots
-- `llm_agent_platform/tests/test_quota_transport_parity.py`
-- `llm_agent_platform/tests/fixtures/parity/`
+- `services/backend/llm_agent_platform/tests/test_quota_transport_parity.py`
+- `services/backend/llm_agent_platform/tests/fixtures/parity/`
 
 ## Search anchors
 - `TS-QUOTA-PARITY`
@@ -29,12 +29,12 @@
   - suite anchor: `TS-QUOTA-PARITY`
   - future case anchors: `TC-QUOTA-PARITY-...`
 - Canonical references:
-  - Parity relay endpoint: [`llm_agent_platform/api/parity/routes.py`](llm_agent_platform/api/parity/routes.py:1)
+  - Parity relay endpoint: [`services/backend/llm_agent_platform/api/parity/routes.py`](services/backend/llm_agent_platform/api/parity/routes.py:1)
   - Test map: [`docs/testing/test-map.md`](docs/testing/test-map.md:1)
 - Scripts:
-  - [`llm_agent_platform/tests/test_quota_transport_parity.py`](llm_agent_platform/tests/test_quota_transport_parity.py:1)
-  - [`llm_agent_platform/tests/fixtures/parity/golden_cli_generate_request.json`](llm_agent_platform/tests/fixtures/parity/golden_cli_generate_request.json:1)
-  - [`llm_agent_platform/tests/fixtures/parity/golden_cli_stream_request.json`](llm_agent_platform/tests/fixtures/parity/golden_cli_stream_request.json:1)
+  - [`services/backend/llm_agent_platform/tests/test_quota_transport_parity.py`](services/backend/llm_agent_platform/tests/test_quota_transport_parity.py:1)
+  - [`services/backend/llm_agent_platform/tests/fixtures/parity/golden_cli_generate_request.json`](services/backend/llm_agent_platform/tests/fixtures/parity/golden_cli_generate_request.json:1)
+  - [`services/backend/llm_agent_platform/tests/fixtures/parity/golden_cli_stream_request.json`](services/backend/llm_agent_platform/tests/fixtures/parity/golden_cli_stream_request.json:1)
 
 ## Verification Command
-- `uv run python -m unittest llm_agent_platform/tests/test_quota_transport_parity.py`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_quota_transport_parity.py`

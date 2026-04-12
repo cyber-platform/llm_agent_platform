@@ -9,7 +9,7 @@
 - `docs/testing/suites/openai-chatgpt-poc-smoke.md`
 
 ## Implementation roots
-- `llm_agent_platform/tests/test_openai_chatgpt_poc_smoke.py`
+- `services/backend/llm_agent_platform/tests/test_openai_chatgpt_poc_smoke.py`
 - `services/frontend/package.json`
 - `services/frontend/config/dev-server.json`
 - `services/frontend/public/runtime-config.json`
@@ -41,7 +41,7 @@
   - [`docs/contracts/api/openai/errors/401-invalid-api-key-error.schema.json`](docs/contracts/api/openai/errors/401-invalid-api-key-error.schema.json:1)
 
 ## Verification Command
-- `uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_poc_smoke.py`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_poc_smoke.py`
 - `npm run build`
 
 ## Demo Checklist

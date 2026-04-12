@@ -17,13 +17,14 @@
 | Service | Роль | Repository boundary | Status |
 | --- | --- | --- | --- |
 | Frontend service | Local-only operator/admin frontend service, materializing current `Web UI` slice. | local path [`services/frontend/`](../../services/frontend), GitHub: [frontend repo](https://github.com/cyber-platform/frontend.git) | active nested repo |
-| Backend service | Machine-facing provider API и admin-facing backend runtime. | target local path `services/backend/`, GitHub repo публикуется отдельно | planned split |
+| Backend service | Machine-facing provider API и admin-facing backend runtime. | local path [`services/backend/`](../../services/backend); GitHub repo публикуется отдельно | materialized local boundary |
 
 ## Repo ownership
 
 - Root repo владеет system-level documentation, integration framing и local stack materialization artifacts.
 - `Frontend service` и `Backend service` владеют своим implementation code, service-local runtime details и service-local developer workflow.
 - Root `docs/` не должен дублировать service-internal code documentation; он фиксирует system boundaries, contracts и integration semantics.
+- `services/backend/README.md` задает минимальный service-local entry point и не переопределяет system-level architecture canon из root `docs/`.
 
 ## Service relations
 

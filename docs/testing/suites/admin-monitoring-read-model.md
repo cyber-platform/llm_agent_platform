@@ -9,7 +9,7 @@
 - `docs/testing/suites/admin-monitoring-read-model.md`
 
 ## Implementation roots
-- `llm_agent_platform/tests/test_admin_monitoring_read_model.py`
+- `services/backend/llm_agent_platform/tests/test_admin_monitoring_read_model.py`
 
 ## Search anchors
 - `TS-ADMIN-MONITORING-READ-MODEL`
@@ -38,11 +38,11 @@
   - [`docs/contracts/api/admin/monitoring/providers-list.schema.json`](docs/contracts/api/admin/monitoring/providers-list.schema.json:1)
   - [`docs/contracts/api/admin/monitoring/openai-chatgpt-accounts-page.schema.json`](docs/contracts/api/admin/monitoring/openai-chatgpt-accounts-page.schema.json:1)
   - [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
-- Target script: `uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_read_model.py`
+- Target script: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_read_model.py`
 
 ## Verification Command
 
-- `uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_read_model.py`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_read_model.py`
 
 ## Status
 

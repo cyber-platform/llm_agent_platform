@@ -153,8 +153,8 @@
 
 ## Initial status
 
-- Current State: planned.
-- Next Step: agent-level repository extraction design and materialization.
-- Blockers: возможны unknowns по exact packaging/import boundary и по способу initial git initialization для нового backend repo.
-- Contract Changes: possible.
-- Verification: not run.
+- Current State: completed.
+- Next Step: optional `git init` и remote publishing внутри `services/backend/` после отдельного repository bootstrap.
+- Blockers: initial git initialization и remote publishing остаются ручным follow-up вне текущего workspace scope.
+- Contract Changes: no public API contract changes; repo boundary и local run commands обновлены.
+- Verification: root `docker-compose.yml` обновлен под `services/backend/`; backend smoke commands перенесены в `services/backend`; compileall и selected unit tests выполнены из нового backend root.

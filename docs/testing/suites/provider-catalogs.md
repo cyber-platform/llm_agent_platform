@@ -9,7 +9,7 @@
 - `docs/testing/suites/provider-catalogs.md`
 
 ## Implementation roots
-- `llm_agent_platform/tests/test_provider_catalogs.py`
+- `services/backend/llm_agent_platform/tests/test_provider_catalogs.py`
 
 ## Search anchors
 - `TS-PROVIDER-CATALOGS`
@@ -31,8 +31,8 @@
   - [`docs/contracts/state/openai-chatgpt-oauth-state.schema.json`](docs/contracts/state/openai-chatgpt-oauth-state.schema.json:1)
   - [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
 - Script:
-  - [`llm_agent_platform/tests/test_provider_catalogs.py`](llm_agent_platform/tests/test_provider_catalogs.py:1)
+  - [`services/backend/llm_agent_platform/tests/test_provider_catalogs.py`](services/backend/llm_agent_platform/tests/test_provider_catalogs.py:1)
 
 ## Verification Command
-- `uv run python -m unittest llm_agent_platform/tests/test_provider_catalogs.py`
-- `uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_provider_catalogs.py`
+- `cd services/backend && uv run python -m unittest discover -s llm_agent_platform/tests -p "test_*.py"`
