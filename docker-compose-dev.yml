@@ -1,6 +1,8 @@
 services:
   backend:
-    image: docker.io/medphisiker/llm-agent-platform-backend:v0.0.1
+    build:
+      context: ./services/backend
+    image: ${DOCKERHUB_NAMESPACE:-local}/llm-agent-platform-backend:${BACKEND_IMAGE_TAG:-dev}
     container_name: backend
     ports:
       - "127.0.0.1:4000:4000"
@@ -39,7 +41,9 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: docker.io/medphisiker/llm-agent-platform-frontend:v0.0.1
+    build:
+      context: ./services/frontend
+    image: ${DOCKERHUB_NAMESPACE:-local}/llm-agent-platform-frontend:${FRONTEND_IMAGE_TAG:-dev}
     container_name: openai-chatgpt-poc-frontend
     depends_on:
       - backend

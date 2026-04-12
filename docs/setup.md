@@ -1,6 +1,6 @@
-# 🛠️ Установка и развертывание
+# Установка и развертывание
 
-Платформа использует **uv** и **Docker** для локального запуска и контейнерного развертывания.
+Платформа в первую очередь ориентирована на запуск через готовые Docker Hub образы. Локальная сборка и прямой service-local запуск остаются дополнительными сценариями для разработки.
 
 Актуальные сценарии запуска сервиса вынесены в отдельный раздел [`docs/run/index.md`](docs/run/index.md:1).
 
@@ -12,10 +12,12 @@
 
 ## 1. Предварительные требования
 
-Перед началом убедитесь, что у вас установлены:
-*   **Python 3.13+**
-*   **uv** (рекомендуется для управления зависимостями)
-*   **Docker** и **Docker Compose**
+Для основного сценария достаточно:
+- **Docker** и **Docker Compose**
+
+Дополнительно для service-local разработки:
+- **Python 3.13+**
+- **uv**
 
 ---
 
@@ -27,22 +29,18 @@ git clone <your-repo-url>
 cd llm_agent_platform
 ```
 
-### Шаг 2: Подготовка окружения
-Используйте `uv` для автоматической настройки виртуального окружения и установки всех необходимых библиотек:
+### Шаг 2: Настройка конфигурации
+Создайте root `.env` на основе примера:
 ```bash
-uv sync --project services/backend
-```
-
-### Шаг 3: Настройка конфигурации
-Создайте файл `.env` на основе примера:
-```bash
-cp services/backend/.env.example .env
+cp .env.example .env
 ```
 Отредактируйте `.env`:
-*   `VERTEX_PROJECT_ID`: ID вашего проекта в Google Cloud (обязательно для Vertex Mode).
-*   `VERTEX_LOCATION`: Регион (по умолчанию `us-central1`).
+- `VERTEX_PROJECT_ID`: ID вашего проекта в Google Cloud.
+- `VERTEX_LOCATION`: Регион (по умолчанию `us-central1`).
+- `GEMINI_CLI_CLIENT_ID` и `GEMINI_CLI_CLIENT_SECRET`: OAuth client для quota-based Gemini workflow.
+- `DOCKERHUB_NAMESPACE`, `BACKEND_IMAGE_TAG`, `FRONTEND_IMAGE_TAG`: опциональные override-переменные только для `docker-compose-dev.yml`; по умолчанию dev compose использует `local/llm-agent-platform-backend:dev` и `local/llm-agent-platform-frontend:dev`.
 
-### Шаг 4: Авторизация
+### Шаг 3: Авторизация
 Для quota-based providers подготовьте OAuth credentials. Базовый пример для Gemini OAuth:
 ```bash
 uv run --project services/backend python services/backend/scripts/get_gemini-cli_credentials.py
@@ -53,20 +51,37 @@ uv run --project services/backend python services/backend/scripts/get_gemini-cli
 
 ---
 
-## 3. Запуск сервера
+## 3. Запуск сервисов
 
-### Вариант А: Через Docker (рекомендуется)
-Это самый простой способ запустить прокси со всеми зависимостями в изолированной среде:
+### Основной сценарий: запуск через готовые Docker Hub образы
+Это рекомендуемый путь для первого старта и reproducible runtime. `docker-compose.yml` не собирает сервисы локально, а сразу скачивает опубликованные release images из Docker Hub:
 ```bash
-docker-compose up -d --build
+docker compose up -d
 ```
-Сервер будет доступен по адресу: `http://localhost:4000`
+Используются следующие образы:
+- `docker.io/medphisiker/llm-agent-platform-backend:v0.0.1`
+- `docker.io/medphisiker/llm-agent-platform-frontend:v0.0.1`
 
-### Вариант Б: Локальный запуск
-Если вы хотите запустить сервер напрямую:
+Сервисы будут доступны по адресам:
+- backend: `http://127.0.0.1:4000`
+- frontend: `http://127.0.0.1:4173`
+
+### Дополнительный сценарий: локальная docker-сборка для разработки
+Если нужно собрать текущие локальные исходники в контейнеры, используйте `docker-compose-dev.yml`. Этот сценарий тоже не требует `uv`, потому что backend и frontend собираются внутри Docker:
+```bash
+docker compose -f docker-compose-dev.yml up --build -d
+```
+По умолчанию будут собраны локальные образы:
+- `local/llm-agent-platform-backend:dev`
+- `local/llm-agent-platform-frontend:dev`
+
+### Service-local запуск без Docker
+Если нужно запускать отдельные сервисы вне Compose, используйте их service-local workflow. Например, backend запускается напрямую так:
 ```bash
 uv run --project services/backend python -m llm_agent_platform
 ```
+
+Архитектурные границы сервисов и дальнейшая навигация по service-specific документации описаны в [`docs/architecture/system-overview.md`](docs/architecture/system-overview.md:1).
 
 ---
 
@@ -91,8 +106,9 @@ curl -X POST http://localhost:4000/gemini-cli/v1/chat/completions \
 
 ---
 
-## 📂 Структура папок
-*   `services/backend/llm_agent_platform/`: runtime-код платформы.
-*   `services/backend/scripts/`: Вспомогательные скрипты для регистрации и тестов.
-*   `secrets/`: чувствительные данные и локальные credentials.
-*   `docs/`: Source of Truth для архитектуры, contracts и testing traceability.
+## Структура папок
+- `services/backend/llm_agent_platform/`: runtime-код backend сервиса.
+- `services/backend/scripts/`: bootstrap-скрипты для OAuth и service-local tooling.
+- `services/frontend/`: React frontend и Docker image для локального UI.
+- `secrets/`: чувствительные данные и локальные credentials.
+- `docs/`: Source of Truth для архитектуры, contracts и testing traceability.
