@@ -56,6 +56,16 @@
 
 ## Execution Status
 
-- Current State: запланирована.
-- Next Step: запускать как финальную integration/doc-sync ветку после реализации основных задач.
-- Blockers: зависит от upstream implementation tasks.
+- Current State: выполнена.
+- Next Step: использовать `TS-OPENAI-CHATGPT-POC-SMOKE` как финальный demo verification contour и поддерживать `docs/testing/` в sync при дальнейших изменениях PoC.
+- Blockers: none.
+
+## Completion Notes
+
+- Добавлен финальный smoke suite [`docs/testing/suites/openai-chatgpt-poc-smoke.md`](../../docs/testing/suites/openai-chatgpt-poc-smoke.md) и его реализация [`llm_agent_platform/tests/test_openai_chatgpt_poc_smoke.py`](../../llm_agent_platform/tests/test_openai_chatgpt_poc_smoke.py).
+- `docs/testing/test-map.md` синхронизирован с новым PoC verification contour и frontend build smoke.
+- Frontend browser-test contour по-прежнему отсутствует; для текущего PoC зафиксирован обязательный `npm run build` smoke вместо UI automation.
+- Backend verification выполнен через targeted unittest contour: `test_openai_chatgpt_poc_smoke.py`, `test_admin_api_keys.py`, `test_admin_monitoring_read_model.py`, `test_admin_monitoring_refresh.py`, `test_openai_chatgpt_runtime.py`.
+- Frontend verification выполнен через `npm run build` в `services/frontend`; build проходит без ошибок.
+- Дополнительно выполнен ручной smoke в Web UI: подтверждены monitoring page, key management flows и operator UX critical paths; сценарии отработали успешно.
+- Статус задачи в [`operational_scope/tasks_map.md`](../../operational_scope/tasks_map.md) переведен в `выполнена`, чтобы следующий агент видел закрытый state и актуальный verification context.
