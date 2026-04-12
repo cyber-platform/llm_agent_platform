@@ -66,10 +66,17 @@
 
 ### Канонические supporting docs
 
+- [`docs/index.md`](../../docs/index.md)
+- [`docs/services/index.md`](../../docs/services/index.md)
 - [`docs/vision.md`](../../docs/vision.md)
 - [`docs/providers/index.md`](../../docs/providers/index.md)
 - [`docs/providers/openai-chatgpt.md`](../../docs/providers/openai-chatgpt.md)
 - [`docs/auth.md`](../../docs/auth.md)
+- [`docs/run/index.md`](../../docs/run/index.md)
+- [`docs/configuration/index.md`](../../docs/configuration/index.md)
+- [`docs/contracts/index.md`](../../docs/contracts/index.md)
+- [`docs/testing/index.md`](../../docs/testing/index.md)
+- [`docs/adr/index.md`](../../docs/adr/index.md)
 - [`docs/configuration/provider-accounts-config.md`](../../docs/configuration/provider-accounts-config.md)
 - [`docs/configuration/env-files.md`](../../docs/configuration/env-files.md)
 - [`docs/testing/test-map.md`](../../docs/testing/test-map.md)
@@ -84,6 +91,7 @@
 - [`docs/terms/project/terms/provider-implementation.md`](../../docs/terms/project/terms/provider-implementation.md)
 - [`docs/terms/project/terms/llm-api-protocol.md`](../../docs/terms/project/terms/llm-api-protocol.md)
 - [`docs/terms/project/terms/openai-compatible-api.md`](../../docs/terms/project/terms/openai-compatible-api.md)
+- [`docs/terms/project/terms/hsm.md`](../../docs/terms/project/terms/hsm.md)
 - [`docs/terms/project/terms/rbac.md`](../../docs/terms/project/terms/rbac.md)
 
 ### Runtime evidence and code roots
@@ -106,22 +114,26 @@
 
 ## Remaining work
 
-1. Добить terminology cleanup в secondary support docs и non-entry artifacts, где еще может оставаться старый `provider` vocabulary.
-2. Решить, нужен ли отдельный focused document или explicit `not in scope` decision для `user service` / `users DB` boundary.
-3. Поддерживать и постепенно закрывать записи в [`docs/architecture/drift-register.md`](../../docs/architecture/drift-register.md).
+1. Дотянуть remaining docs под новый `index.md`-style navigation и привести secondary support docs к единой книге-навигации.
+2. Пройтись по [`docs/architecture/web-ui.md`](../../docs/architecture/web-ui.md), [`docs/architecture/rbac.md`](../../docs/architecture/rbac.md), [`docs/architecture/rbac-roles.md`](../../docs/architecture/rbac-roles.md), [`docs/architecture/traceability-map.md`](../../docs/architecture/traceability-map.md) и убрать остатки старого single-runtime / old naming narrative.
+3. Добить terminology cleanup в secondary support docs и non-entry artifacts, где еще может оставаться старый `provider` vocabulary.
+4. Решить, нужен ли отдельный focused document или explicit `not in scope` decision для `user service` / `users DB` boundary.
+5. Поддерживать и постепенно закрывать записи в [`docs/architecture/drift-register.md`](../../docs/architecture/drift-register.md).
 
 ## Definition of Done
 
 - Архитектурная навигация покрывает `Context`, `Container`, `Component`, `flows`, `packages`, `terms`.
+- Root и section-level indexes ведут по документации как по книге и явно различают `docs/` и `operational_scope/`.
 - `docs/architecture/index.md` ведёт по всем ключевым entry points.
 - `docs/terms/` использует reusable structure со scopes.
 - Для `Web UI`, `RBAC` и provider-centric терминологии есть focused documents.
+- Secondary architecture docs не содержат старого single-runtime naming narrative там, где уже зафиксирована multi-service модель `Frontend service` + `Backend service`.
 - В task-файле достаточно ссылок и handoff context для безопасного продолжения в новом чате.
 
 ## Execution Status
 
-- Current State: собран navigable architecture set (`Context`, `Container`, `Component`, `flows`, `packages`, `terms`, `drift register`); `runtime-flows.md` усилен диаграммами; taxonomy для `LLM API protocol`, `LLM provider`, `abstract provider`, `provider implementation`, `hydrate`, `persist` зафиксирована; основной terminology cleanup по `docs/architecture/`, `docs/providers/`, `docs/auth.md` и key `docs/testing/` entry points выполнен; `sot_layers/hyper-graph/docs/terms/` и reusable terms-management assets приведены к новой structure; архитектурный SoT синхронизирован с текущим working PoC baseline для `openai-chatgpt` admin monitoring, live refresh, memory-first monitoring runtime и local-only operator `Web UI` slice.
-- Next Step: добить terminology cleanup в secondary support docs и non-entry artifacts, затем использовать drift register как основной список remaining architectural gaps и open questions beyond current PoC baseline.
+- Current State: собран navigable architecture set (`Context`, `Container`, `Component`, `flows`, `packages`, `terms`, `drift register`); добавлены root/section indexes для `docs/`; `system-overview.md` и `container-view.md` переведены на multi-service framing `Frontend service` + `Backend service`; введён термин [`HSM`](../../docs/terms/project/terms/hsm.md); legacy transitional docs удалены или понижены до superseded redirect; основной terminology cleanup по `docs/architecture/`, `docs/providers/`, `docs/auth.md` и key `docs/testing/` entry points выполнен; архитектурный SoT синхронизирован с текущим working PoC baseline для `openai-chatgpt` admin monitoring, live refresh, memory-first monitoring runtime и local-only operator frontend slice.
+- Next Step: дотянуть secondary architecture docs (`web-ui`, `rbac`, `rbac-roles`, `traceability-map`) под новый navigation and naming canon, затем продолжить broader structural cleanup и работу через drift register.
 - Blockers: none.
 - Contract Changes: present.
 - Verification: docs updated by direct file inspection; no command-based verification was run.
@@ -144,14 +156,21 @@
 - `Web UI` вынесен в focused document [`docs/architecture/web-ui.md`](../../docs/architecture/web-ui.md).
 - `RBAC` и роли вынесены в [`docs/architecture/rbac.md`](../../docs/architecture/rbac.md) и [`docs/architecture/rbac-roles.md`](../../docs/architecture/rbac-roles.md).
 - Терминология проекта оформлена в [`docs/terms/index.md`](../../docs/terms/index.md), [`docs/terms/project/terms-map.md`](../../docs/terms/project/terms-map.md) и detail pages в [`docs/terms/project/terms/`](../../docs/terms/project/terms).
+- Добавлены root и section indexes: [`docs/index.md`](../../docs/index.md), [`docs/services/index.md`](../../docs/services/index.md), [`docs/contracts/index.md`](../../docs/contracts/index.md), [`docs/configuration/index.md`](../../docs/configuration/index.md), [`docs/testing/index.md`](../../docs/testing/index.md), [`docs/adr/index.md`](../../docs/adr/index.md).
+- Provider и run entry points переведены на `index.md`: [`docs/providers/index.md`](../../docs/providers/index.md), [`docs/run/index.md`](../../docs/run/index.md).
+- `system-overview.md`, `container-view.md` и `component-view.md` выровнены под новую multi-service модель и distinction между current `Frontend service` и target `Web UI`.
+- Добавлен термин [`HSM`](../../docs/terms/project/terms/hsm.md) и зафиксировано, что `HSM` не является runtime container платформы.
+- Transitional docs `poc-openai-chatgpt-demo` и `review-docs-as-canonical-sot-2026-03-16` удалены; `quota-reset-periods-and-account-state.md` переписан как superseded redirect note.
 - `hyper-graph` reusable terms-management assets дополнены шаблонами и приведены к той же structure в [`sot_layers/hyper-graph/docs/terms/index.md`](../../sot_layers/hyper-graph/docs/terms/index.md).
 
 ### Immediate fix first
 
-- Ближайший шаг смещается с построения новых core architecture views на cleanup secondary docs и закрытие drift entries.
+- Ближайший шаг смещается с построения новых core architecture views на cleanup secondary docs, выравнивание `index.md`-style navigation и закрытие drift entries.
 
 ### Pending work
 
+- remaining `index.md`-style navigation cleanup for secondary support docs
+- cleanup старого single-runtime / old naming narrative в `web-ui`, `rbac`, `rbac-roles`, `traceability-map`
 - remaining terminology cleanup for secondary support docs and non-entry artifacts
 - decision on `user service` / `users DB` boundary
 - drift register maintenance and closure

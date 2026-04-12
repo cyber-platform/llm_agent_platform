@@ -6,7 +6,8 @@
 
 | Задача | Статус | Файл |
 | --- | --- | --- |
-| Документирование архитектуры ПО | ongoing | [`operational_scope/tasks/041-software-architecture-documentation.md`](operational_scope/tasks/041-software-architecture-documentation.md:1) |
+| Документирование архитектуры ПО и навигационной структуры docs | ongoing | [`operational_scope/tasks/041-software-architecture-documentation.md`](operational_scope/tasks/041-software-architecture-documentation.md:1) |
+| Выделение `Backend service` в отдельный repository | planned | [`operational_scope/tasks/053-backend-service-repo-extraction.md`](operational_scope/tasks/053-backend-service-repo-extraction.md:1) |
 | Сравнение monitoring semantics для `openai-chatgpt`, `gemini-cli`, `qwen_code` | отложена после PoC | [`operational_scope/tasks/051-provider-monitoring-semantics-comparison-openai-gemini-qwen.md`](operational_scope/tasks/051-provider-monitoring-semantics-comparison-openai-gemini-qwen.md:1) |
 | Generalized `monitoring_dimensions[]` contract design | отложена после PoC | [`operational_scope/tasks/050-generalized-monitoring-dimensions-contract-design.md`](operational_scope/tasks/050-generalized-monitoring-dimensions-contract-design.md:1) |
 | Двухуровневые usage windows для `openai-chatgpt` | отложена после PoC | [`operational_scope/tasks/039-two-level-openai-chatgpt.md`](operational_scope/tasks/039-two-level-openai-chatgpt.md:1) |
