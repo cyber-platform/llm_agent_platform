@@ -43,6 +43,8 @@
 - Целевая проверка admin monitoring read-model: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_read_model.py`
 - Целевая проверка admin monitoring refresh: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_admin_monitoring_refresh.py`
 - Целевая runtime-проверка `openai-chatgpt`: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
+- Целевая проверка pipeline request-policy application: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
+- Целевая проверка adapter-side `reasoning_effort` mapping: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_runtime.py`
 - Целевая проверка service health contour: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_service_health_checks.py`
 - Целевая проверка `user_service` auth baseline: `cd services/user_service && uv run pytest tests/test_auth_baseline.py`
 - Финальный PoC smoke contour: `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_poc_smoke.py`

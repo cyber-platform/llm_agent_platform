@@ -29,6 +29,8 @@
 - Проверка streamed non-200 ошибки для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): ошибка должна вернуться как OpenAI-compatible SSE event, без silent разрыва потока.
 - Проверка strict OpenAI-compatible streaming parity для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): partial `tool_calls[].function.arguments` не дублируются на `response.output_item.done`.
 - Проверка reasoning parity для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): reasoning stream отдается через `reasoning_text`, совместимый с KiloCode OpenAI-compatible parser.
+- Проверка pipeline request-policy semantics для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): no-policy path сохраняет pass-through, `force` переписывает значение, `default_if_absent` не ломает client-supplied param.
+- Проверка adapter-side `reasoning_effort` mapping для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1): `gpt-5.4*` сохраняет `none`, `gpt-5.3-codex` принимает `xhigh`, а upstream rejection path не маскируется локальным fallback.
 
 ## Test Level (L1–L4)
 - L3 System (integration, real deps): контракт проверяется через реальный Flask endpoint прокси и реальные форматы ответа (JSON/SSE).
