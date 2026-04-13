@@ -60,7 +60,7 @@
 
 ### Provider capability overlay
 
-- Для `openai-chatgpt` capability overlay хранится в `services/backend/provider_configuration/openai-chatgpt/models.json`.
+- Для `openai-chatgpt` capability overlay хранится в `services/backend/llm_agent_platform/provider_configuration/openai-chatgpt/models.json`.
 - Contract schema: [`docs/contracts/config/openai-chatgpt-model-capabilities-registry.schema.json`](../contracts/config/openai-chatgpt-model-capabilities-registry.schema.json:1)
 - Example artifact: [`docs/examples/openai-chatgpt-model-capabilities-registry.example.json`](../examples/openai-chatgpt-model-capabilities-registry.example.json:1)
 

@@ -4,7 +4,7 @@
 
 Архитектура provider request policy overrides уже канонизирована в `docs/`.
 
-Для реализации нужен backend service layer, который читает provider capability overlay из `services/backend/provider_configuration/openai-chatgpt/models.json` и отдает normalized model capability records поверх существующего `provider_registry`.
+Для реализации нужен backend service layer, который читает provider capability overlay из `services/backend/llm_agent_platform/provider_configuration/openai-chatgpt/models.json` и отдает normalized model capability records поверх существующего `provider_registry`.
 
 ## Goal
 
@@ -14,7 +14,7 @@
 
 В scope:
 
-- загрузка `services/backend/provider_configuration/openai-chatgpt/models.json`;
+- загрузка `services/backend/llm_agent_platform/provider_configuration/openai-chatgpt/models.json`;
 - schema-aware parsing capability overlay;
 - merge semantics с существующим `provider_registry` catalog boundary;
 - service API для чтения capability record по `model_id`;
@@ -63,7 +63,7 @@
 ## Execution notes
 
 - Materialized backend service: `services/backend/llm_agent_platform/services/openai_chatgpt_model_capabilities.py`.
-- Checked-in provider overlay: `services/backend/provider_configuration/openai-chatgpt/models.json`.
+- Checked-in provider overlay: `services/backend/llm_agent_platform/provider_configuration/openai-chatgpt/models.json`.
 - Verification covers valid overlay reads, missing overlay semantics, and malformed config rejection in `services/backend/llm_agent_platform/tests/test_provider_catalogs.py`.
 
 ## What was done

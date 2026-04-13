@@ -63,7 +63,7 @@ Source of Truth для catalog baseline:
 
 Storage boundaries:
 
-- capability overlay: `services/backend/provider_configuration/openai-chatgpt/models.json`
+- capability overlay: `services/backend/llm_agent_platform/provider_configuration/openai-chatgpt/models.json`
 - request policy registry: `secrets/openai-chatgpt/policy_registry/registry.json`
 
 Contracts:
