@@ -58,6 +58,34 @@ Admin API contracts и endpoint semantics для capability read и key-scoped r
 
 ## Initial status
 
-- Current State: planned.
-- Next Step: materialize admin routes after backend services are ready.
+- Current State: completed.
+- Next Step: use these routes from frontend/admin flows and pipeline-adjacent verification.
 - Blockers: none.
+
+## Execution notes
+
+- Materialized four admin endpoints in `services/backend/llm_agent_platform/api/admin/routes.py` for capability read and request policy `GET|PUT|DELETE` under the existing admin JWT guard.
+- Added route-local helpers for capability and request policy services plus shared JSON-object payload normalization so malformed/non-object bodies fall into predictable validation errors.
+- Reused existing service contracts as-is instead of duplicating policy logic in the route layer: `OpenAIChatGPTModelCapabilitiesService.get_model_capabilities()` drives capability reads, and `OpenAIChatGPTRequestPolicyRegistryService.get_policy()/upsert_policy()/delete_policy()` remain the single source for no-policy, full-replace and reset semantics.
+- Route behavior intentionally keeps current backend error envelope style `{"error": <message>}` to stay consistent with the rest of `services/backend/llm_agent_platform/api/admin/routes.py` rather than introducing a task-local response wrapper.
+- `GET /admin/model-capabilities/openai-chatgpt/models/<model_id>` now returns `404` for unknown models and `500` for capability-registry read/validation failures.
+- `GET /admin/request-policies/openai-chatgpt/keys/<key_id>` now returns explicit no-policy payload for known keys, `404` for unknown keys, and surfaces registry read failures as `500`.
+- `PUT /admin/request-policies/openai-chatgpt/keys/<key_id>` preserves full-replace semantics from `OpenAIChatGPTRequestPolicyRegistryService`, returns `404` for unknown keys, and maps invalid group/override payloads to `400`.
+- `DELETE /admin/request-policies/openai-chatgpt/keys/<key_id>` returns explicit no-policy state after delete and still distinguishes missing keys with `404`.
+- Added focused admin integration suite `services/backend/llm_agent_platform/tests/test_admin_openai_chatgpt_request_policy_routes.py` covering capability read, policy lifecycle, missing model/key handling, and invalid upsert input.
+- Updated testing navigation in `docs/testing/test-map.md` and added suite page `docs/testing/suites/admin-openai-chatgpt-policy-routes.md`.
+
+## Handoff notes
+
+- The route layer does not add hidden normalization for policy payloads beyond coercing `group_id` to string and passing through `model_overrides`; any future semantic changes must be made in `services/backend/llm_agent_platform/services/openai_chatgpt_request_policies.py` so admin and pipeline paths stay aligned.
+- Unknown `model_id` handling is implemented in the route because `OpenAIChatGPTModelCapabilitiesService.get_model_capabilities()` returns `None` for missing records rather than raising a dedicated not-found exception.
+- Unknown `key_id` handling comes from `OpenAIChatGPTApiKeyRegistryService` via `ApiKeyNotFoundError`; read and delete map that to `404`, while `PUT` also returns `404` before request-policy structural validation runs.
+- Current `PUT` semantics treat non-object or missing JSON body as invalid input and fall through to service-level validation, which currently surfaces messages like `group_id is required` or `model_overrides must not be empty` with `400`.
+- Added test coverage only for the new admin route contour; task 066 can rely on these routes as stable read/write surfaces, but pipeline-specific request mutation still has no coverage in this task and must be added separately.
+
+## Verification
+
+- `cd services/backend && uv run python -m compileall llm_agent_platform`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_admin_openai_chatgpt_request_policy_routes.py`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_openai_chatgpt_request_policies.py`
+- `cd services/backend && uv run python -m unittest llm_agent_platform/tests/test_admin_api_keys.py`

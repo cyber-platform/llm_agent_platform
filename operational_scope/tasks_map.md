@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | `openai-chatgpt` capability overlay loader и service | complited | [`operational_scope/tasks/063-openai-chatgpt-capability-overlay-loader-and-service.md`](operational_scope/tasks/063-openai-chatgpt-capability-overlay-loader-and-service.md:1) |
 | `openai-chatgpt` request policy registry service | complited | [`operational_scope/tasks/064-openai-chatgpt-request-policy-registry-service.md`](operational_scope/tasks/064-openai-chatgpt-request-policy-registry-service.md:1) |
-| Admin routes для `openai-chatgpt` capabilities и request policies | planned | [`operational_scope/tasks/065-openai-chatgpt-admin-capabilities-and-policy-routes.md`](operational_scope/tasks/065-openai-chatgpt-admin-capabilities-and-policy-routes.md:1) |
+| Admin routes для `openai-chatgpt` capabilities и request policies | complited | [`operational_scope/tasks/065-openai-chatgpt-admin-capabilities-and-policy-routes.md`](operational_scope/tasks/065-openai-chatgpt-admin-capabilities-and-policy-routes.md:1) |
 | Pipeline application для `openai-chatgpt` request policies | planned | [`operational_scope/tasks/066-openai-chatgpt-pipeline-policy-application.md`](operational_scope/tasks/066-openai-chatgpt-pipeline-policy-application.md:1) |
 | `openai-chatgpt` adapter integration для `reasoning_effort` | planned | [`operational_scope/tasks/067-openai-chatgpt-reasoning-effort-adapter-integration.md`](operational_scope/tasks/067-openai-chatgpt-reasoning-effort-adapter-integration.md:1) |
 | Исследование `KiloCode`: как проект реализует общение с OpenAI Provider | completed | [`operational_scope/tasks/058-kilocode-openai-provider-research.md`](operational_scope/tasks/058-kilocode-openai-provider-research.md:1) |
