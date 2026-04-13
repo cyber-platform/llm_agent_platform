@@ -10,12 +10,13 @@
 
 `llm_agent_platform` — `LLM provider`-centric система для LLM-агентов и developer tools.
 
-Система materialize-ится как набор автономных services, где текущий system boundary уже включает `Backend service` и local-only `Frontend service` как текущий operator/admin slice target `Web UI`.
+Система materialize-ится как набор автономных services, где текущий system boundary уже включает `Backend service`, `User service` и local-only `Frontend service` как текущий operator/admin slice target `Web UI`.
 
 Платформа предоставляет:
 
 - `LLM provider`-scoped [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md) через `/<provider_name>/v1/*` и `/<provider_name>/<group_name>/v1/*`;
 - human-facing operator/admin UI поверх backend admin API;
+- login and identity boundary через `User service`;
 - `LLM provider`-local catalogs, auth и quota semantics;
 - contracts, `LLM provider` pages и tests как канонический evidence layer.
 
@@ -29,6 +30,7 @@
 
 - `Frontend service` — current local-only operator/admin frontend service, materializing текущий slice target `Web UI`;
 - `Backend service` — machine-facing provider API и admin-facing backend runtime;
+- `User service` — identity service для login, JWT issuance и user storage;
 - local operational helpers, если они нужны для OAuth bootstrap и локальной подготовки credentials.
 
 Технологический стек системы оркестрируется через [`HSM`](../terms/project/terms/hsm.md), но `HSM` не является runtime container платформы.
@@ -40,6 +42,7 @@ flowchart LR
   Human[Operator or administrator] --> Frontend[Frontend service]
   Machine[LLM agent or developer tool] --> Backend[Backend service]
   Frontend --> Backend
+  Frontend --> UserService[User service]
   OAuth[OAuth bootstrap scripts] --> Secrets[Secrets storage]
   Backend --> Secrets
   Backend --> State[STATE_DIR storage]
@@ -53,6 +56,7 @@ flowchart LR
 - `LLM agent or developer tool` — внешний machine-facing клиент, который использует публичный [`OpenAI-compatible API`](../terms/project/terms/openai-compatible-api.md) платформы.
 - `Frontend service` — human-facing service для operator/admin scenarios.
 - `Backend service` — основной runtime service платформы.
+- `User service` — identity boundary для login flow и JWT issuance.
 - `OAuth bootstrap scripts` — локальные scripts, которые получают и обновляют user credentials вне runtime process.
 - `Secrets storage` — пользовательские credentials и `LLM provider` accounts-config.
 - `STATE_DIR storage` — mutable runtime state и monitoring artifacts.
@@ -105,6 +109,7 @@ flowchart LR
 - OpenAI pipeline, `LLM provider`-centric routing, `abstract provider` registry, auth, quota router и state persistence materialized в runtime code.
 - Group-scoped platform API key auth guard для public `openai-chatgpt` OpenAI-compatible API materialized и входит в working PoC baseline.
 - Admin monitoring read-model, live refresh subsystem и memory-first monitoring runtime materialized для `openai-chatgpt` в границе current single-instance PoC.
-- Local-only operator UI slice materialized как отдельный frontend service в nested repo [`services/frontend/`](services/frontend:1) и использует только backend admin API.
+- Local-only operator UI slice materialized как отдельный frontend service в nested repo [`services/frontend/`](services/frontend:1), использует `user_service` для login и backend admin API для operator actions.
 - `Backend service` materialized как service-local boundary в [`services/backend/`](services/backend:1); root repo сохраняет только system assembly и system-level SoT.
+- `User service` интегрирован в текущий mini-release как platform auth baseline для operator/admin contour.
 - `LLM provider`-specific details и materialization boundary должны уточняться на страницах в [`docs/providers/`](docs/providers:1).

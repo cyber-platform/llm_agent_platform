@@ -22,7 +22,7 @@
 - `demo smoke`
 
 ## Scope
-- Проверка критического demo path: admin `create key` -> public `models` -> public `chat/completions` -> `revoke` -> `401 invalid_api_key`.
+- Проверка критического demo path: admin JWT -> admin `create key` -> public `models` -> public `chat/completions` -> `revoke` -> `401 invalid_api_key`.
 - Проверка schema-critical полей `openai-chatgpt` monitoring page и `Activate` response, от которых зависит React PoC UI.
 - Проверка checked-in delivery boundary: frontend и backend публикуются только на localhost, public namespace ограничен `/openai-chatgpt`, admin path остается `/admin`.
 - Frontend browser-test contour отсутствует; вместо него suite фиксирует обязательный build smoke `npm run build` в `services/frontend`.
@@ -45,6 +45,7 @@
 - `npm run build`
 
 ## Demo Checklist
+- Получить admin JWT через `services/user_service` login flow и использовать его для `/admin/*`.
 - Создать platform API key через `POST /admin/api-keys/openai-chatgpt` или через локальный frontend.
 - Подтвердить `GET /openai-chatgpt/v1/models` с Bearer key и наличие `gpt-5.4` в ответе.
 - Выполнить `POST /openai-chatgpt/v1/chat/completions` и подтвердить успешный non-stream ответ.

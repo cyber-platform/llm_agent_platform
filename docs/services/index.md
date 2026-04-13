@@ -18,6 +18,7 @@
 | --- | --- | --- | --- |
 | Frontend service | Local-only operator/admin frontend service, materializing current `Web UI` slice. | local path [`services/frontend/`](../../services/frontend), GitHub: [frontend repo](https://github.com/cyber-platform/frontend.git) | active nested repo |
 | Backend service | Machine-facing provider API и admin-facing backend runtime. | local path [`services/backend/`](../../services/backend); GitHub repo публикуется отдельно | materialized local boundary |
+| User service | Identity boundary для operator/admin login, JWT issuance и user storage. | local path [`services/user_service/`](../../services/user_service) | active local service |
 
 ## Repo ownership
 
@@ -28,8 +29,9 @@
 
 ## Service relations
 
-- `Frontend service` ходит только в `Backend service`.
+- `Frontend service` использует `User service` для login flow и `Backend service` для admin API.
 - `Backend service` владеет provider integrations, runtime auth, routing, quota semantics и admin API.
+- `User service` владеет user identities, login flow, JWT issuance и brute-force protection.
 - Local multi-service delivery может materialize-иться через root-level `docker-compose`, но это не меняет service boundaries.
 
 ## Related documents

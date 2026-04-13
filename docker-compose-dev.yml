@@ -14,6 +14,9 @@ services:
       VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID}
       VERTEX_LOCATION: ${VERTEX_LOCATION:-us-central1}
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT}
+      JWT_SHARED_SECRET: ${JWT_SHARED_SECRET:-dev_secret_key_change_me_in_prod}
+      JWT_ISSUER: ${JWT_ISSUER:-user_service}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       DEFAULT_QUOTA_MODEL: ${DEFAULT_QUOTA_MODEL}
       STRICT_CLI_PARITY: ${STRICT_CLI_PARITY:-true}
       CLOUD_CODE_ENDPOINT: ${CLOUD_CODE_ENDPOINT}
@@ -38,6 +41,59 @@ services:
       HTTP_MAX_KEEPALIVE_CONNECTIONS: ${HTTP_MAX_KEEPALIVE_CONNECTIONS:-20}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_DIR: /app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  user-db:
+    image: postgres:15.15-alpine
+    container_name: user-db-dev
+    environment:
+      POSTGRES_USER: ${USER_SERVICE_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${USER_SERVICE_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${USER_SERVICE_POSTGRES_DB:-user_db}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - user_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${USER_SERVICE_POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  user_service:
+    build:
+      context: ./services/user_service
+    container_name: user-service-dev
+    volumes:
+      - ./services/user_service:/app
+    environment:
+      POSTGRES_HOST: user-db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${USER_SERVICE_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${USER_SERVICE_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${USER_SERVICE_POSTGRES_DB:-user_db}
+      JWT_SHARED_SECRET: ${JWT_SHARED_SECRET:-dev_secret_key_change_me_in_prod}
+      JWT_ISSUER: ${JWT_ISSUER:-user_service}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+    ports:
+      - "127.0.0.1:8010:8000"
+    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      user-db:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -47,8 +103,18 @@ services:
     container_name: openai-chatgpt-poc-frontend
     depends_on:
       - backend
+      - user_service
     ports:
       - "127.0.0.1:4173:80"
     volumes:
       - ./services/frontend/public/runtime-config.json:/usr/share/nginx/html/runtime-config.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
+
+volumes:
+  user_postgres_data:

@@ -24,6 +24,7 @@
 - Проверка terminal outcome aggregation: `completed`, `completed_with_errors`, `error`.
 - Проверка enriched provider page fields для `supports_manual_refresh` и group-level refresh summary.
 - Проверка canonical mutation order `memory first -> persistence second` для live runtime state.
+- Проверка того, что refresh endpoints остаются внутри admin JWT boundary и не используют public API key auth.
 
 ## Requirement Traceability
 

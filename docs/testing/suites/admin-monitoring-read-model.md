@@ -24,7 +24,7 @@
 - Проверка startup hydration и memory-first read path без request-time reread persisted artifacts.
 - Проверка отсутствия legacy `limits.json` dependency в live admin read path.
 - Проверка `LLM provider`-specific columns, drawer sections и session-scoped `Activate` semantics.
-- Проверка local single-user PoC security boundary для текущего pilot scope.
+- Проверка local single-user PoC security boundary и обязательного admin JWT guard для текущего pilot scope.
 
 ## Requirement Traceability
 

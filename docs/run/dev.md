@@ -12,6 +12,7 @@
 
 - [`services/backend/Dockerfile`](services/backend/Dockerfile:1)
 - [`docker-compose.yml`](docker-compose.yml:1)
+- [`docker-compose-dev.yml`](docker-compose-dev.yml:1)
 
 ## Dev container model
 
@@ -34,6 +35,18 @@
 docker compose up -d --build
 ```
 
+Для текущего mini-release с login flow через `user_service` основной assembled dev contour поднимается через:
+
+```bash
+docker compose -f docker-compose-dev.yml up -d --build
+```
+
+После первого старта `user_service` на fresh database нужно применить миграции:
+
+```bash
+docker exec user-service-dev uv run alembic upgrade head
+```
+
 ## Обычный цикл разработки
 
 Если изменился только код в [`services/backend/llm_agent_platform/`](services/backend/llm_agent_platform:1), достаточно:
@@ -41,6 +54,8 @@ docker compose up -d --build
 ```bash
 docker compose restart backend
 ```
+
+Если менялся frontend login/admin UI slice или `user_service`, используйте соответствующий restart в `docker-compose-dev.yml` contour.
 
 ## Что именно смонтировано
 
@@ -57,5 +72,11 @@ docker compose restart backend
 
 - автоматический hot reload без restart контейнера
 - production deployment scenario
+
+## Current dev auth contour
+
+- `Frontend service` выполняет login against `user_service` по `authApiBaseUrl`.
+- `Backend service` использует `JWT_SHARED_SECRET` для проверки admin JWT.
+- Public provider routes продолжают жить отдельно от admin JWT boundary.
 
 Для production запусков зарезервирована страница [`docs/run/prod.md`](docs/run/prod.md:1).
