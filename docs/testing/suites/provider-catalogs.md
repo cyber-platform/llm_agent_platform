@@ -21,6 +21,7 @@
 - Проверка `bootstrap catalog` для static providers.
 - Проверка `LLM provider`-local model lists без route hardcode.
 - Проверка static catalog baseline для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1).
+- Проверка provider capability overlay loader/service для `openai-chatgpt`, включая missing overlay и malformed config path.
 
 ## Requirement Traceability
 - Requirement: `LLM provider`-local catalog strategy по [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:60).
@@ -29,6 +30,7 @@
   - future case anchors: `TC-PROVIDER-CATALOGS-...`
 - Canonical references:
   - [`docs/contracts/state/openai-chatgpt-oauth-state.schema.json`](docs/contracts/state/openai-chatgpt-oauth-state.schema.json:1)
+  - [`docs/contracts/config/openai-chatgpt-model-capabilities-registry.schema.json`](docs/contracts/config/openai-chatgpt-model-capabilities-registry.schema.json:1)
   - [`docs/providers/openai-chatgpt.md`](docs/providers/openai-chatgpt.md:1)
 - Script:
   - [`services/backend/llm_agent_platform/tests/test_provider_catalogs.py`](services/backend/llm_agent_platform/tests/test_provider_catalogs.py:1)
