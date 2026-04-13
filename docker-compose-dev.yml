@@ -70,7 +70,6 @@ services:
   user_service:
     build:
       context: ./services/user_service
-      dockerfile: Dockerfile-dev
     container_name: user-service-dev
     volumes:
       - ./services/user_service:/app
@@ -85,6 +84,7 @@ services:
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
     ports:
       - "127.0.0.1:8010:8000"
+    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 30s
