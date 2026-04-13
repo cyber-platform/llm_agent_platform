@@ -52,6 +52,8 @@ Non-scope:
 Дополнительные обязанности pipeline:
 - провалидировать `model` внутри provider-local catalog;
 - определить default group или named group внутри provider namespace.
+- если для platform API key активна key-scoped request policy, вычислить `effective_request_params` и применить policy-driven overwrite/defaulting;
+- если policy отсутствует, сохранить pass-through behavior без implicit provider-configuration-driven rewrite.
 
 ### Providers
 - Инкапсулируют транспорт и runtime credentials use.
@@ -100,6 +102,8 @@ flowchart LR
 
 Provider-specific инвариант для [`openai-chatgpt`](docs/providers/openai-chatgpt.md:1):
 - `one forced refresh retry on auth failure`
+
+Provider-scoped request policy override semantics документируются отдельно в [`provider-request-policy-overrides.md`](./provider-request-policy-overrides.md:1).
 
 ## Verification (evidence)
 ### Commands

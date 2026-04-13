@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://model-proxy.local/contracts/api/admin/request-policies/openai-chatgpt-request-policy-upsert-response.schema.json",
+  "title": "OpenAIChatGPTAdminRequestPolicyUpsertResponse",
+  "description": "Admin API response for creating or replacing one key-scoped request policy for openai-chatgpt.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "provider_id",
+    "key_id",
+    "group_id",
+    "model_overrides",
+    "updated_at"
+  ],
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parameter_override": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "value"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "force",
+            "default_if_absent"
+          ]
+        },
+        "value": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      }
+    }
+  },
+  "properties": {
+    "provider_id": {
+      "type": "string",
+      "const": "openai-chatgpt"
+    },
+    "key_id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "group_id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "model_overrides": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/non_empty_string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "propertyNames": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "additionalProperties": {
+          "$ref": "#/$defs/parameter_override"
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

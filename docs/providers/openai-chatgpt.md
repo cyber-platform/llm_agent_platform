@@ -49,6 +49,47 @@ Source of Truth для catalog baseline:
 - [`services/backend/llm_agent_platform/provider_registry/providers/openai-chatgpt.json`](services/backend/llm_agent_platform/provider_registry/providers/openai-chatgpt.json:26)
 - [`docs/adr/0020-provider-centric-routing-and-provider-catalogs.md`](docs/adr/0020-provider-centric-routing-and-provider-catalogs.md:1)
 
+## Provider capability overlay and request policies
+
+Для `openai-chatgpt` канонизируется отдельный provider capability overlay поверх catalog baseline.
+
+Правила:
+
+- catalog baseline остаётся у `provider_registry`;
+- capability overlay не является вторым model catalog;
+- capability overlay хранит только platform-supported overrideable/request-related params per provider-local model;
+- request mutation не происходит автоматически на основании capability overlay;
+- platform-originated overwrite/defaulting допускается только при наличии key-scoped request policy.
+
+Storage boundaries:
+
+- capability overlay: `services/backend/provider_configuration/openai-chatgpt/models.json`
+- request policy registry: `secrets/openai-chatgpt/policy_registry/registry.json`
+
+Contracts:
+
+- capability overlay schema: [`docs/contracts/config/openai-chatgpt-model-capabilities-registry.schema.json`](docs/contracts/config/openai-chatgpt-model-capabilities-registry.schema.json:1)
+- request policy registry schema: [`docs/contracts/config/openai-chatgpt-request-policy-registry.schema.json`](docs/contracts/config/openai-chatgpt-request-policy-registry.schema.json:1)
+
+Admin boundary:
+
+- `GET /admin/model-capabilities/openai-chatgpt/models/<model_id>`
+- `GET /admin/request-policies/openai-chatgpt/keys/<key_id>`
+- `PUT /admin/request-policies/openai-chatgpt/keys/<key_id>`
+- `DELETE /admin/request-policies/openai-chatgpt/keys/<key_id>`
+
+Initial parameter scope:
+
+- `reasoning_effort`
+
+Initial model families of interest:
+
+- `gpt-5.4`
+- `gpt-5.4-mini`
+- `gpt-5.3-codex`
+
+Detailed architecture canon for this boundary: [`docs/architecture/provider-request-policy-overrides.md`](docs/architecture/provider-request-policy-overrides.md:1)
+
 ## Runtime readiness
 
 Текущий status `LLM provider`:

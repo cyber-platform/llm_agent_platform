@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://model-proxy.local/contracts/config/openai-chatgpt-request-policy-registry.schema.json",
+  "title": "OpenAIChatGPTRequestPolicyRegistry",
+  "description": "Provider-scoped mutable request policy registry for openai-chatgpt platform API keys.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "provider_id",
+    "policies"
+  ],
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parameter_override": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "value"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "force",
+            "default_if_absent"
+          ]
+        },
+        "value": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      }
+    },
+    "model_override": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/non_empty_string"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/parameter_override"
+      }
+    },
+    "policy_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key_id",
+        "group_id",
+        "model_overrides",
+        "updated_at"
+      ],
+      "properties": {
+        "key_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "group_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "model_overrides": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/model_override"
+          }
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "provider_id": {
+      "type": "string",
+      "const": "openai-chatgpt"
+    },
+    "policies": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/policy_record"
+      }
+    }
+  }
+}

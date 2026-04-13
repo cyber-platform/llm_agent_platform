@@ -41,6 +41,7 @@
 
 - Runtime flows: [`docs/architecture/runtime-flows.md`](docs/architecture/runtime-flows.md:1)
 - OpenAI chat completions pipeline: [`docs/architecture/openai-chat-completions-pipeline.md`](docs/architecture/openai-chat-completions-pipeline.md:1)
+- Provider request policy overrides: [`docs/architecture/provider-request-policy-overrides.md`](docs/architecture/provider-request-policy-overrides.md:1)
 - Quota rotation and groups: [`docs/architecture/quota-account-rotation-groups-and-models.md`](docs/architecture/quota-account-rotation-groups-and-models.md:1)
 
 ### Понять трассируемость изменений

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://model-proxy.local/contracts/api/admin/model-capabilities/openai-chatgpt-model-capabilities-read.schema.json",
+  "title": "OpenAIChatGPTAdminModelCapabilitiesRead",
+  "description": "Admin API response for reading platform-supported capabilities for one openai-chatgpt model.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "provider_id",
+    "model_id",
+    "display_name",
+    "parameters"
+  ],
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parameter_values": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/non_empty_string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supported"
+      ],
+      "properties": {
+        "supported": {
+          "type": "boolean"
+        },
+        "values": {
+          "$ref": "#/$defs/parameter_values"
+        },
+        "default": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "ui_label": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "description": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      }
+    }
+  },
+  "properties": {
+    "provider_id": {
+      "type": "string",
+      "const": "openai-chatgpt"
+    },
+    "model_id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "display_name": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "parameters": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/non_empty_string"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/parameter"
+      }
+    },
+    "drawer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "raw_capability_payload": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

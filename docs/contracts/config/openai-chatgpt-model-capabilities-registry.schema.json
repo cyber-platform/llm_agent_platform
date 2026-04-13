@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://model-proxy.local/contracts/config/openai-chatgpt-model-capabilities-registry.schema.json",
+  "title": "OpenAIChatGPTModelCapabilitiesRegistry",
+  "description": "Provider-specific overlay registry of platform-supported model parameter capabilities for the openai-chatgpt provider. This artifact extends provider_registry model catalog data and does not replace it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "provider_id",
+    "models"
+  ],
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parameter_values": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/non_empty_string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "supported_parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supported"
+      ],
+      "properties": {
+        "supported": {
+          "type": "boolean"
+        },
+        "values": {
+          "$ref": "#/$defs/parameter_values"
+        },
+        "default": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "ui_label": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "description": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "supported": {
+                "const": true
+              }
+            },
+            "required": [
+              "supported"
+            ]
+          },
+          "then": {
+            "required": [
+              "values",
+              "default"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "supported": {
+                "const": false
+              }
+            },
+            "required": [
+              "supported"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "values"
+                  ]
+                },
+                {
+                  "required": [
+                    "default"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "constraint_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "when"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "forbid_parameters_when"
+          ]
+        },
+        "when": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/parameter_values"
+          }
+        },
+        "forbid_parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "description": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "forbid_parameters_when"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "forbid_parameters"
+            ]
+          }
+        }
+      ]
+    },
+    "model_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parameters",
+        "raw"
+      ],
+      "properties": {
+        "display_name": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "parameters": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/supported_parameter"
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/constraint_rule"
+          }
+        },
+        "raw": {
+          "description": "Raw provider-specific evidence payload for admin read-only inspection.",
+          "type": "object"
+        }
+      }
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "provider_id": {
+      "type": "string",
+      "const": "openai-chatgpt"
+    },
+    "models": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "Overlay records keyed by provider-local model_id. Existence of model ids is owned by provider_registry.",
+      "propertyNames": {
+        "$ref": "#/$defs/non_empty_string"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/model_record"
+      }
+    }
+  }
+}

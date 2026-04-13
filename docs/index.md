@@ -56,6 +56,12 @@
 2. [`openai-chatgpt.md`](./providers/openai-chatgpt.md)
 3. [`provider-accounts-config.md`](./configuration/provider-accounts-config.md)
 
+### Понять provider request policy overrides
+
+1. [`provider-request-policy-overrides.md`](./architecture/provider-request-policy-overrides.md)
+2. [`openai-chatgpt.md`](./providers/openai-chatgpt.md)
+3. [`index.md`](./contracts/index.md)
+
 ### Поднять систему локально
 
 1. [`setup.md`](./setup.md)

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "provider_id": "openai-chatgpt",
+  "policies": [
+    {
+      "key_id": "key_123",
+      "group_id": "team-a",
+      "model_overrides": {
+        "gpt-5.4-mini": {
+          "reasoning_effort": {
+            "mode": "force",
+            "value": "medium"
+          }
+        },
+        "gpt-5.3-codex": {
+          "reasoning_effort": {
+            "mode": "default_if_absent",
+            "value": "high"
+          }
+        }
+      },
+      "created_at": "2026-04-14T02:00:00Z",
+      "updated_at": "2026-04-14T02:05:00Z"
+    }
+  ]
+}
