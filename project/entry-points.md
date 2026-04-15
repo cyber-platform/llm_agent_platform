@@ -18,8 +18,11 @@
 2. `project/index.md` как durable context entry.
 3. `project/gitContext.md` для repository ownership, nested repositories и git boundaries.
 4. `project/techContext.md` для technical baseline и environment assumptions.
-5. `project/codeStyle.md` для coding style и authoring conventions.
-6. Канонические engineering docs из `AGENTS.md`:
+5. `project/releaseContext.md` когда нужен release-specific project binding.
+6. `project/dockerReleaseContext.md` когда нужен Docker release naming и registry binding.
+7. `project/releaseVersionRegistry.json` когда нужен текущий registry release versions/tags.
+8. `project/codeStyle.md` для coding style и authoring conventions.
+9. Канонические engineering docs из `AGENTS.md`:
    - `docs/vision.md`
    - `docs/architecture/component-map.md`
    - `docs/architecture/openai-chat-completions-pipeline.md`
@@ -27,8 +30,8 @@
    - `docs/providers/openai-chatgpt.md`
    - `docs/contracts/`
    - `docs/testing/test-map.md`
-7. `operational_scope/tasks_map.md` только когда нужен execution context текущей итерации.
-8. `.kilo/` artifacts только когда нужен Kilo-specific behavior или runtime/config layer.
+10. `operational_scope/tasks_map.md` только когда нужен execution context текущей итерации.
+11. `.kilo/` artifacts только когда нужен Kilo-specific behavior или runtime/config layer.
 
 Если temporary execution artifact конфликтует с `docs/`, следуй `docs/`.
 
@@ -55,7 +58,8 @@
 - technical baseline;
 - loading-order detail;
 - code style;
-- migration notes о текущем state root layout.
+- migration notes о текущем state root layout;
+- project-specific release binding.
 
 `project/` не является engineering SoT.
 
@@ -103,9 +107,9 @@
 
 ## Current root gaps
 
-- У root проекта пока нет `docs/index.md`.
-- Execution layer root проекта теперь materialized как `operational_scope/`.
-- Поэтому route выше честно отражает current reality, а не future target state.
+- `docs/index.md` и `operational_scope/` уже materialized в root проекте.
+- Часть durable project context еще содержит устаревшие migration notes и требует дальнейшей синхронизации.
+- Поэтому route выше отражает current reality, но project-local durable context нужно продолжать приводить к фактическому layered состоянию root проекта.
 
 ## Связанные файлы
 
@@ -113,6 +117,9 @@
 - `project/index.md`
 - `project/gitContext.md`
 - `project/techContext.md`
+- `project/dockerReleaseContext.md`
+- `project/releaseVersionRegistry.json`
+- `project/releaseContext.md`
 - `project/codeStyle.md`
 - `docs/vision.md`
 - `docs/providers/index.md`

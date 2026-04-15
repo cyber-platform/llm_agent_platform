@@ -58,9 +58,13 @@ uv run --project services/backend python services/backend/scripts/get_gemini-cli
 ```bash
 docker compose up -d
 ```
-Используются следующие образы:
-- `docker.io/medphisiker/llm-agent-platform-backend:v0.0.1`
-- `docker.io/medphisiker/llm-agent-platform-frontend:v0.0.1`
+
+Актуальные release image versions для сервисов из `services/` нужно смотреть в:
+
+- [`docker-compose.yml`](../docker-compose.yml:1) — какие опубликованные release images реально используются текущим release contour;
+- [`project/releaseVersionRegistry.json`](../project/releaseVersionRegistry.json:1) — текущий registry release versions/tags для root проекта и nested release units.
+
+Текущий release compose использует опубликованные образы для relevant services, включая backend, frontend и user_service.
 
 Сервисы будут доступны по адресам:
 - backend: `http://127.0.0.1:4000`

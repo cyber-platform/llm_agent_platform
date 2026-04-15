@@ -27,8 +27,8 @@
 ## Current migration note
 
 - Root project пока отстает от более нового layered canon, который уже materialized в `sot_layers/hyper-graph/`.
-- На текущем этапе у root проекта еще нет `docs/index.md` и `operational_scope/`.
-- Пока migration не завершена, navigation идет через `AGENTS.md`, `project/`, канонические entry points в `docs/` и `operational_scope/tasks_map.md`.
+- `docs/index.md` и `operational_scope/` уже materialized в root проекте, но часть durable project context все еще содержит legacy migration notes.
+- Пока migration не завершена полностью, navigation идет через `AGENTS.md`, `project/`, канонические entry points в `docs/` и `operational_scope/tasks_map.md`.
 
 ## Связанные файлы
 
@@ -36,5 +36,8 @@
 - `project/gitContext.md`
 - `project/techContext.md`
 - `project/entry-points.md`
+- `project/dockerReleaseContext.md`
+- `project/releaseVersionRegistry.json`
+- `project/releaseContext.md`
 - `project/codeStyle.md`
 - `operational_scope/tasks_map.md`

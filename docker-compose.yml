@@ -1,6 +1,6 @@
 services:
   backend:
-    image: medphisiker/llm-agent-platform-backend:v0.0.2
+    image: medphisiker/llm-agent-platform-backend:v0.0.3
     container_name: backend
     ports:
       - "127.0.0.1:4000:4000"
@@ -91,7 +91,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: medphisiker/llm-agent-platform-frontend:v0.0.2
+    image: medphisiker/llm-agent-platform-frontend:v0.0.3
     container_name: openai-chatgpt-poc-frontend
     depends_on:
       - backend

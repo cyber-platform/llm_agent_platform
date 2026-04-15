@@ -23,6 +23,7 @@ logs/
 
 # Temporary review and agent-generated reports
 tmp/
+operational_scope/realise_project/
 
 # Nested Git repositories
 tools/repo-archiver/
