@@ -122,6 +122,16 @@ Canonical admin API paths для `openai-chatgpt`:
 - `PUT /admin/request-policies/openai-chatgpt/keys/<key_id>`
 - `DELETE /admin/request-policies/openai-chatgpt/keys/<key_id>`
 
+Current local-only admin Web UI for [`openai-chatgpt`](../providers/openai-chatgpt.md:1) materialize-ит этот boundary как inline key-scoped policy editor внутри API keys panel.
+
+Current UI semantics:
+
+- editor работает в current key/group context без отдельного global model picker;
+- initial editable model scope: `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`;
+- initial editable parameter family: `reasoning_effort`;
+- `GET` with empty `model_overrides` трактуется как explicit pass-through state;
+- UI показывает backend-derived capability constraints и read-only raw capability JSON drawer, если они присутствуют в capability response.
+
 Related schemas:
 
 - [`docs/contracts/api/admin/model-capabilities/openai-chatgpt-model-capabilities-read.schema.json`](../contracts/api/admin/model-capabilities/openai-chatgpt-model-capabilities-read.schema.json:1)

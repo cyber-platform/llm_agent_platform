@@ -24,6 +24,7 @@
 ## Scope
 - Проверка критического demo path: admin JWT -> admin `create key` -> public `models` -> public `chat/completions` -> `revoke` -> `401 invalid_api_key`.
 - Проверка schema-critical полей `openai-chatgpt` monitoring page и `Activate` response, от которых зависит React PoC UI.
+- Проверка того, что local-only frontend slice materialize-ит key-scoped `reasoning_effort` policy editor для `openai-chatgpt` и не ломает explicit pass-through / reset contour.
 - Проверка checked-in delivery boundary: frontend и backend публикуются только на localhost, public namespace ограничен `/openai-chatgpt`, admin path остается `/admin`.
 - Frontend browser-test contour отсутствует; вместо него suite фиксирует обязательный build smoke `npm run build` в `services/frontend`.
 
@@ -49,7 +50,8 @@
 - Создать platform API key через `POST /admin/api-keys/openai-chatgpt` или через локальный frontend.
 - Подтвердить `GET /openai-chatgpt/v1/models` с Bearer key и наличие `gpt-5.4` в ответе.
 - Выполнить `POST /openai-chatgpt/v1/chat/completions` и подтвердить успешный non-stream ответ.
-- Открыть локальный frontend, проверить monitoring page, `Activate`, manual refresh banner и key list/revoke flow.
+- Открыть локальный frontend, проверить monitoring page, `Activate`, manual refresh banner, key list/revoke flow и inline policy editor для `reasoning_effort`.
+- Для одного active key проверить explicit pass-through state, сохранение `force` или `default_if_absent` override и reset back to pass-through.
 - Отозвать ключ и перепроверить public route: ожидается `401 invalid_api_key`.
 - Для delivery boundary убедиться, что внешний demo URL публикует только `/openai-chatgpt/*`, а `/admin/*` и frontend остаются локальными.
 

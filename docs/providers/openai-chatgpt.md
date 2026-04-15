@@ -78,6 +78,13 @@ Admin boundary:
 - `PUT /admin/request-policies/openai-chatgpt/keys/<key_id>`
 - `DELETE /admin/request-policies/openai-chatgpt/keys/<key_id>`
 
+Current local-only frontend slice already consumes this admin boundary:
+
+- API keys panel exposes inline `Edit policy` action per active key;
+- editor works in current key/group context;
+- explicit no-policy state is shown as pass-through;
+- UI surfaces backend-derived reasoning values, optional constraints and read-only raw capability JSON.
+
 Initial parameter scope:
 
 - `reasoning_effort`
@@ -87,6 +94,8 @@ Initial model families of interest:
 - `gpt-5.4`
 - `gpt-5.4-mini`
 - `gpt-5.3-codex`
+
+В текущем admin Web UI именно эти model families materialized как initial editable scope для `reasoning_effort` policy editor.
 
 Detailed architecture canon for this boundary: [`docs/architecture/provider-request-policy-overrides.md`](docs/architecture/provider-request-policy-overrides.md:1)
 
